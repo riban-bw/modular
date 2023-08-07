@@ -7,7 +7,7 @@ Modular is a physical interface to the virtual modular system Cardinal. It provi
 
 Each panel is based on a STM32F103C8 with a common firmware that supports various quantities and types of controls and indicators. Each panel type has a UID that maps to a Cardinal module (plugin/model).
 
-Connect each module to a ribbon cable connector then power up the device. The core will communicate via I2C to detec which panels are installed, assign each panel an I2C address then configure Cardinal with the appropriate modules via OSC.
+Connect each module to a ribbon cable connector then power up the device. The core will communicate via I2C to detect which panels are installed, assign each panel an I2C address then configure Cardinal with the appropriate modules via OSC.
 
 ## Usage
 

@@ -1,0 +1,6 @@
+[submodule "dpf"]
+	path = dpf
+	url = https://github.com/DISTRHO/DPF.git
+[submodule "plugins/bogaudio"]
+	path = plugins/bogaudio
+	url = https://github.com/bogaudio/BogaudioModules.git
