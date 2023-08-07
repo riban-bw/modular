@@ -3,11 +3,23 @@ import jack
 import liblo
 from time import sleep
 import threading
+from  subprocess import Popen,DEVNULL
+import os
 
 running = True
 
+
 ###############################################################################
-# jack routing and monitoring
+# Start Cardinal
+
+ENV = os.environ.copy()
+ENV["JACK_NO_AUDIO_RESERVATION"] = "1"
+jackd_proc = Popen(['jackd', '-dalsa', '-dhw:CODEC', '-Xraw', '-p128'], stdout=DEVNULL, stderr=DEVNULL, env=ENV)
+sleep(1) #TODO: Check if jackd has started before progressing
+cardinal_proc = Popen(['Cardinal'], stdout=DEVNULL, stderr=DEVNULL)
+
+###############################################################################
+# Jack routing and monitoring
 
 xcount = 0
 
@@ -444,11 +456,11 @@ def load_module_db(filename):
     module_db = {int(k): v for k, v in data.items()}
 
 
-def on_new_panel(id, addr):
+def on_add_panel(addr, id):
     """Handle a hardware panel added to device
     
-    id - Panel UID / type
-    addr - Panel I2C address
+    addr - panel I2C address
+    id - panel UID / type
     """
 
     global tmp_panel_addr
@@ -457,6 +469,18 @@ def on_new_panel(id, addr):
         plugin = module_db[id]["plugin"]
         model = module_db[id]["model"]
         add_module(plugin, model)
+    except:
+        pass
+
+def on_remove_panel(addr):
+    """Handle a hardware panel removed from device
+    
+    addr - panel I2C address
+    """
+
+    try:
+        module_id = addr2modules.pop(addr)
+        remove_module(module_id)
     except:
         pass
 
@@ -548,17 +572,37 @@ load_module_db("/home/dietpi/panel.json")
 sleep(2)
 
 # Add VCO
-on_new_panel(1, 10)
+on_add_panel(10, 1)
+sleep(1) #TODO: Use a transaction to check module is added
+# Add VCF
+on_add_panel(11, 3)
 sleep(1) #TODO: Use a transaction to check module is added
 # Add VCA
-on_new_panel(4, 11)
+on_add_panel(12, 4)
 sleep(1) #TODO: Use a transaction to check module is added
 # Add ADSR
-on_new_panel(9, 12)
+on_add_panel(14, 9)
 sleep(1) #TODO: Use a transaction to check module is added
 
-cmd = ""
+# Route VCO to VCF
+on_route_touch(10, 6)
+on_route_touch(11, 3)
+sleep(1)
+
+# Route VCF to output
+on_route_touch(11, 1)
+on_route_touch(1, 0)
+sleep(1)
+
 while True:
+    if cardinal_proc.poll() is not None:
+        # Cardninal has terminated so let's restart it
+        cardinal_proc = Popen(['Cardinal'], stdout=DEVNULL, stderr=DEVNULL)
+    if jackd_proc.poll() is not None:
+        # jackd has terminated so let's restart it
+        #TODO: This does not work - need more robust handling of jackd failure
+        jackd_proc = Popen(['jackd', '-dalsa', '-dCODEC', '-Xraw', '-p128'], stdout=DEVNULL, stderr=DEVNULL)
+
     cmd = input()
     try:
         if cmd.lower().startswith('q'):
@@ -568,8 +612,23 @@ while True:
             print("quit: Quit")
             print("help: Help")
             print("?: Help")
+            print("modules: List installed modules")
+            print("+x,y: Add a panel with I2C address x of type y")
+            print("-x: Remove a panel with I2C address x")
             print("x,y: Push button y on panel with I2C address x")
             print("x,y,z: Set parameter y on panel with I2C address x to value z")
+        elif cmd.startswith("+"):
+            x, y = cmd[1:].split(",")
+            addr = int(x)
+            id = int(y)
+            on_add_panel(addr, id)
+        elif cmd.startswith("-"):
+            addr = int(cmd[1:])
+            on_remove_panel(addr)
+        elif cmd.startswith("modules"):
+            for addr,module_id in addr2modules.items():
+                module = modules[module_id]
+                print(f"{addr}: {module['plugin']} : {module['model']}")
         else:
             try:
                 x,y,z = cmd.split(",")
@@ -587,3 +646,9 @@ while True:
 
 running = False
 #autoconnect_thread.join()
+
+cardinal_proc.terminate()
+client.deactivate()
+sleep(1)
+jackd_proc.terminate()
+sleep(1)
