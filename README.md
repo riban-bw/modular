@@ -17,3 +17,42 @@ Each panel has input and output buttons representing audio and CV ports. Inputs 
 Pressing an output button will select the output, flash the light in its button and flash any connected inputs' buttons. Pressing the button again will deselect it. Similarly pressing an input button will select it and indicate any connected output by flashing the output's button. When an input (or output) is selected, pressing an output (or input) button will make a cable connection between them. If a cable is already connected then it will be removed.
 
 Adjusting a knob, switch, etc. will adjust the associated parameter, e.g. VCO frequency.
+
+## I2C Protocol
+
+Communication between the core system and module panels uses I2C two wire serial bus. The core acts as the controller and each panel acts as a target. The core clears a GPI (connected to the first module's reset pin) at startup signalling that the first module should configure its I2C address. After the first module is configured it clears a GPI (connected to the next module's reset pin) to signal the next module should configure its I2C address. This repeats until all modules are configured. The core assigns consecutive I2C addresses starting at 0x10 up to a maximum 0x70. The default I2C address of each module immediatly after reset is 0x77.
+
+Subsequent communication between the core and each module is targetted at each modules assigned I2C address and uses a protocol similar to SMBus, i.e. the first byte indicates a command and subsequent bytes are expected based upon the command.
+
+#### I2C Write Commands
+
+|Command|Message length|Purpose|
+|---|---|---|
+|0x03|5|Set LED mode and primary colour|
+|0x04|5|Set LED mode and secondary colour|
+
+`0x03 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and primary colour
+    NN - LED index
+    MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
+    RR - Red intensity (intensity of simple LED)
+    GG - Green intensity (not used by simple LED)
+    BB - Blue intensity (not used by simple LED)
+
+`0x04 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and secondary colour (used for flash and pulse)
+    NN - LED index
+    MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
+    RR - Red intensity (intensity of simple LED)
+    GG - Green intensity (not used by simple LED)
+    BB - Blue intensity (not used by simple LED)
+
+#### I2C Read Commands
+
+To request data, send the command followed by a request. The module always returns 4 bytes containing the requested data.
+
+|Command|Purpose|
+|---|---|
+|0..31|Request knob value 0..31|
+|32|Request switch values (bitwise flags for each of 32 switches)|
+|240|Request module type|
+|254|Set module I2C address (only once after reset)|
+|255|Reset module|
