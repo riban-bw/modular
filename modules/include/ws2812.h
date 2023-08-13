@@ -7,7 +7,7 @@
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
   You should have received a copy of the GNU General Public License along with Foobar. If not, see <https://www.gnu.org/licenses/>.
 
-  WS2812 device driver (ab)using  Roger Clark's SPI interface library
+  Header for WS2812 device driver (ab)using  Roger Clark's SPI interface library
   Based on https://www.newinnovations.nl/post/controlling-ws2812-and-ws2812b-using-only-stm32-spi
 */
 

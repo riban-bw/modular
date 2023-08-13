@@ -1,7 +1,6 @@
 import smbus
 import RPi.GPIO as GPIO
 from time import sleep
-import json
 
 RESET_PIN = 17
 module_map = {}
@@ -64,7 +63,7 @@ def run():
         a = read(11, 1)
         if a[0] == 4 and a[1] != x:
             x = a[1]
-            print(f"Cap: {x})
+            print(f"Cap: {x}")
         if a[0] == 2:
             print(f"Ana: {a[1]}")
 

@@ -29,7 +29,7 @@ void ws2812_init(uint16_t leds) {
 
 void ws2812_refresh() {
     if (ws2812_pending) {
-        SPI.transfer(ws2812_buffer, WS2812_BUFFER_SIZE, SPI_CONTINUE);
+        SPI.transfer(ws2812_buffer, WS2812_BUFFER_SIZE);
         ws2812_pending = false;
     }
 }

@@ -35,37 +35,35 @@ uint32_t scheduledFastFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledPulse = 0; // Time that next LED pulse change will occur
 uint32_t scheduledFastPulse = 0; // Time that next LED pulse change will occur
 
-
 struct SWITCH {
-  uint8_t gpi; // GPI id
-  bool value = 0;
-  uint32_t lastChange = 0;
+  uint8_t gpi; // GPI pin
+  bool value = 0; // Current value
+  uint32_t lastChange = 0; // Time of last value change
 };
 
 struct ADC {
-  uint8_t gpi;
-  uint32_t sum = 0;
-  uint32_t value = 0;
-  uint16_t avValues[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  uint8_t gpi; // GPI pin
+  uint32_t sum = 0; // Sum of last 16 samples
+  uint32_t value = 0; // Current filtered / averaged value
+  uint16_t avValues[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // Last 16 samples
 };
 
 struct LED {
-  uint8_t gpi;
+  uint8_t gpi; // GPI pin
 };
 
 struct WS_LED {
     uint8_t led; // Index of LED in WS2812 chain
     uint8_t mode = 0; // WS2812_MODE
-    uint8_t r1 = 100; // Preset red value
-    uint8_t g1 = 100; // Preset green value
-    uint8_t b1 = 0; // Preset blue value
-    uint8_t r2 = 10; // Preset red value
-    uint8_t g2 = 10; // Preset green value
-    uint8_t b2 = 0; // Preset blue value
-    uint32_t value = 0; // Current value 0x00rrggbb or 0|1 for flash
-    bool dir = true; // Direction for  pulse
+    uint8_t r1 = 100; // Primary red value
+    uint8_t g1 = 100; // Primary green value
+    uint8_t b1 = 0; // Primary blue value
+    uint8_t r2 = 10; // Secondary red value
+    uint8_t g2 = 10; // Secondary green value
+    uint8_t b2 = 0; // Secondary blue value
+    uint32_t value = 0; // Current value 0x00rrggbb used by fade
+    bool dir = true; // Fade direction for pulse or state for flash
 };
-
 
 struct SWITCH switches[SWITCHES];
 struct ADC adcs[ADCS];
@@ -118,16 +116,18 @@ void processWs2812(uint32_t now) {
       if(wsleds[i].mode == WS2812_MODE_OFF) {
           ws2812_set(wsleds[i].led, 0, 0, 0);
           wsleds[i].mode = WS2812_MODE_IDLE;
+          wsleds[i].dir = false;
       } else if (wsleds[i].mode == WS2812_MODE_ON) {
           ws2812_set(wsleds[i].led, wsleds[i].r1, wsleds[i].g1, wsleds[i].b1);
           wsleds[i].mode = WS2812_MODE_IDLE;
+          wsleds[i].dir = true;
       } else if (wsleds[i].mode == WS2812_MODE_SLOW_FLASH && doFlash || wsleds[i].mode == WS2812_MODE_FAST_FLASH && doFastFlash) {
-          if (wsleds[i].value) {
+          if (wsleds[i].dir) {
             ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
-            wsleds[i].value = 0;
+            wsleds[i].dir = false;
           } else {
             ws2812_set(wsleds[i].led, wsleds[i].r1, wsleds[i].g1, wsleds[i].b1);
-            wsleds[i].value = 1;
+            wsleds[i].dir = true;
           }
       } else if (wsleds[i].mode == WS2812_MODE_SLOW_PULSE && doPulse || wsleds[i].mode == WS2812_MODE_FAST_PULSE && doFastPulse) {
           uint8_t r = wsleds[i].value >> 16;
@@ -177,6 +177,8 @@ void reset() {
   Wire.onRequest(onI2Crequest);
   Wire.onReceive(onI2Creceive);
   configured = false;
+  for (uint16_t i = 0; i < WSLEDS; ++i)
+    wsleds[i].mode = WS2812_MODE_OFF;
 }
 
 // Initialise module
@@ -200,6 +202,8 @@ void setup(){
     wsleds[i].led = i;
   }
 
+  Wire.setSCL(PB10);
+  Wire.setSDA(PB11);
   reset();
   pinMode(PC13, OUTPUT);
   delay(2000);
@@ -277,12 +281,11 @@ void onI2Creceive(int count) {
   switch(i2cCommand) {
     case 0xfe:
       // Set I2C address
-      if (!configured && count == 2) {
+      if (!configured && count > 1) {
         uint8_t addr = Wire.read();
         //Serial.printf("  Set I2C address >> 0x%02X\n", addr);
-        if (addr >= 0x10 && addr < 0x77) {
-          Wire.begin(addr, true);
-          Wire.onRequest(onI2Crequest);
+        if (addr >= 10 && addr < 111) {
+          Wire.begin(addr, false);
           configured = true;
           //Serial.printf("  Changed I2C address to %02x\n", i2cOffset);
           digitalWrite(NEXT_MODULE_PIN, HIGH);
@@ -293,38 +296,37 @@ void onI2Creceive(int count) {
       // Reset
       reset();
       break;
-    case 0x03:
+    case 0xF1:
+    case 0xF2:
       // Set WS2812 mode and colour
       if (count > 2) {
         uint8_t led = Wire.read();
-        if (led < WSLEDS) {
-          wsleds[led].mode = Wire.read();
-        }
+        uint8_t mode = Wire.read();
+        uint8_t r,g,b;
         if (count > 5) {
-          wsleds[led].r1 = Wire.read();
-          wsleds[led].g1 = Wire.read();
-          wsleds[led].b1 = Wire.read();
+          r = Wire.read();
+          g = Wire.read();
+          b = Wire.read();
         }
-        //Serial.printf("  LED %d mode %d colour (%d,%d,%d)\n", led, wsleds[led].mode, wsleds[led].r1, wsleds[led].g1, wsleds[led].b1);
-      }
-      break;
-    case 0x04:
-      // Set WS2812 mode and colour 2
-      if (count > 2) {
-        uint8_t led = Wire.read();
         if (led < WSLEDS) {
-          wsleds[led].mode = Wire.read();
-        }
-        if (count > 5) {
-          wsleds[led].r2 = Wire.read();
-          wsleds[led].g2 = Wire.read();
-          wsleds[led].b2 = Wire.read();
-        //Serial.printf("  LED %d mode %d colour2 (%d,%d,%d)\n", led, wsleds[led].mode, wsleds[led].r2, wsleds[led].g2, wsleds[led].b2);
+          wsleds[led].mode = mode;
+          if (count > 5) {
+            if (i2cCommand == 0xF1) {
+              wsleds[led].r1 = r;
+              wsleds[led].g1 = g;
+              wsleds[led].b1 = b;
+            } else {
+              wsleds[led].r2 = r;
+              wsleds[led].g2 = g;
+              wsleds[led].b2 = b;
+            }
+          }
+          //Serial.printf("  LED %d mode %d colour (%d,%d,%d)\n", led, wsleds[led].mode, wsleds[led].r1, wsleds[led].g1, wsleds[led].b1);
         }
       }
       break;
   }
-  Wire.flush();
+  //Wire.flush();
 }
 
 // Handle I2C request for data - assume command was set before request
@@ -333,16 +335,22 @@ void onI2Crequest() {
   static uint32_t response;
   response = 0;
 
-  if (i2cCommand == 0xF0)
+  if (i2cCommand == 0xF0) {
     response = MODULE_TYPE;
+    //Serial.printf("MODULE TYPE\n");
+  }
   else if (i2cCommand < ADCS) {
     response = adcs[i2cCommand].value;
+    //Serial.printf("ADC %d=%d\n", i2cCommand, response);
   }
   else if (i2cCommand == 32) {
     // Get first bank of 32 switches
+    //Serial.printf("GPI\n");
     response = switchValues;
+  } else {
+    //Serial.printf("BAD %d\n", i2cCommand);
   }
   //Serial.printf("Responding with value 0x%08X\n", response);
   Wire.write((uint8_t*)&response, 4);
-  delayMicroseconds(100); //!@todo Why is this delay required - without it the response gives spurious results
+  delayMicroseconds(10); // Need delay to avoid bad read but too long will corrups WS2812 bus
 }

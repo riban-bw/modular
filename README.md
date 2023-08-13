@@ -31,14 +31,14 @@ Subsequent communication between the core and each module is targetted at each m
 |0x03|5|Set LED mode and primary colour|
 |0x04|5|Set LED mode and secondary colour|
 
-`0x03 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and primary colour
+`0xF1 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and primary colour
     NN - LED index
     MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
     RR - Red intensity (intensity of simple LED)
     GG - Green intensity (not used by simple LED)
     BB - Blue intensity (not used by simple LED)
 
-`0x04 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and secondary colour (used for flash and pulse)
+`0xF2 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and secondary colour (used for flash and pulse)
     NN - LED index
     MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
     RR - Red intensity (intensity of simple LED)
