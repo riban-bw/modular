@@ -12,7 +12,7 @@
 
 import smbus # python3-smbus:arm64
 import RPi.GPIO as GPIO # python3-rpi.gpio
-from time import sleep
+from time import sleep, monotonic
 
 RESET_PIN = 17
 module_map = {}
@@ -29,25 +29,31 @@ def set_wsled_mode(led, mode):
     bus.write_i2c_block_data(i2c_addr, 0xF1, [led, mode])
 
 def set_wsled(led, mode, red, green, blue):
-    bus.write_i2c_block_data(i2c_addr, 0xF2, mode, red, green, blue)
+    bus.write_i2c_block_data(i2c_addr, 0xF1, [led, mode, red, green, blue])
+
+def set_wsled_secondary(led, mode, red, green, blue):
+    bus.write_i2c_block_data(i2c_addr, 0xF2, [led, mode, red, green, blue])
 
 def led_off(led):
     set_wsled_mode(led, 0)
 
-def led_on(led):
-    set_wsled_mode(led, 1)
+def led_on(led, secondary=False):
+    if secondary:
+        set_wsled_mode(led, 2)
+    else:
+        set_wsled_mode(led, 1)
 
 def led_flash(led):
-    set_wsled_mode(led, 2)
-
-def led_flash_fast(led):
     set_wsled_mode(led, 3)
 
-def led_pulse(led):
+def led_flash_fast(led):
     set_wsled_mode(led, 4)
 
-def led_pulse_fast(led):
+def led_pulse(led):
     set_wsled_mode(led, 5)
+
+def led_pulse_fast(led):
+    set_wsled_mode(led, 6)
 
 def get_module_type():
     result = bus.read_i2c_block_data(i2c_addr, 0xF0, 4)
@@ -110,4 +116,11 @@ def init():
     print("Finished init")
 
 init()
+
+for x in range(10):
+    a = monotonic()
+    for i in range(6):
+        b= get_adc(i)
+    get_gpi(0)
+    print(f"{monotonic() - a}")
 

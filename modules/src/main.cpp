@@ -121,6 +121,10 @@ void processWs2812(uint32_t now) {
           ws2812_set(wsleds[i].led, wsleds[i].r1, wsleds[i].g1, wsleds[i].b1);
           wsleds[i].mode = WS2812_MODE_IDLE;
           wsleds[i].dir = true;
+      } else if (wsleds[i].mode == WS2812_MODE_ON2) {
+          ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
+          wsleds[i].mode = WS2812_MODE_IDLE;
+          wsleds[i].dir = true;
       } else if (wsleds[i].mode == WS2812_MODE_SLOW_FLASH && doFlash || wsleds[i].mode == WS2812_MODE_FAST_FLASH && doFastFlash) {
           if (wsleds[i].dir) {
             ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
@@ -252,6 +256,9 @@ void loop() {
         case 'O':
           wsleds[selected_led].mode = WS2812_MODE_OFF;
           break;
+        case 'i':
+          wsleds[selected_led].mode = WS2812_MODE_ON2;
+          break;
         case 'f':
           wsleds[selected_led].mode = WS2812_MODE_SLOW_FLASH;
           break;
@@ -276,6 +283,7 @@ void onI2Creceive(int count) {
   //Serial.printf("onI2Creceive(%d)\n", count);
   if (count) {
     i2cCommand = Wire.read();
+    --count;
     //Serial.printf("  Command: 0x%02X\n", i2cCommand);
   }
   switch(i2cCommand) {
@@ -283,6 +291,7 @@ void onI2Creceive(int count) {
       // Set I2C address
       if (!configured && count > 1) {
         uint8_t addr = Wire.read();
+        --count;
         //Serial.printf("  Set I2C address >> 0x%02X\n", addr);
         if (addr >= 10 && addr < 111) {
           Wire.begin(addr, false);
@@ -299,34 +308,33 @@ void onI2Creceive(int count) {
     case 0xF1:
     case 0xF2:
       // Set WS2812 mode and colour
-      if (count > 2) {
+      if (count > 1) {
         uint8_t led = Wire.read();
         uint8_t mode = Wire.read();
-        uint8_t r,g,b;
-        if (count > 5) {
-          r = Wire.read();
-          g = Wire.read();
-          b = Wire.read();
-        }
+        count -= 2;
         if (led < WSLEDS) {
           wsleds[led].mode = mode;
-          if (count > 5) {
+          if (count > 2) {
             if (i2cCommand == 0xF1) {
-              wsleds[led].r1 = r;
-              wsleds[led].g1 = g;
-              wsleds[led].b1 = b;
+              wsleds[led].r1 = Wire.read();
+              wsleds[led].g1 = Wire.read();
+              wsleds[led].b1 = Wire.read();
             } else {
-              wsleds[led].r2 = r;
-              wsleds[led].g2 = g;
-              wsleds[led].b2 = b;
+              wsleds[led].r2 = Wire.read();
+              wsleds[led].g2 = Wire.read();
+              wsleds[led].b2 = Wire.read();
             }
+            count -= 3;
           }
           //Serial.printf("  LED %d mode %d colour (%d,%d,%d)\n", led, wsleds[led].mode, wsleds[led].r1, wsleds[led].g1, wsleds[led].b1);
         }
       }
       break;
   }
-  //Wire.flush();
+  while (count) {
+    Wire.read();
+    --count;
+  }
 }
 
 // Handle I2C request for data - assume command was set before request
