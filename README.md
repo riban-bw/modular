@@ -26,10 +26,15 @@ Subsequent communication between the core and each module is targetted at each m
 
 #### I2C Write Commands
 
-|Command|Message length|Purpose|
+|Command|Payload length|Purpose|
 |---|---|---|
-|0x03|5|Set LED mode and primary colour|
-|0x04|5|Set LED mode and secondary colour|
+|0xF1|2|Set LED mode|
+|0xF1|3|Set LED primary colour|
+|0xF1|5|Set LED mode and primary colour|
+|0xF2|3|Set LED secondary colour|
+|0xF2|5|Set LED mode and secondary colour|
+|0xFE|1|Set I2C address|
+|0xFF|0|Reset|
 
 `0xF1 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and primary colour
     NN - LED index

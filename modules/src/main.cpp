@@ -308,13 +308,15 @@ void onI2Creceive(int count) {
     case 0xF1:
     case 0xF2:
       // Set WS2812 mode and colour
-      if (count > 1) {
+      if (count) {
         uint8_t led = Wire.read();
-        uint8_t mode = Wire.read();
-        count -= 2;
+        --count;
         if (led < WSLEDS) {
-          wsleds[led].mode = mode;
-          if (count > 2) {
+          if (count == 1 || count == 4) {
+            wsleds[led].mode = Wire.read();
+            --count;
+          }
+          if (count == 3) {
             if (i2cCommand == 0xF1) {
               wsleds[led].r1 = Wire.read();
               wsleds[led].g1 = Wire.read();

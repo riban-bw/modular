@@ -28,6 +28,14 @@ def set_target_address(addr):
 def set_wsled_mode(led, mode):
     bus.write_i2c_block_data(i2c_addr, 0xF1, [led, mode])
 
+def led_colour(led, red, green, blue):
+    """ Sets LED colour after next mode set"""
+    bus.write_i2c_block_data(i2c_addr, 0xF1, [led, red, green, blue])
+
+def led_secondary_colour(led, red, green, blue):
+    """ Sets LED secondary colour after next mode set"""
+    bus.write_i2c_block_data(i2c_addr, 0xF2, [led, red, green, blue])
+
 def set_wsled(led, mode, red, green, blue):
     bus.write_i2c_block_data(i2c_addr, 0xF1, [led, mode, red, green, blue])
 
