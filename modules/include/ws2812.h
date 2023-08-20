@@ -27,8 +27,9 @@
 void ws2812_init(uint16_t leds);
 
 /** @brief  Send data to the WS2812 LEDs
+*   @param  mode 1 to temporarily turn all LEDs off, 2 to force write (Default: 0)
 */
-void ws2812_refresh();
+void ws2812_refresh(bool mode=0);
 
 /** @brief  Set the colour and intensity of an individual LED
 *   @param  led Index of LED
@@ -55,11 +56,5 @@ enum WS2812_MODE {
     WS2812_MODE_SLOW_PULSE = 5,
     WS2812_MODE_FAST_PULSE = 6
 };
-
-/** @brief  Set the display mode of a LED
-*   @param  led Index of led
-*   @mode   Mode from WS2812_MODE
-*/
-void ws2812_setMode(uint16_t led, uint8_t mode);
 
 #endif //WS2812_H

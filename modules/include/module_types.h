@@ -14,7 +14,7 @@
 #error Module type not defined
 #endif //MODULE_TYPE
 
-/* Available GPI
+/* Available GPI (STM32F103 Bluepill dev board)
 PORT|ADC|PWM|COMMS|Note
 -----------------------
 PA0 | X | X |     |
@@ -23,8 +23,8 @@ PA2 | X | X |     |
 PA3 | X | X |     |
 PA4 | X |   |     |
 PA5 | X |   |     |
-PA6 | X | X |MISO |Is this free?
-PA7 | X | X |MOSI |WS2812 control
+PA6 | X | X |     |
+PA7 | X | X |     |
 PA8 |   | X |     |
 PA9 |   | X |     |
 PA10|   | X |     |
@@ -38,26 +38,29 @@ PB1 | X | X |     |
 PB2 |   |   |     |Top header boot pin
 PB3 |   |   |     |
 PB4 |   |   |     |
-PB5 |   |   |MOSI |Alternative
-PB6 |   | X |SCL  |
-PB7 |   | X |SDA  |
-PB8 |   | X |SCL  |Alternative
-PB9 |   | X |SDA  |Alternative
-PB10|   |   |SCL  |Alternative
-PB11|   |   |SDA  |Alternative
+PB5 |   |   |     |
+PB6 |   | X |     |
+PB7 |   | X |     |
+PB8 |   | X |     |
+PB9 |   | X |     |
+PB10|   |   |SCL  |I2C
+PB11|   |   |SDA  |I2C
 PB12|   |   |     |
 PB13|   |   |     |
 PB14|   |   |     |
-PB15|   |   |     |
-PC13|   |   |     |
+PB15|   |   |MOSI2|WS2812 control
+PC13|   |   |LED  |
 PC14|   |   |     |Next module reset
-PC15|   |   |MOSI |Alternative
+PC15|   |   |     |
 */
 
 #define ADC_PINS {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB0, PB1}
 #define PWM_PINS {PA0, PA1, PA2, PA3, PA6, PA7, PA8, PA9, PA10, PB0, PB1, PB6, PB7, PB8, PB9}
-#define GPI_PINS {PB3, PB4, PB8, PB9, PB10, PB11, PB12, PB13, PB14, PB15, PC15, PA15, PA11, PA12, PA15, PA13, PA14, PB2, PB5}
-
+#define GPI_PINS {PB0, PB1, PB3, PB4, PB5, PB6, PB7, PB8, PB9, PB12, PB13, PB14, PC15, PA15}
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define MOSI_PIN PB15 //WS2812 LED data
+#define RESET_PIN PC14
 
 #if MODULE_TYPE==1
 // VCV Fundamental VCO

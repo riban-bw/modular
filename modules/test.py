@@ -13,9 +13,10 @@
 import smbus # python3-smbus:arm64
 import RPi.GPIO as GPIO # python3-rpi.gpio
 from time import sleep, monotonic
+import json
 
 RESET_PIN = 17
-module_map = {}
+module_map = {} # Map of module config indexed by I2C address
 i2c_addr = 0x77
 
 bus = smbus.SMBus(1)
@@ -63,12 +64,15 @@ def led_pulse(led):
 def led_pulse_fast(led):
     set_wsled_mode(led, 6)
 
+def led_mute(mute):
+    bus.write_i2c_block_data(i2c_addr, 0xF3, [mute])
+
 def get_module_type():
     result = bus.read_i2c_block_data(i2c_addr, 0xF0, 4)
     return result[0] + (result[1] << 8) + (result[2] << 16) + (result[3] << 24)
 
 def get_adc(adc):
-    result = bus.read_i2c_block_data(i2c_addr, adc, 4)
+    result = bus.read_i2c_block_data(i2c_addr, 0x20 + adc, 4)
     return result[0] + (result[1] << 8) + (result[2] << 16) + (result[3] << 24)
 
 def get_gpi(gpi):
@@ -97,38 +101,36 @@ def read_gpi(gpi):
             b = a
         sleep(0.01)
 
-def reset():
+def hw_reset():
     GPIO.output(RESET_PIN, 0)
     sleep(0.1)
     GPIO.output(RESET_PIN, 1)
 
-def init():
+def init_modules():
     global module_map, i2c_addr
+    with open("/home/dietpi/.config/riban/panel.json", "r") as f:
+        cfg = json.load(f)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(RESET_PIN, GPIO.OUT)
     reset()
     sleep(1)
-    pos = 0
+    addr = 10
     module_map = {}
+    print("Detecting attached modules:")
     while True:
         i2c_addr = 0x77
         try:
             type = get_module_type()
         except:
             break
-        module_map[pos] = type
-        set_target_address(10 + pos)
-        print(f"Configured module type {type} with I2C address {10+pos:02x}")
+        set_target_address(addr)
+        if str(type) in cfg:
+            module_map[addr] = cfg[str(type)]
+            print(f"  0x{addr:02x}: {module_map[addr]}")
         sleep(1)
-        pos += 1
+        addr += 1
     print("Finished init")
 
-init()
 
-for x in range(10):
-    a = monotonic()
-    for i in range(6):
-        b= get_adc(i)
-    get_gpi(0)
-    print(f"{monotonic() - a}")
+init_modules()
 

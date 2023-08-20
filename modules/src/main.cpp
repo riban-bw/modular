@@ -14,9 +14,6 @@
 #include <Arduino.h>
 #include <Wire.h> // I2C inteface
 #include "modular.h"
-//#include "switch.h"
-//#include "adc.h"
-//#include "led.h"
 #include "ws2812.h"
 
 #define NEXT_MODULE_PIN PC14 // GPI connected to next module's reset pin
@@ -29,11 +26,20 @@ uint16_t i2cOffset = 0; // I2C offset to read / write
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
-uint32_t switchValues = 0; // 32-bit flags representing value of first 32 GPI / switches
+uint8_t muxAddr = 0; // Multiplexer address [0..7]
+uint32_t switchValues[16]; // 32-bit flags representing value of banks of 32 GPI / switches
 uint32_t scheduledFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledFastFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledPulse = 0; // Time that next LED pulse change will occur
 uint32_t scheduledFastPulse = 0; // Time that next LED pulse change will occur
+uint32_t reset_time = -1;
+bool ledMute = false; // True to turn off all LEDs but retain config
+bool flashOn = false; // True when flash is on
+bool fastFlashOn = false; // True when fast flash is on
+bool pulseDir = true; // True when pulse is increasing
+uint8_t pulsePhase = 0; // Step through pulse fade
+bool fastPulseDir = true; // True when fast pulse is increasing
+uint8_t fastPulsePhase = 0; // Step through fast pulse fade
 
 struct SWITCH {
   uint8_t gpi; // GPI pin
@@ -80,7 +86,8 @@ void processSwitches(uint32_t now) {
     if (state != switches[i].value) {
       switches[i].value = state;
       switches[i].lastChange = now;
-      switchValues ^= (-state ^ switchValues) & (1UL << i);
+      switchValues[muxAddr] ^= (-state ^ switchValues[muxAddr]) & (1UL << i);
+      Serial.printf("Switch %d changed to %d\n", i, state);
     }
   }
 }
@@ -100,18 +107,38 @@ void processAdcs(uint32_t now) {
 
 // Process WS2812 animation
 void processWs2812(uint32_t now) {
+  if (ledMute)
+    return;
   bool doFlash = scheduledFlash < now;
   bool doFastFlash = scheduledFastFlash < now;
   bool doPulse = scheduledPulse < now;
   bool doFastPulse = scheduledFastPulse < now;
-  if (doFlash)
+  if (doFlash) {
+    flashOn = !flashOn;
     scheduledFlash += 500;
-  if (doFastFlash)
+  }
+  if (doFastFlash) {
+    fastFlashOn = !fastFlashOn;
     scheduledFastFlash += 100;
-  if (doPulse)
+  }
+  if (doPulse) {
+    if (pulseDir) {
+      if(++pulsePhase == 255)
+        pulseDir = false;
+    } else {
+      if(--pulsePhase == 0)
+        pulseDir = true;
+    }
     scheduledPulse += 10;
-  if (doFastPulse)
-    scheduledFastPulse += 2;
+  }
+  if (doFastPulse) {
+     if(++fastPulsePhase == 255)
+        fastPulseDir = false;
+  } else {
+    if(--pulsePhase == 0)
+      fastPulseDir = true;
+    scheduledFastPulse += 5;
+  }
   for (uint16_t i = 0; i < WSLEDS; ++i) {
       if(wsleds[i].mode == WS2812_MODE_OFF) {
           ws2812_set(wsleds[i].led, 0, 0, 0);
@@ -125,48 +152,34 @@ void processWs2812(uint32_t now) {
           ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
           wsleds[i].mode = WS2812_MODE_IDLE;
           wsleds[i].dir = true;
-      } else if (wsleds[i].mode == WS2812_MODE_SLOW_FLASH && doFlash || wsleds[i].mode == WS2812_MODE_FAST_FLASH && doFastFlash) {
-          if (wsleds[i].dir) {
+      } else if (wsleds[i].mode == WS2812_MODE_SLOW_FLASH && doFlash) {
+          if (flashOn) {
             ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
-            wsleds[i].dir = false;
           } else {
             ws2812_set(wsleds[i].led, wsleds[i].r1, wsleds[i].g1, wsleds[i].b1);
-            wsleds[i].dir = true;
           }
-      } else if (wsleds[i].mode == WS2812_MODE_SLOW_PULSE && doPulse || wsleds[i].mode == WS2812_MODE_FAST_PULSE && doFastPulse) {
+      } else if (wsleds[i].mode == WS2812_MODE_FAST_FLASH && doFastFlash) {
+          if (fastFlashOn) {
+            ws2812_set(wsleds[i].led, wsleds[i].r2, wsleds[i].g2, wsleds[i].b2);
+          } else {
+            ws2812_set(wsleds[i].led, wsleds[i].r1, wsleds[i].g1, wsleds[i].b1);
+          }
+      } else if (wsleds[i].mode == WS2812_MODE_SLOW_PULSE && doPulse) {
           uint8_t r = wsleds[i].value >> 16;
           uint8_t g = wsleds[i].value >> 8;
           uint8_t b = wsleds[i].value;
-          wsleds[i].dir = !wsleds[i].dir;
-          if(wsleds[i].dir) {
-            // fade out
-            if (r > wsleds[i].r2) {
-              --r;
-              wsleds[i].dir = false;
-            }
-            if (g > wsleds[i].g2) {
-              --g;
-              wsleds[i].dir = false;
-            }
-            if (b > wsleds[i].b2) {
-              --b;
-              wsleds[i].dir = false;
-            }
-          } else {
-            // fade in
-            if (r < wsleds[i].r1) {
-              ++r;
-              wsleds[i].dir = true;
-            }
-            if (g < wsleds[i].g1) {
-              ++g;
-              wsleds[i].dir = true;
-            }
-            if (b < wsleds[i].b1) {
-              ++b;
-              wsleds[i].dir = true;
-            }
-        }
+          r = (wsleds[i].r1 - wsleds[i].r2) * pulsePhase / 256 + wsleds[i].r2;
+          g = (wsleds[i].g1 - wsleds[i].g2) * pulsePhase / 256 + wsleds[i].g2;
+          b = (wsleds[i].b1 - wsleds[i].b2) * pulsePhase / 256 + wsleds[i].b2;
+        wsleds[i].value = r << 16 | g << 8 | b;
+        ws2812_set(wsleds[i].led, r, g, b);
+      } else if (wsleds[i].mode == WS2812_MODE_FAST_PULSE && doFastPulse) {
+          uint8_t r = wsleds[i].value >> 16;
+          uint8_t g = wsleds[i].value >> 8;
+          uint8_t b = wsleds[i].value;
+          r = (wsleds[i].r1 - wsleds[i].r2) * fastPulsePhase / 256 + wsleds[i].r2;
+          g = (wsleds[i].g1 - wsleds[i].g2) * fastPulsePhase / 256 + wsleds[i].g2;
+          b = (wsleds[i].b1 - wsleds[i].b2) * fastPulsePhase / 256 + wsleds[i].b2;
         wsleds[i].value = r << 16 | g << 8 | b;
         ws2812_set(wsleds[i].led, r, g, b);
       }
@@ -177,12 +190,16 @@ void processWs2812(uint32_t now) {
 // Reset and listen for new I2C address
 void reset() {
   Serial.println("RESET");
-  Wire.begin(LEARN_I2C_ADDR, false);
+  Wire.setSCL(SCL_PIN);
+  Wire.setSDA(SDA_PIN);
+  Wire.begin(LEARN_I2C_ADDR, true);
   Wire.onRequest(onI2Crequest);
   Wire.onReceive(onI2Creceive);
   configured = false;
+  ws2812_set_all(44, 66, 100);
   for (uint16_t i = 0; i < WSLEDS; ++i)
-    wsleds[i].mode = WS2812_MODE_OFF;
+    wsleds[i].mode = WS2812_MODE_FAST_PULSE;
+  reset_time = millis() + 1500;
 }
 
 // Initialise module
@@ -191,6 +208,11 @@ void setup(){
   //Disable next module
   pinMode(NEXT_MODULE_PIN, OUTPUT);
   digitalWrite(NEXT_MODULE_PIN, LOW);
+
+  ws2812_init(WSLEDS); // Initalise WS2812 (via SPI) before GPI to allow resuse of MOSI & SCLK pins
+  for (uint16_t i = 0; i < WSLEDS; ++ i) {
+    wsleds[i].led = i;
+  }
 
   uint8_t switch_gpis[] = GPI_PINS;
   for (uint16_t i = 0; i < SWITCHES; ++i) {
@@ -201,17 +223,10 @@ void setup(){
   for (uint16_t i = 0; i < ADCS; ++i) {
     adcs[i].gpi = adc_gpis[i];
   }
-  ws2812_init(WSLEDS);
-  for (uint16_t i = 0; i < WSLEDS; ++ i) {
-    wsleds[i].led = i;
-  }
-
-  Wire.setSCL(PB10);
-  Wire.setSDA(PB11);
   reset();
-  pinMode(PC13, OUTPUT);
-  delay(2000);
-  Serial.printf("Module 0x%04X initalised\n", MODULE_TYPE);
+  pinMode(PC13, OUTPUT); // activity LED
+  //delay(2000);
+  //Serial.printf("Module 0x%04X initalised\n", MODULE_TYPE);
 }
 
 // Main process loop
@@ -240,16 +255,32 @@ void loop() {
   }
   if (Serial.available()) {
     char c = Serial.read();
-    if (c > '0' && c < '9' && c - '0' < WSLEDS)
-        selected_led = c - '0';
+    if (c > '0' && c <= '9' && c - '0' < WSLEDS)
+        selected_led = c - '1';
     else
       switch(c) {
+        case '+':
+          ++selected_led;
+          break;
+        case '-':
+          --selected_led;
+          break;
         case '!':
           reset();
           break;
-        case '?':
-          Serial.printf("Module: 0x%04X Uptime: %d\n", MODULE_TYPE, now);
+        case '?': {
+          int ms = now;
+          int s = ms / 1000;
+          ms %= 1000;
+          int m = s / 60;
+          s %= 60;
+          int h = m / 60;
+          m %= 60;
+          int d = h / 24;
+          h %= 24;
+          Serial.printf("riban modular\nModule type: 0x%04X Uptime: %d days %02d:%02d:%02d.%04d\n", MODULE_TYPE, d, h, m, s, ms);
           break;
+        }
         case 'o':
           wsleds[selected_led].mode = WS2812_MODE_ON;
           break;
@@ -273,6 +304,13 @@ void loop() {
           break;
       }
   }
+
+  if (reset_time < now)
+  {
+    reset_time = -1;
+    for (uint16_t i = 0; i < WSLEDS; ++i)
+      wsleds[i].mode = WS2812_MODE_OFF;
+  }
   processSwitches(now);
   processAdcs(now);
   processWs2812(now);
@@ -287,27 +325,27 @@ void onI2Creceive(int count) {
     //Serial.printf("  Command: 0x%02X\n", i2cCommand);
   }
   switch(i2cCommand) {
-    case 0xfe:
-      // Set I2C address
-      if (!configured && count > 1) {
+    case 0xfd: // Test
+      Serial.println("TEST");
+      break;
+    case 0xfe: // Set I2C address
+      if (!configured && count) {
         uint8_t addr = Wire.read();
         --count;
         //Serial.printf("  Set I2C address >> 0x%02X\n", addr);
         if (addr >= 10 && addr < 111) {
-          Wire.begin(addr, false);
+          Wire.begin(addr, true);
           configured = true;
           //Serial.printf("  Changed I2C address to %02x\n", i2cOffset);
           digitalWrite(NEXT_MODULE_PIN, HIGH);
         }
       }
       break;
-    case 0xff:
-      // Reset
+    case 0xff: // Reset
       reset();
       break;
-    case 0xF1:
-    case 0xF2:
-      // Set WS2812 mode and colour
+    case 0xF1: // Set WS2812 mode and primary colour
+    case 0xF2: // Set WS2812 mode and secondary colour
       if (count) {
         uint8_t led = Wire.read();
         --count;
@@ -332,6 +370,14 @@ void onI2Creceive(int count) {
         }
       }
       break;
+    case 0xF3: // Turn off all LEDs temporarily
+      if (count) {
+        ledMute = Wire.read();
+        --count;
+        if(ledMute)
+          ws2812_refresh(ledMute);
+      }
+      break;
   }
   while (count) {
     Wire.read();
@@ -342,21 +388,23 @@ void onI2Creceive(int count) {
 // Handle I2C request for data - assume command was set before request
 void onI2Crequest() {
   //Serial.printf("onI2Crequest cmd: 0x%02X\n", i2cCommand);
-  static uint32_t response;
+  static uint32_t response; // Response is always 4 bytes
   response = 0;
 
-  if (i2cCommand == 0xF0) {
-    response = MODULE_TYPE;
-    //Serial.printf("MODULE TYPE\n");
+  if (i2cCommand < 0x10) {
+    // General commands
   }
-  else if (i2cCommand < ADCS) {
-    response = adcs[i2cCommand].value;
-    //Serial.printf("ADC %d=%d\n", i2cCommand, response);
-  }
-  else if (i2cCommand == 32) {
+  else if (i2cCommand < 0x20) {
     // Get first bank of 32 switches
     //Serial.printf("GPI\n");
-    response = switchValues;
+    response = switchValues[i2cCommand - 0x20];
+  } else if (i2cCommand - 0x20 < ADCS) {
+    response = adcs[i2cCommand - 0x20].value;
+    //Serial.printf("ADC %d=%d\n", i2cCommand, response);
+    //!@todo Handle multiplexed ADC
+  } else if (i2cCommand == 0xF0) {
+    response = MODULE_TYPE;
+    //Serial.printf("MODULE TYPE\n");
   } else {
     //Serial.printf("BAD %d\n", i2cCommand);
   }

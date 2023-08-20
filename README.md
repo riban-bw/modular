@@ -26,29 +26,24 @@ Subsequent communication between the core and each module is targetted at each m
 
 #### I2C Write Commands
 
-|Command|Payload length|Purpose|
-|---|---|---|
-|0xF1|2|Set LED mode|
-|0xF1|3|Set LED primary colour|
-|0xF1|5|Set LED mode and primary colour|
-|0xF2|3|Set LED secondary colour|
-|0xF2|5|Set LED mode and secondary colour|
-|0xFE|1|Set I2C address|
-|0xFF|0|Reset|
+|Command|Payload length|Purpose|Parameters|
+|---|---|---|---|
+|0xF1|2|Set LED mode|LED, Mode|
+|0xF1|3|Set LED primary colour|LED, Red, Green, Blue|
+|0xF1|5|Set LED mode and primary colour|LED, Mode, Red, Green, Blue|
+|0xF2|3|Set LED secondary colour|LED, Red, Green, Blue|
+|0xF2|5|Set LED mode and secondary colour|LED, Mode, Red, Green, Blue|
+|0xF3|1|Temporary extinguish all LEDs|1=Extinguish, 0=Restore|
+|0xFE|1|Set I2C address|I2C_address|
+|0xFF|0|Reset||
 
-`0xF1 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and primary colour
-    NN - LED index
-    MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
-    RR - Red intensity (intensity of simple LED)
-    GG - Green intensity (not used by simple LED)
-    BB - Blue intensity (not used by simple LED)
-
-`0xF2 0xNN 0xMM 0xRR 0xGG 0xBB` sets LED mode and secondary colour (used for flash and pulse)
-    NN - LED index
-    MM - Mode (0:off, 1:on, 2:flash, 3:fast flash, 4:pulse, 5:fast pulse)
-    RR - Red intensity (intensity of simple LED)
-    GG - Green intensity (not used by simple LED)
-    BB - Blue intensity (not used by simple LED)
+##### LED Modes
+|0x00|Off|
+|0x01|On|
+|0x02|Flash|
+|0x03|Fast flash|
+|0x04|Pulse|
+|0x05|Fast pulse|
 
 #### I2C Read Commands
 
@@ -56,8 +51,6 @@ To request data, send the command followed by a request. The module always retur
 
 |Command|Purpose|
 |---|---|
-|0..31|Request knob value 0..31|
-|32|Request switch values (bitwise flags for each of 32 switches)|
-|240|Request module type|
-|254|Set module I2C address (only once after reset)|
-|255|Reset module|
+|0x10..0x1F|Request switch values (32-bitwise flags for each switch in 16 banks)|
+|0x20..0x5F|Request knob value 1..64|
+|0xF0|Request module type|

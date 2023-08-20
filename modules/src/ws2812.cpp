@@ -20,15 +20,24 @@ bool ws2812_pending = false; // True indicates a value has changed since last re
 void ws2812_init(uint16_t leds) {
     ws2812_num_leds = leds;
     ws2812_buffer = new uint8_t[WS2812_BUFFER_SIZE];
-    SPISettings spiSettings(SPI_SPEED_CLOCK_DEFAULT, MSBFIRST, SPI_MODE_3, SPI_TRANSMITONLY);
+    SPI.setMOSI(PB15);
+    // Have to set MISO & SCLK but subsequently reuse for GPI
+    SPI.setMISO(PB14);
+    SPI.setSCLK(PB13);
+    SPISettings spiSettings(4000000, MSBFIRST, SPI_MODE_3, SPI_TRANSMITONLY);
     SPI.beginTransaction(spiSettings);
     memset(ws2812_buffer, 0, WS2812_BUFFER_SIZE);
     ws2812_set_all(0, 0, 0);
     ws2812_refresh();
 }
 
-void ws2812_refresh() {
-    if (ws2812_pending) {
+void ws2812_refresh(bool mute) {
+    if (mute) {
+        for(uint16_t i = 0; i < ws2812_num_leds * 24; ++i)
+            SPI.transfer(0b10000000);
+        for(uint16_t i = 0; i < WS2812_RESET_PULSE; ++i)
+            SPI.transfer(0b00000000);
+    } else if (ws2812_pending) {
         SPI.transfer(ws2812_buffer, WS2812_BUFFER_SIZE);
         ws2812_pending = false;
     }
