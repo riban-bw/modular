@@ -22,7 +22,6 @@
 const static uint32_t module_type = MODULE_TYPE;
 
 bool configured = false; // True when initialised and I2C address set
-uint16_t i2cOffset = 0; // I2C offset to read / write
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
@@ -53,6 +52,7 @@ struct ADC {
   uint8_t gpi; // GPI pin
   uint32_t sum = 0; // Sum of last 16 samples
   uint16_t value = 0; // Current filtered / averaged value
+  uint16_t lastValue = 0; // Last retrieved filtered / averaged value
   uint16_t avValues[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // Last 16 samples
 };
 
@@ -194,15 +194,20 @@ void processWs2812(uint32_t now) {
   ws2812_refresh();
 }
 
+// Set module I2C address
+void setAddr(uint8_t addr) {
+  Wire.setSCL(SCL_PIN);
+  Wire.setSDA(SDA_PIN);
+  Wire.begin(addr, true);
+  i2cAddr = addr;
+  Wire.onRequest(onI2Crequest);
+  Wire.onReceive(onI2Creceive);
+}
+
 // Reset and listen for new I2C address
 void reset() {
   Serial.println("RESET");
-  Wire.setSCL(SCL_PIN);
-  Wire.setSDA(SDA_PIN);
-  Wire.begin(LEARN_I2C_ADDR, true);
-  i2cAddr = LEARN_I2C_ADDR;
-  Wire.onRequest(onI2Crequest);
-  Wire.onReceive(onI2Creceive);
+  setAddr(LEARN_I2C_ADDR);
   configured = false;
   ws2812_set_all(44, 66, 100);
   for (uint16_t i = 0; i < WSLEDS; ++i)
@@ -340,13 +345,12 @@ void onI2Creceive(int count) {
       if (!configured && count) {
         uint8_t addr = Wire.read();
         --count;
-        //Serial.printf("  Set I2C address >> 0x%02X\n", addr);
+        //Serial.printf("Set I2C address >> 0x%02X\n", addr);
         if (addr >= 10 && addr < 111) {
-          Wire.begin(addr, true);
+          setAddr(addr);
           configured = true;
-          i2cAddr = addr;
-          //Serial.printf("  Changed I2C address to %02x\n", i2cOffset);
           digitalWrite(NEXT_MODULE_PIN, HIGH);
+          //Serial.printf("  Changed I2C address to %02x\n", i2cAddr);
         }
       }
       break;
@@ -411,8 +415,12 @@ void onI2Crequest() {
         if (readMask & changedFlags) {
           if (readSessionPos < 0x10)
             response = ((0x10 + readSessionPos) << 16) | switchValues[readSessionPos];
-          else if (readSessionPos < 0x10 + ADCS)
-            response = ((0x10 + readSessionPos) << 16) | adcs[readSessionPos - 0x10].value;
+          else if (readSessionPos < 0x10 + ADCS) {
+            if (adcs[readSessionPos - 0x10].value != adcs[readSessionPos - 0x10].lastValue) {
+              response = ((0x10 + readSessionPos) << 16) | adcs[readSessionPos - 0x10].value;
+              adcs[readSessionPos - 0x10].lastValue = adcs[readSessionPos - 0x10].value;
+            }
+          }
           changedFlags &= ~readMask; // clear flag
           ++readSessionPos;
           break;

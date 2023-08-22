@@ -24,7 +24,6 @@ bus = smbus.SMBus(1)
 def set_target_address(addr):
     global i2c_addr
     bus.write_i2c_block_data(0x77, 0xfe, [addr])
-    i2c_addr = addr
 
 def set_wsled_mode(led, mode):
     bus.write_i2c_block_data(i2c_addr, 0xF1, [led, mode])
@@ -75,7 +74,7 @@ def get_adc(adc):
     result = bus.read_i2c_block_data(i2c_addr, 0x20 + adc, 3)
     return result[0] | (result[1] << 8)
 
-def get_gpi_bank(bank):
+def get_gpis(bank):
     if bank < 16:
         result = bus.read_i2c_block_data(i2c_addr, 0x10 + bank, 3)
         return result[0] | (result[1] << 8)
@@ -86,7 +85,7 @@ def get_gpi(gpi):
     gpi = gpi % 16
     if bank > 15:
         return 0
-    value = get_gpi_bank(bank)
+    value = get_gpis(bank)
     return ((1 << gpi) & value == 1 << gpi)
 
 def get_changed():
@@ -100,7 +99,10 @@ def read_changed():
     while(True):
         result = get_changed()
         if result[0]:
-            print(result)
+            if result[0] < 0x20:
+                print(f"GPI {result[0] - 0x10} changed to {result[1]}")
+            else:
+                print(f"ADC {result[0] - 0x20} changed to {result[1]}")
 
 def read_changed_gpi():
     while(True):
@@ -139,7 +141,7 @@ def init_modules():
         cfg = json.load(f)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(RESET_PIN, GPIO.OUT)
-    reset()
+    hw_reset()
     sleep(1)
     addr = 10
     module_map = {}
@@ -154,6 +156,7 @@ def init_modules():
         if str(type) in cfg:
             module_map[addr] = cfg[str(type)]
             module_map[addr]["switch_states"] = []
+            module_map[addr]["knob_values"] = []
             switch_n = 0
             if 'inputs' in cfg:
                 switch_n += len(cfg['inputs'])
@@ -168,15 +171,25 @@ def init_modules():
     print("Finished init")
 
 def scan_modules():
-    for addr, cfg in module_map.items():
-        gpis = get_gpi_bank()
-        for switch, value in enumerate(cfg['switch_states']):
-            if value != gpis & 1:
-                cfg['switch_states'][switch] = gpis & 1
-                #TODO: Handle change of switch state
-                
-            gpis >>= 1
-
+    global i2c_addr
+    for i2c_addr, cfg in module_map.items():
+        while(True):
+            result = get_changed()
+            if result[0] < 0x10:
+                break
+            if result[0] < 0x20:
+                gpis = result[1]
+                for switch, value in enumerate(cfg['switch_states']):
+                    if value != gpis & 1:
+                        cfg['switch_states'][switch] = gpis & 1
+                        print(f"GPI {result[0] - 0x10} changed to {result[1]}")
+                        #TODO: Handle change of switch state
+                    gpis >>= 1
+            elif result[0] < 0x50:
+                if cfg["knob_values"] != result[1]:
+                    cfg["knob_values"] = result[1]
+                    #TODO: Handle change of knob value
+                    print(f"ADC {result[0] - 0x20} changed to {result[1]}")
 
 #init_modules()
 
