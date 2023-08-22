@@ -1,5 +1,5 @@
 {
-    "1": {"plugin": "Fundamental", "model": "VCO", "inputs": 4, "outputs": 4, "pots": 4, "toggles": 2},
+    "1": {"plugin": "Fundamental", "model": "VCO", "inputs": [[0,0],[1,1],[2,2],[3,3]], "outputs": [[4,7],[5,6],[6,5],[7,4]], "pots": [0,1,2,3], "toggles": [[8,8],[9,9]]},
     "2": {"plugin": "Fundamental", "model": "VCF", "inputs": 4, "outputs": 2, "pots": 6},
     "3": {"plugin": "Fundamental", "model": "VCA", "inputs": 2, "outputs": 1, "pots": 1},
     "4": {"plugin": "Fundamental", "model": "ADSR", "inputs": 6, "outputs": 1, "pots": 8, "toggles": 1},

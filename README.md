@@ -47,10 +47,13 @@ Subsequent communication between the core and each module is targetted at each m
 
 #### I2C Read Commands
 
-To request data, send the command followed by a request. The module always returns 4 bytes containing the requested data.
+To request data, send the command followed by a request. The module always returns 3 bytes. MSB is the address of the requested data. LSB(16) is the value of the requested data.
 
 |Command|Purpose|
 |---|---|
-|0x10..0x1F|Request switch values (32-bitwise flags for each switch in 16 banks)|
+|0x00|Request next changed sensor value|
+|0x10..0x1F|Request switch values (16-bitwise flags for each switch in 16 banks)|
 |0x20..0x5F|Request knob value 1..64|
 |0xF0|Request module type|
+
+Command 0x00 is session based, iterating through all changed values on each request. Each request will return the value of the next control that has changed since the last request. If all controls have been scanned or there are no changed values then [0x00, 0x00, 0x00] is returned. The next request for 0x00 will start a new session. This allows scanning a whole module for all changes then moving to another module without a noisy control hogging the bus.

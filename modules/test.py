@@ -5,7 +5,7 @@
   This file is part of riban modular.
   riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-  You should have received a copy of the GNU General Public License along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+  You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
   Python test program
 """
@@ -68,38 +68,65 @@ def led_mute(mute):
     bus.write_i2c_block_data(i2c_addr, 0xF3, [mute])
 
 def get_module_type():
-    result = bus.read_i2c_block_data(i2c_addr, 0xF0, 4)
-    return result[0] + (result[1] << 8) + (result[2] << 16) + (result[3] << 24)
+    result = bus.read_i2c_block_data(i2c_addr, 0xF0, 3)
+    return result[0] | (result[1] << 8)
 
 def get_adc(adc):
-    result = bus.read_i2c_block_data(i2c_addr, 0x20 + adc, 4)
-    return result[0] + (result[1] << 8) + (result[2] << 16) + (result[3] << 24)
+    result = bus.read_i2c_block_data(i2c_addr, 0x20 + adc, 3)
+    return result[0] | (result[1] << 8)
+
+def get_gpi_bank(bank):
+    if bank < 16:
+        result = bus.read_i2c_block_data(i2c_addr, 0x10 + bank, 3)
+        return result[0] | (result[1] << 8)
+    return 0
 
 def get_gpi(gpi):
-    result = bus.read_i2c_block_data(i2c_addr, 32, 4)
-    value = (result[0] + (result[1] << 8) + (result[2] << 16) + (result[3] << 24))
+    bank = gpi // 16
+    gpi = gpi % 16
+    if bank > 15:
+        return 0
+    value = get_gpi_bank(bank)
     return ((1 << gpi) & value == 1 << gpi)
+
+def get_changed():
+    result = bus.read_i2c_block_data(i2c_addr, 0x00, 3)
+    return (result[2], result[0] | (result[1] << 8))
 
 def reset():
     bus.write_i2c_block_data(i2c_addr, 0xff, [])
 
+def read_changed():
+    while(True):
+        result = get_changed()
+        if result[0]:
+            print(result)
+
+def read_changed_gpi():
+    while(True):
+        result = get_changed()
+        if result[0] == 0x10:
+            print(result)
+
 def read_adc(adc):
-    b = 0
+    b = get_adc(adc)
+    print(b)
     while True:
+        sleep(0.01)
         a = get_adc(adc)
         if abs(a-b) > 1:
             print(a)
             b = a
-        sleep(0.01)
 
 def read_gpi(gpi):
-    b = 0
+    b = get_gpi(gpi)
+    print(b)
     while True:
+        sleep(0.01)
         a = get_gpi(gpi)
         if a != b:
             print(a)
             b = a
-        sleep(0.01)
 
 def hw_reset():
     GPIO.output(RESET_PIN, 0)
@@ -126,11 +153,30 @@ def init_modules():
         set_target_address(addr)
         if str(type) in cfg:
             module_map[addr] = cfg[str(type)]
+            module_map[addr]["switch_states"] = []
+            switch_n = 0
+            if 'inputs' in cfg:
+                switch_n += len(cfg['inputs'])
+            if 'outputs' in cfg:
+                switch_n += len(cfg['outputs'])
+            if 'toggles' in cfg:
+                switch_n += len(cfg['toggles'])
+            module_map[addr]["switch_states"] = [0] * switch_n
             print(f"  0x{addr:02x}: {module_map[addr]}")
         sleep(1)
         addr += 1
     print("Finished init")
 
+def scan_modules():
+    for addr, cfg in module_map.items():
+        gpis = get_gpi_bank()
+        for switch, value in enumerate(cfg['switch_states']):
+            if value != gpis & 1:
+                cfg['switch_states'][switch] = gpis & 1
+                #TODO: Handle change of switch state
+                
+            gpis >>= 1
 
-init_modules()
+
+#init_modules()
 

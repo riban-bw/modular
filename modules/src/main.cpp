@@ -5,7 +5,7 @@
   This file is part of riban modular.
   riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-  You should have received a copy of the GNU General Public License along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+  You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
   Provides the core firmware for hardware modules implemented on STM32F107C microcontrollers.
   Modules are generic using the same firmware and are configured at compile time using preprocessor directive MODULE_TYPE
@@ -27,7 +27,7 @@ uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
 uint8_t muxAddr = 0; // Multiplexer address [0..7]
-uint32_t switchValues[16]; // 32-bit flags representing value of banks of 32 GPI / switches
+uint16_t switchValues[16]; // 32-bit flags representing value of banks of 32 GPI / switches
 uint32_t scheduledFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledFastFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledPulse = 0; // Time that next LED pulse change will occur
@@ -40,6 +40,8 @@ bool pulseDir = true; // True when pulse is increasing
 uint8_t pulsePhase = 0; // Step through pulse fade
 bool fastPulseDir = true; // True when fast pulse is increasing
 uint8_t fastPulsePhase = 0; // Step through fast pulse fade
+uint64_t changedFlags = 0; // Bitwise flags indicating a sensor value has changed
+uint8_t i2cAddr = LEARN_I2C_ADDR; // Module's I2C address
 
 struct SWITCH {
   uint8_t gpi; // GPI pin
@@ -50,7 +52,7 @@ struct SWITCH {
 struct ADC {
   uint8_t gpi; // GPI pin
   uint32_t sum = 0; // Sum of last 16 samples
-  uint32_t value = 0; // Current filtered / averaged value
+  uint16_t value = 0; // Current filtered / averaged value
   uint16_t avValues[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // Last 16 samples
 };
 
@@ -87,6 +89,7 @@ void processSwitches(uint32_t now) {
       switches[i].value = state;
       switches[i].lastChange = now;
       switchValues[muxAddr] ^= (-state ^ switchValues[muxAddr]) & (1UL << i);
+      changedFlags |= 1ULL << muxAddr;
       Serial.printf("Switch %d changed to %d\n", i, state);
     }
   }
@@ -95,11 +98,15 @@ void processSwitches(uint32_t now) {
 // Process ADCs
 void processAdcs(uint32_t now) {
   for (uint16_t i = 0; i < ADCS; ++i) {
-    uint32_t value = analogRead(adcs[i].gpi);
+    uint16_t value = analogRead(adcs[i].gpi);
     adcs[i].sum -= adcs[i].avValues[avCount];
     adcs[i].avValues[avCount] = value;
     adcs[i].sum += value;
-    adcs[i].value = adcs[i].sum / 16;
+    value = adcs[i].sum / 16;
+    if (value != adcs[i].value) {
+      changedFlags |= (1ULL << (0x10 + i));
+      adcs[i].value = value;
+    }
   }
   if (++avCount > 15)
     avCount = 0;
@@ -193,6 +200,7 @@ void reset() {
   Wire.setSCL(SCL_PIN);
   Wire.setSDA(SDA_PIN);
   Wire.begin(LEARN_I2C_ADDR, true);
+  i2cAddr = LEARN_I2C_ADDR;
   Wire.onRequest(onI2Crequest);
   Wire.onReceive(onI2Creceive);
   configured = false;
@@ -278,7 +286,7 @@ void loop() {
           m %= 60;
           int d = h / 24;
           h %= 24;
-          Serial.printf("riban modular\nModule type: 0x%04X Uptime: %d days %02d:%02d:%02d.%04d\n", MODULE_TYPE, d, h, m, s, ms);
+          Serial.printf("riban modular\nI2C address: 0x%02X Type: 0x%04X Uptime: %d days %02d:%02d:%02d.%04d\n", i2cAddr, MODULE_TYPE, d, h, m, s, ms);
           break;
         }
         case 'o':
@@ -336,6 +344,7 @@ void onI2Creceive(int count) {
         if (addr >= 10 && addr < 111) {
           Wire.begin(addr, true);
           configured = true;
+          i2cAddr = addr;
           //Serial.printf("  Changed I2C address to %02x\n", i2cOffset);
           digitalWrite(NEXT_MODULE_PIN, HIGH);
         }
@@ -388,27 +397,49 @@ void onI2Creceive(int count) {
 // Handle I2C request for data - assume command was set before request
 void onI2Crequest() {
   //Serial.printf("onI2Crequest cmd: 0x%02X\n", i2cCommand);
-  static uint32_t response; // Response is always 4 bytes
-  response = 0;
+  static uint32_t response; // Response is always 3 bytes: 23:16=addr, 15:0=value
+  static uint8_t readSessionPos = 0; // Index of session last read value
+  static uint64_t readMask;
+  response = i2cCommand << 16;
+  //Serial.printf("onI2Crequest cmd: 0x%02X\n", i2cCommand);
 
-  if (i2cCommand < 0x10) {
+  if (i2cCommand == 0) {
+    // Get next changed value
+    if (changedFlags) {
+      for (; readSessionPos < 64; ++readSessionPos) {
+        readMask = (1ULL << readSessionPos);
+        if (readMask & changedFlags) {
+          if (readSessionPos < 0x10)
+            response = ((0x10 + readSessionPos) << 16) | switchValues[readSessionPos];
+          else if (readSessionPos < 0x10 + ADCS)
+            response = ((0x10 + readSessionPos) << 16) | adcs[readSessionPos - 0x10].value;
+          changedFlags &= ~readMask; // clear flag
+          ++readSessionPos;
+          break;
+        }
+      }
+      if (readSessionPos > 63)
+        readSessionPos = 0;
+    } else {
+      readSessionPos = 0;
+    }
+  } else if (i2cCommand < 0x10) {
     // General commands
-  }
-  else if (i2cCommand < 0x20) {
+  } else if (i2cCommand < 0x20) {
     // Get first bank of 32 switches
-    //Serial.printf("GPI\n");
-    response = switchValues[i2cCommand - 0x20];
+    response |= switchValues[i2cCommand - 0x10];
+    //Serial.printf("GPI bank %d=%d\n", i2cCommand - 0x10, response);
   } else if (i2cCommand - 0x20 < ADCS) {
-    response = adcs[i2cCommand - 0x20].value;
+    response |= adcs[i2cCommand - 0x20].value;
     //Serial.printf("ADC %d=%d\n", i2cCommand, response);
     //!@todo Handle multiplexed ADC
   } else if (i2cCommand == 0xF0) {
-    response = MODULE_TYPE;
+    response |= MODULE_TYPE;
     //Serial.printf("MODULE TYPE\n");
   } else {
     //Serial.printf("BAD %d\n", i2cCommand);
   }
-  //Serial.printf("Responding with value 0x%08X\n", response);
-  Wire.write((uint8_t*)&response, 4);
-  delayMicroseconds(10); // Need delay to avoid bad read but too long will corrups WS2812 bus
+  //Serial.printf("Responding with value 0x%02X,0x%02X,0x%02X\n", (response>>16)&0xFF, (response>>8)&0xFF, response&0xFF);
+  Wire.write((uint8_t*)&response, 3);
+  delayMicroseconds(10); // Need delay to avoid bad read but too long will corrupt WS2812 bus
 }
