@@ -57,3 +57,22 @@ To request data, send the command followed by a request. The module always retur
 |0xF0|3|Request module type|
 
 Command 0x00 is session based, iterating through all changed values on each request. Each request will return the value of the next control that has changed since the last request. If all controls have been scanned or there are no changed values then [0x00, 0x00, 0x00] is returned. The next request for 0x00 will start a new session. This allows scanning a whole module for all changes then moving to another module without a noisy control hogging the bus.
+
+## Configuration
+
+Each panel is defined in panel.json with the following format:
+
+```
+{ # Dictionary of panel types
+    "1": { # Dictionary of panel configuration indexed by panel type id
+        "plugin": "Cardinal", # Rack plugin family that this panel controls
+        "model": "HostAudio2", # Rack plugin model that this panel controls
+        "inputs": [[0,0],[1,1]], # List of inputs (destinations) in format [switch index, LED index], ordered by plugin inputs
+        "outputs": [[2,2],[3,3]], # List of outputs (sources) in format [switch index, LED index], ordered by plugin outputs
+        "pots": [0], # List of parameter index, ordered by ADC
+        "toggles: [[8,8,7]] # List of toggle buttons in format [switch index, LED index, parameter index]
+        }, #... More panel types
+}
+```
+
+module_types.h defines mapping of panel types to module types and defines the quantities of controls and displays on each panel. Each control is connected to microprocessor pins in the order defined at the top of this file. Other hardware configurations are also defined here, e.g. the I2C pins.

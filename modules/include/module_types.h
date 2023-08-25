@@ -63,187 +63,195 @@ PC15|   |   |     |
 #define RESET_PIN PC14
 
 #if MODULE_TYPE==1
+// Host Audio
+//!@todo May want a core module that provides audio & MIDI
+#define ADCS 1
+#define SWITCHES 4
+#define WSLEDS 4
+#endif // MODULE_TYPE 1
+
+#if MODULE_TYPE==11
 // VCV Fundamental VCO
 #define ADCS 4
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 1
+#endif // MODULE_TYPE 11
 
-#if MODULE_TYPE==2
+#if MODULE_TYPE==12
 // VCV Fundamental VCF
 #define ADCS 6
 #define SWITCHES 6
 #define WSLEDS 6
-#endif // MODULE_TYPE 2
+#endif // MODULE_TYPE 12
 
-#if MODULE_TYPE==3
+#if MODULE_TYPE==13
 // VCV Fundamental VCA
 #define ADCS 1
 #define SWITCHES 3
 #define WSLEDS 3
 //!@todo Indicate level, e.g. +24 (WS)LEDs
-#endif // MODULE_TYPE 3
+#endif // MODULE_TYPE 13
 
-#if MODULE_TYPE==4
+#if MODULE_TYPE==14
 // VCV Fundamental ADSR
 #define ADCS 8
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 4
+#endif // MODULE_TYPE 14
 
-#if MODULE_TYPE==5
+#if MODULE_TYPE==15
 // VCV Fundamental VCA-2
 #define ADCS 2
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 5
+#endif // MODULE_TYPE 15
 
-#if MODULE_TYPE==6
+#if MODULE_TYPE==16
 // VCV Fundamental VCA MIX
 #define ADCS 10
 #define SWITCHES 14
 #define WSLEDS 14
-#endif // MODULE_TYPE 6
+#endif // MODULE_TYPE 16
 
-#if MODULE_TYPE==7
+#if MODULE_TYPE==17
 // VCV Fundamental MERGE
 #define ADCS 0
 #define SWITCHES 17
 #define WSLEDS 17
-#endif // MODULE_TYPE 7
+#endif // MODULE_TYPE 17
 
-#if MODULE_TYPE==8
+#if MODULE_TYPE==18
 // VCV Fundamental RANDOM
 #define ADCS 8
 #define SWITCHES 12
 #define WSLEDS 12
-#endif // MODULE_TYPE 8
+#endif // MODULE_TYPE 18
 
-#if MODULE_TYPE==9
+#if MODULE_TYPE==19
 // VCV Fundamental NOIZ
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
-#endif // MODULE_TYPE 9
+#endif // MODULE_TYPE 19
 
-#if MODULE_TYPE==10
+#if MODULE_TYPE==20
 // VCV Fundamental M/S
 #define ADCS 2
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 10
+#endif // MODULE_TYPE 20
 
-#if MODULE_TYPE==11
+#if MODULE_TYPE==21
 // VCV Fundamental SPLIT
 #define ADCS 0
 #define SWITCHES 17
 #define WSLEDS 17
-#endif // MODULE_TYPE 11
+#endif // MODULE_TYPE 21
 
-#if MODULE_TYPE==12
+#if MODULE_TYPE==22
 // VCV Fundamental 4-1
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
 #define LEDS 3
-#endif // MODULE_TYPE 12
+#endif // MODULE_TYPE 22
 
-#if MODULE_TYPE==13
+#if MODULE_TYPE==23
 // VCV Fundamental 1-4
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
 #define LEDS 3
-#endif // MODULE_TYPE 13
+#endif // MODULE_TYPE 23
 
-#if MODULE_TYPE==14
+#if MODULE_TYPE==24
 // VCV Fundamental SEQ3
 #define ADCS 28
 #define SWITCHES 31
 #define WSLEDS 31
-#endif // MODULE_TYPE 14
+#endif // MODULE_TYPE 24
 
-#if MODULE_TYPE==15
+#if MODULE_TYPE==25
 // VCV Fundamental PULSES
 #define ADCS 0
 #define SWITCHES 30
 #define WSLEDS 30
-#endif // MODULE_TYPE 15
+#endif // MODULE_TYPE 25
 
-#if MODULE_TYPE==16
+#if MODULE_TYPE==26
 // VCV Fundamental MUTES
 #define ADCS 0
 #define SWITCHES 30
 #define WSLEDS 30
-#endif // MODULE_TYPE 16
+#endif // MODULE_TYPE 26
 
-#if MODULE_TYPE==17
+#if MODULE_TYPE==27
 // VCV Fundamental 8VERT
 #define ADCS 8
 #define SWITCHES 16
 #define WSLEDS 16
-#endif // MODULE_TYPE 17
+#endif // MODULE_TYPE 27
 
-#if MODULE_TYPE==18
+#if MODULE_TYPE==28
 // VCV Fundamental MIX
 #define ADCS 1
 #define SWITCHES 7
 #define WSLEDS 7
-#endif // MODULE_TYPE 18
+#endif // MODULE_TYPE 28
 
-#if MODULE_TYPE==19
+#if MODULE_TYPE==29
 // VCV Fundamental LFO
 #define ADCS 4
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 19
+#endif // MODULE_TYPE 29
 
-#if MODULE_TYPE==20
+#if MODULE_TYPE==30
 // VCV Fundamental OCT
 #define ADCS 1
 #define SWITCHES 3
 #define WSLEDS 3
-#endif // MODULE_TYPE 20
+#endif // MODULE_TYPE 30
 
-#if MODULE_TYPE==21
+#if MODULE_TYPE==31
 // VCV Fundamental WT VCO
 #define ADCS 4
 #define SWITCHES 7
 #define WSLEDS 7
 //!@todo Load, select and indicate wavetable / waveform
 #define DISPLAY 1
-#endif // MODULE_TYPE 21
+#endif // MODULE_TYPE 31
 
-#if MODULE_TYPE==22
+#if MODULE_TYPE==32
 // VCV Fundamental SUM
 #define ADCS 1
 #define SWITCHES 2
 #define WSLEDS 2
 #define LEDS 6
-#endif // MODULE_TYPE 22
+#endif // MODULE_TYPE 32
 
-#if MODULE_TYPE==23
+#if MODULE_TYPE==33
 // VCV Fundamental QNT
 #define ADCS 1
 #define SWITCHES 14
 #define WSLEDS 14
 //!@todo Implement keyboard
-#endif // MODULE_TYPE 23
+#endif // MODULE_TYPE 33
 
-#if MODULE_TYPE==24
+#if MODULE_TYPE==34
 // VCV Fundamental WT LFO
 #define ADCS 4
 #define SWITCHES 7
 #define WSLEDS 7
 //!@todo Load, select and indicate wavetable / waveform
-#endif // MODULE_TYPE 23
+#endif // MODULE_TYPE 33
 
-#if MODULE_TYPE==25
+#if MODULE_TYPE==35
 // VCV Fundamental DELAY
 #define ADCS 8
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 25
+#endif // MODULE_TYPE 35
 
 /*===========================================================================
     Define macros not specified (used) by module

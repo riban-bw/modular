@@ -218,6 +218,7 @@ void reset() {
 // Initialise module
 void setup(){
   Serial.begin(9600);
+  SystemClock_Config();
   //Disable next module
   pinMode(NEXT_MODULE_PIN, OUTPUT);
   digitalWrite(NEXT_MODULE_PIN, LOW);
@@ -258,7 +259,8 @@ void loop() {
 
   if(now >= next_second) {
     next_second = now + 1000;
-    //Serial.printf("Uptime: %d cycles/sec: %d\n", ++uptime, loop_count);
+    ++uptime;
+    //Serial.printf("Uptime: %d cycles/sec: %d\n", uptime, loop_count);
     if (configured)
       led_on = (uptime % 4) == 0;
     else
