@@ -206,13 +206,13 @@ void setAddr(uint8_t addr) {
 
 // Reset and listen for new I2C address
 void reset() {
+  ws2812_set_all(44, 66, 100);
+  for (uint16_t i = 0; i < WSLEDS; ++i)
+    wsleds[i].mode = WS2812_MODE_ON;
   Serial.println("RESET");
   setAddr(LEARN_I2C_ADDR);
   configured = false;
-  ws2812_set_all(44, 66, 100);
-  for (uint16_t i = 0; i < WSLEDS; ++i)
-    wsleds[i].mode = WS2812_MODE_FAST_PULSE;
-  reset_time = millis() + 1500;
+  reset_time = millis() + 80;
 }
 
 // Initialise module

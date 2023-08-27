@@ -10,11 +10,12 @@
   Python test program
 """
 
-import smbus # python3-smbus:arm64
+import smbus # python3-smbus
 import RPi.GPIO as GPIO # python3-rpi.gpio
 from time import sleep
 import json
 import liblo # python3-liblo
+import logging
 
 RESET_PIN = 4 # RPi GPIO pin used to reset first modules
 module_map = {} # Map of module config indexed by I2C address
@@ -147,14 +148,14 @@ def hw_reset():
     GPIO.setup(RESET_PIN, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
 
 def init_modules():
-    global module_map, i2c_addr, sw2input, sw2output, sw2toggle, sw2led, tmp_panel_addr
-    with open("/home/dietpi/.config/riban/panel.json", "r") as f:
+    global module_map, i2c_addr, sw2input, sw2output, sw2toggle, sw2led
+    patch = {"version": "2.1", "modules": [], "cables": []}
+    with open("/home/dietpi/modular/config/panel.json", "r") as f:
         cfg = json.load(f)
     hw_reset()
     sleep(0.1)
     addr = 10
     module_map = {}
-    clear_rack()
     print("Detecting attached modules:")
     while True:
         try:
@@ -164,8 +165,7 @@ def init_modules():
         set_target_address(addr)
         if str(type) in cfg:
             mod_cfg = cfg[str(type)]
-            tmp_panel_addr = addr
-            add_module(mod_cfg['plugin'], mod_cfg['model'])
+            patch["modules"].append({"id": addr, "plugin": mod_cfg["plugin"], "model": mod_cfg["model"]})
             i2c_addr = addr
             module_map[addr] = cfg[str(type)]
             switch_n = 0
@@ -197,6 +197,9 @@ def init_modules():
             module_map[addr]["switch_states"] = [0] * switch_n
         sleep(1)
         addr += 1
+    with open("/home/dietpi/patch.vcv", "w") as f:
+        json.dump(patch, f)
+    liblo.send(uri, "/load", ("s", "patch.vcv"))
     print("Finished init")
 
 def scan_modules():
@@ -213,14 +216,17 @@ def scan_modules():
             elif result[0] < 0x20:
                 # GPI (bank) changed
                 gpis = result[1]
-                for switch, value in enumerate(cfg['switch_states']):
-                    #TODO: This only works for first bank of GPI
+                for offset, value in enumerate(cfg['switch_states']):
+                    switch = (result[0] - 0x10) * 16 + offset
                     if value != gpis & 1:
                         # GPI has changed state
-                        cfg['switch_states'][switch] = gpis & 1
                         if switch in sw2toggle:
-                            set_param(cfg['id'], sw2toggle[switch], value)
-                        elif switch in sw2input:
+                            if module_map[i2c_addr]["switch_states"][switch] == 0:
+                                module_map[i2c_addr]["switch_states"][switch] = 1
+                            else:
+                                module_map[i2c_addr]["switch_states"][switch] = 1
+                            set_param(i2c_addr, sw2toggle[switch], module_map[i2c_addr]["switch_states"][switch])
+                        elif value and switch in sw2input:
                             if selected_src == (i2c_addr, sw2input[switch]):
                                 selected_src = None
                             else:
@@ -238,7 +244,7 @@ def scan_modules():
                     cfg["knob_values"] = result[1]
                     pot = result[0] - 0x20
                     param = cfg["pots"][pot]
-                    set_param(cfg['id'], param, result[1] / 1024)
+                    set_param(i2c_addr, param, result[1] / 1024)
                     cfg['knob_values'][pot] = result[1]
                     #print(f"ADC {result[0] - 0x20} changed to {result[1]}")
 
@@ -256,12 +262,12 @@ def toggle_route(src, dst):
         # Already has a source routed
         connect = routing[dst] != src # Make new connection if different from current routing
         # Remove current routing
-        remove_cable_by_port(module_map[routing[dst][0]], routing[dst][1], module_map[dst[0]]['id'], dst[1])
+        remove_cable_by_port(routing[dst][0], routing[dst][1], dst[0], dst[1])
         del routing[dst]
     # Request to make new connection
     if connect:
-        add_cable(module_map[src[0]]['id'], src[1], module_map[dst[0]]['id'], dst[1])
-        routing[dst] = src[0]
+        add_cable(src[0], src[1], dst[0], dst[1])
+        routing[dst] = (src[0], src[1])
 
 ###############################################################################
 # OSC interface
@@ -271,7 +277,6 @@ module2addr = {} # Map of I2C address indexed by module id (optimisation)
 cables = {} # Map of cable connections indexed by cable id
 models = [] # List of available module models
 patches = [] # List of available patach (preset) vcv files
-tmp_panel_addr = None # Holds panel I2C address during async add panel operation
 
 def on_osc(path, args, types, src):
     """Handle received OSC message
@@ -282,33 +287,17 @@ def on_osc(path, args, types, src):
     src - OSC client sender address
     """
 
+    logging.warning(f"OSC Rx: {path} {args}")
     global models
     global modules
     global addr2modules
     global cables
-    global tmp_panel_addr
-    if path == "/resp/module":
-        if args[0] not in module2addr:
-            if args[0] < 3:
-                tmp_panel_addr = args[0]
-            module2addr[args[0]] = tmp_panel_addr
-            module_map['id'] = args[0]
-            tmp_panel_addr = None
-
-def clear_rack():
-    """Clear patch removing cables and modules"""
-
-    liblo.send(uri, "/clear")
-
-
-def add_module(plugin, model):
-    """Add a module
-    
-    plugin - name of plugin
-    model - name of module model
-    """
-
-    liblo.send(uri, "/add_module", ("s", plugin), ("s", model))
+    if path == "/resp/cable":
+        cable_id = args[0]
+        src_module = args[1]
+        src_port = args[2]
+        dst_module = args[3]
+        dst_port = args[4]
 
 def add_cable(src_module, output, dst_module, input):
     """Add and connect a cable
@@ -350,12 +339,4 @@ def set_param(module_id, index, value):
     
     liblo.send(uri, "/param", ("h", module_id), ("i", index), ("f", value))
 
-def get_patches():
-    """Request list of patch (vcv) files"""
 
-    global patches
-    patches = []
-    liblo.send(uri, "/get_patches")
-
-init_modules()
-toggle_route((0x0a, 0), (0x0a,0))

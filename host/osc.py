@@ -444,7 +444,7 @@ module_db = {} # Maps panel UID to Cardinal plugin,model
 selected_source = None # [module, source] of currently selected source
 selected_destination = None # [module, source] of currently selected destination
 
-def load_module_db(filename):
+def load_module_db(filename="config/panel.json"):
     """Load panel / plugin,model mapping databse
     
     filename - Filename of json file including path
@@ -568,7 +568,7 @@ def on_control_change(addr, control, value):
 
 logging.warning("Hello riban modular")
 load("riban-template.vcv")
-load_module_db("/home/dietpi/panel.json")
+load_module_db("config/panel.json")
 sleep(2)
 
 # Add VCO
@@ -603,6 +603,7 @@ while True:
         #TODO: This does not work - need more robust handling of jackd failure
         jackd_proc = Popen(['jackd', '-dalsa', '-dCODEC', '-Xraw', '-p128'], stdout=DEVNULL, stderr=DEVNULL)
 
+    print(">")
     cmd = input()
     try:
         if cmd.lower().startswith('q'):
@@ -613,6 +614,7 @@ while True:
             print("help: Help")
             print("?: Help")
             print("modules: List installed modules")
+            print("models,brand: Lists models by brand")
             print("+x,y: Add a panel with I2C address x of type y")
             print("-x: Remove a panel with I2C address x")
             print("x,y: Push button y on panel with I2C address x")
@@ -629,6 +631,13 @@ while True:
             for addr,module_id in addr2modules.items():
                 module = modules[module_id]
                 print(f"{addr}: {module['plugin']} : {module['model']}")
+        elif cmd.startswith("models,"):
+            load_module_db()
+            get_models()
+            brand = cmd.split(',')[1]
+            for model in models:
+                if brand.lower() in model['brand'].lower():
+                    print(f"{model['plugin']}: {model['model']} - {model['description']}")
         else:
             try:
                 x,y,z = cmd.split(",")
@@ -641,8 +650,8 @@ while True:
                 addr = int(x)
                 button = int(y)
                 on_route_touch(addr, button)
-    except:
-        pass
+    except Exception as e:
+        logging.warning(e)
 
 running = False
 #autoconnect_thread.join()

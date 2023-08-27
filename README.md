@@ -69,7 +69,7 @@ Each panel is defined in panel.json with the following format:
         "model": "HostAudio2", # Rack plugin model that this panel controls
         "inputs": [[0,0],[1,1]], # List of inputs (destinations) in format [switch index, LED index], ordered by plugin inputs
         "outputs": [[2,2],[3,3]], # List of outputs (sources) in format [switch index, LED index], ordered by plugin outputs
-        "pots": [0], # List of parameter index, ordered by ADC
+        "pots": [[0,-1,1]], # List of parameters in format [param index, min val, max val], ordered by ADC
         "toggles: [[8,8,7]] # List of toggle buttons in format [switch index, LED index, parameter index]
         }, #... More panel types
 }

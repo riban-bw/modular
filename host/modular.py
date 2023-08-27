@@ -19,14 +19,13 @@ import logging
 
 RESET_PIN = 4 # RPi GPIO pin used to reset first modules
 module_map = {} # Map of module config indexed by I2C address
-sw2input = {}
-sw2output = {}
-sw2toggle = {}
-sw2led = {}
-selected_src = None
-selected_dst = None
+sw2dest = {} # Map of destination, mapped by (panel i2c addr, switch index)
+sw2src = {} # Map of source, mapped by (panel i2c addr, switch index)
+sw2toggle = {} # Map of toggle param, mapped by (panel i2c addr, switch index)
+selected_src = None # Currently selected source in format (panel i2c addr, output index)
+selected_dst = None # Currently selected destination in format (panel i2c addr, input index)
 gpi_values = {} # Map of gpi_values indexed by panel id (I2C address) in form [x,x,x...] where x is 16-bitwise values for each bank of GPI
-routing = {} # Routing graph as list of sources, indexed by destination
+routing = {} # Routing graph as list of (source module I2C address, source output index), indexed by destination
 uri = "osc.udp://localhost:2228"
 
 ###############################################################################
@@ -252,35 +251,27 @@ def on_osc(path, args, types, src):
         dst_module = args[3]
         dst_port = args[4]
 
-def add_cable(src_module, output, dst_module, input):
+def add_cable(src_module, src, dst_module, port):
     """Add and connect a cable
     
     src_module - UID of installed source module
-    output - Index of source module's output 
+    src - Index of source module's output 
     dst_module - UID of installed destination module
-    input - INdex of destination module's input
+    port - INdex of destination module's input
     """
     
-    liblo.send(uri, "/add_cable", ("h", src_module), ("i", output), ("h", dst_module), ("i", input))
+    liblo.send(uri, "/add_cable", ("h", src_module), ("i", src), ("h", dst_module), ("i", port))
 
-def remove_cable(cable_id):
-    """Disconnect and remove a cable
-    
-    cable_id - UID of installed cable
-    """
-    
-    liblo.send(uri, "/remove_cable", ("h", cable_id))
-
-def remove_cable_by_port(src_module_id, output, dst_module_id, input):
+def remove_cable_by_port(src_module_id, src, dst_module_id, port):
     """Disconnect and remove a cable
     
     src_module - UID of installed source module
-    output - Index of source module's output 
+    src - Index of source module's output 
     dst_module - UID of installed destination module
-    input - Index of destination module's input
+    port - Index of destination module's input
     """
 
-    liblo.send(uri, "/remove_cable", ("h", src_module_id), ("i", output), ("h", dst_module_id), ("i", input))
+    liblo.send(uri, "/remove_cable", ("h", src_module_id), ("i", src), ("h", dst_module_id), ("i", port))
 
 def set_param(module_id, index, value):
     """Set a parameter value
@@ -339,7 +330,7 @@ def hw_reset():
 def init_modules():
     """ Initialise rack and detect installed panels"""
 
-    global module_map, sw2input, sw2output, sw2toggle, sw2led
+    global module_map, sw2dest, sw2src, sw2toggle
     patch = {"version": "2.1", "modules": [], "cables": []}
     with open("/home/dietpi/modular/config/panel.json", "r") as f:
         cfg = json.load(f)
@@ -360,30 +351,29 @@ def init_modules():
             mod_cfg = cfg[str(type)]
             patch["modules"].append({"id": addr, "plugin": mod_cfg["plugin"], "model": mod_cfg["model"]})
             module_map[addr] = cfg[str(type)]
-            switch_n = 0
+            dst_n = 0
+            src_n = 0
+            toggle_n = 0
             pot_n = 0
-            if "inputs" in module_map[addr]:
-                for x,y in module_map[addr]["inputs"]:
+            if "dests" in module_map[addr]:
+                for x,y in module_map[addr]["dests"]:
                     configure_destination_led(addr, x)
-                    sw2input[switch_n] = x
-                    sw2led[switch_n] = y
-                    switch_n += 1
-            if "outputs" in module_map[addr]:
-                for x,y in module_map[addr]["outputs"]:
+                    sw2dest[(addr, x)] = dst_n
+                    dst_n += 1
+            if "srcs" in module_map[addr]:
+                for x,y in module_map[addr]["srcs"]:
                     config_source_led(addr, x)
-                    sw2output[switch_n] = x
-                    sw2led[switch_n] = y
-                    switch_n += 1
+                    sw2src[(addr, x)] = src_n
+                    src_n += 1
             if "toggles" in module_map[addr]:
                 for x,y,z in module_map[addr]["toggles"]:
                     config_toggle_led(addr, x)
-                    sw2toggle[switch_n] = z
-                    sw2led[switch_n] = y
-                    switch_n += 1
+                    sw2toggle[(addr, x)] = toggle_n
+                    toggle_n += 1
             if "pots" in module_map[addr]:
                 pot_n += len(module_map[addr]['pots'])
             module_map[addr]["knob_values"] = [0]  * pot_n
-            module_map[addr]["switch_states"] = [0] * switch_n
+            module_map[addr]["switch_states"] = [0] * (dst_n + src_n + toggle_n)
         addr += 1
     with open("/home/dietpi/patch.vcv", "w") as f:
         json.dump(patch, f)
@@ -391,7 +381,7 @@ def init_modules():
     logging.debug("Finished init")
 
 def scan_modules():
-    """Scan panels and update model"""
+    """Scan panels sensors and update model"""
 
     for addr, cfg in module_map.items():
         while(True):
@@ -403,61 +393,157 @@ def scan_modules():
                 # No commands defined for 1-15
                 continue
             elif result[0] < 0x20:
-                # GPI (bank) changed
-                gpis = result[1]
-                for offset, value in enumerate(cfg['switch_states']):
-                    switch = (result[0] - 0x10) * 16 + offset
-                    if value != gpis & 1:
-                        # GPI has changed state
-                        if switch in sw2toggle:
-                            if module_map[addr]["switch_states"][switch] == 0:
-                                module_map[addr]["switch_states"][switch] = 1
-                            else:
-                                module_map[addr]["switch_states"][switch] = 1
-                            set_param(addr, sw2toggle[switch], module_map[addr]["switch_states"][switch])
-                        elif value and switch in sw2input:
-                            if selected_src == (addr, sw2input[switch]):
-                                selected_src = None
-                            else:
-                                selected_src = (addr, sw2input[switch])
-                            #TODO: Show routing
-                        elif switch in sw2output:
-                            if selected_dst == (addr, sw2input[switch]):
-                                selected_dst = None
-                            else:
-                                selected_dst = (addr, sw2input[switch])
-                            #TODO: Show routing
-                    gpis >>= 1
+                # GPI (in bank) changed
+                bank = result[0] - 0x10
+                gpi_flags = result[1] # Flags indicates which GPI have changed
+                if gpi_flags:
+                    gpis = get_gpis(addr, bank) # Actual GPI values
+                    for offset, last_val in enumerate(cfg['switch_states']):
+                        switch = (result[0] - 0x10) * 16 + offset
+                        value = gpis & 1
+                        flag = gpi_flags & 1
+                        if flag and value:
+                            # Switch has been pressed
+                            if (addr, switch) in sw2toggle:
+                                toggle = sw2toggle[(addr, switch)]
+                                led = module_map[addr]["toggles"][toggle][1]
+                                param = module_map[addr]["toggles"][toggle][2]
+                                state = int(not module_map[addr]["switch_states"][switch])
+                                module_map[addr]["switch_states"][switch] = state
+                                set_param(addr, param, state)
+                                set_wsled_mode(addr, led, state)
+                            elif (addr, switch) in sw2dest:
+                                select_destination(addr, sw2dest[(addr, switch)])
+                            elif (addr, switch) in sw2src:
+                                select_source(addr, sw2src[(addr, switch)])
+                        gpis >>= 1
+                        gpi_flags >>= 1
             elif result[0] < 0x50:
                 pot = result[0] - 0x20
                 if cfg["knob_values"][pot] != result[1]:
                     cfg["knob_values"][pot] = result[1]
                     param = cfg["pots"][pot][0]
                     r = cfg["pots"][pot][2] - cfg["pots"][pot][1]
-                    set_param(addr, param, cfg["pots"][pot][1] + r * result[1] / 1024)
+                    set_param(addr, param, cfg["pots"][pot][1] + r * result[1] / 1023)
                     cfg['knob_values'][pot] = result[1]
-                    #print(f"ADC {result[0] - 0x20} changed to {result[1]}")
 
 
-def toggle_route(src, dst):
+def toggle_route(src_addr, src_port, dst_addr, dst_port):
     """ Toggle routing between specified source and destination
 
-    src - List of (source module I2C address, source output index)
-    dst - List of (destination module I2C address, destination output index)
+    src_addr - Source module I2C address
+    src_port - Source output index
+    dst_addr - Destination module I2C address
+    dst_port - Destination output index
     """
 
     global routing
     connect = True
-    if dst in routing:
+    if (dst_addr, dst_port) in routing:
         # Already has a source routed
-        connect = routing[dst] != src # Make new connection if different from current routing
+        connect = routing[(dst_addr, dst_port)] != (src_addr, src_port) # Make new connection if different from current routing
         # Remove current routing
-        remove_cable_by_port(routing[dst][0], routing[dst][1], dst[0], dst[1])
-        del routing[dst]
+        remove_cable_by_port(src_addr, src_port, dst_addr, dst_port)
+        del routing[(dst_addr, dst_port)]
     # Request to make new connection
     if connect:
-        add_cable(src[0], src[1], dst[0], dst[1])
-        routing[dst] = (src[0], src[1])
+        add_cable(src_addr, src_port, dst_addr, dst_port)
+        routing[(dst_addr, dst_port)] = (src_addr, src_port)
+
+def refresh_routes():
+    """ Update routing LEDs"""
+
+    if selected_dst is None and selected_src is None:
+        srcs = []
+        # No selection so highlight currently routed ports
+        for addr, cfg in module_map.items():
+            for i,dest in enumerate(cfg['dests']):
+                if (addr, i) in routing:
+                    set_wsled_mode(addr, dest[1], LED_ON)
+                    srcs.append(routing[(addr, i)])
+                else:
+                    set_wsled_mode(addr, dest[1], LED_ON2)
+        for addr, cfg in module_map.items():
+            for i,src in enumerate(cfg['srcs']):
+                if (addr,i) in srcs:
+                    set_wsled_mode(addr, src[1], LED_ON)
+                else:
+                    set_wsled_mode(addr, src[1], LED_ON2)
+    elif selected_src is None:
+        # Only destination selected so flash destination, highlight connected source and show available sources
+        for addr, cfg in module_map.items():
+            for i,src in enumerate(cfg['srcs']):
+                set_wsled_mode(addr, src[1], LED_ON2)
+            for i,dest in enumerate(cfg['dests']):
+                set_wsled_mode(addr, dest[1], LED_OFF)
+        addr = selected_dst[0]
+        port = selected_dst[1]
+        led = module_map[addr]['dests'][port][1]
+        set_wsled_mode(addr, led, LED_FLASH)
+        if (addr, port) in routing:
+            src_addr = routing[(addr, port)][0]
+            src_port = routing[(addr, port)][1]
+            src_led = module_map[src_addr]['srcs'][src_port][1]
+            set_wsled_mode(src_addr, src_led, LED_ON)
+    elif selected_dst is None:
+        # Only source selected so flash source, highlight connected destinaton and show available destinations
+        for addr, cfg in module_map.items():
+            for i,src in enumerate(cfg['srcs']):
+                set_wsled_mode(addr, src[1], LED_OFF)
+            for i,dest in enumerate(cfg['dests']):
+                if (addr, i) in routing:
+                    if selected_src == routing[(addr, i)]:
+                        set_wsled_mode(addr, dest[1], LED_ON)
+                    else:
+                        set_wsled_mode(addr, dest[1], LED_OFF)
+                else:
+                    set_wsled_mode(addr, dest[1], LED_ON2)
+        addr = selected_src[0]
+        port = selected_src[1]
+        led = module_map[addr]['srcs'][port][1]
+        set_wsled_mode(addr, led, LED_FLASH)
+
+def select_source(addr, src):
+    """ Select a source for routing
+    
+    addr - Panel I2C address
+    src -  Panel output index
+    """
+
+    global selected_src, selected_dst
+    if selected_dst:
+        # Destination already selected so toggle route
+        toggle_route(addr, src, selected_dst[0], selected_dst[1])
+        selected_src = None
+        selected_dst = None
+    elif selected_src == (addr, src):
+        # Source already selected so deselect
+        selected_src = None
+    else:
+        # elect source
+        selected_src = (addr, src)
+    refresh_routes()
+        
+def select_destination(addr, dst):
+    """ Select a destination for routing
+    
+    addr - Panel I2C address
+    dst -  Panel input index
+    """
+
+    global selected_src, selected_dst
+    if selected_src:
+        # Source already selected so toggle route
+        toggle_route(selected_src[0], selected_src[1], addr, dst)
+        selected_src = None
+        selected_dst = None
+    elif selected_dst == (addr, dst):
+        # Destination already selected so deselect
+        selected_dst = None
+    else:
+        # Select destination
+        selected_dst = (addr, dst)
+    refresh_routes()
 
 # Initiate OSC communication with rack
 osc_server = liblo.ServerThread(2001)
@@ -468,7 +554,8 @@ osc_server.start()
 bus = smbus.SMBus(1)
 init_modules()
 
-add_cable(11,0,10,0)
+toggle_route(11,0,10,0)
+refresh_routes()
 # Main program loop
 while True:
     scan_modules()
