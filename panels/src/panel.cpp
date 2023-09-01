@@ -7,21 +7,24 @@
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
   You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-  Provides the core firmware for hardware modules implemented on STM32F107C microcontrollers.
-  Modules are generic using the same firmware and are configured at compile time using preprocessor directive MODULE_TYPE
+  Provides the core firmware for hardware panels implemented on STM32F107C microcontrollers.
+  Panels are generic using the same firmware and are setup at compile time using preprocessor directive PANEL_TYPE
 */
 
 #include <Arduino.h>
 #include <Wire.h> // I2C inteface
-#include "modular.h"
+#include "panel.h"
 #include "ws2812.h"
 
-#define NEXT_MODULE_PIN PC14 // GPI connected to next module's reset pin
 #define LEARN_I2C_ADDR 0x77 // I2C address to use when reset
 
-const static uint32_t module_type = MODULE_TYPE;
+enum {
+  RUN_MODE_INIT,
+  RUN_MODE_SETUP,
+  RUN_MODE_RUN
+};
 
-bool configured = false; // True when initialised and I2C address set
+uint8_t run_mode = RUN_MODE_INIT; // True when initialing
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
@@ -31,7 +34,6 @@ uint32_t scheduledFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledFastFlash = 0; // Time that next LED flash change will occur
 uint32_t scheduledPulse = 0; // Time that next LED pulse change will occur
 uint32_t scheduledFastPulse = 0; // Time that next LED pulse change will occur
-uint32_t reset_time = -1;
 bool ledMute = false; // True to turn off all LEDs but retain config
 bool flashOn = false; // True when flash is on
 bool fastFlashOn = false; // True when fast flash is on
@@ -90,7 +92,6 @@ void processSwitches(uint32_t now) {
       switches[i].lastChange = now;
       switchValues[muxAddr] ^= (-state ^ switchValues[muxAddr]) & (1UL << i);
       changedFlags |= 1ULL << muxAddr;
-      Serial.printf("Switch %d changed to %d\n", i, state);
     }
   }
 }
@@ -206,22 +207,23 @@ void setAddr(uint8_t addr) {
 
 // Reset and listen for new I2C address
 void reset() {
+  digitalWrite(NEXT_MODULE_PIN, LOW);
   ws2812_set_all(44, 66, 100);
   for (uint16_t i = 0; i < WSLEDS; ++i)
     wsleds[i].mode = WS2812_MODE_ON;
-  Serial.println("RESET");
   setAddr(LEARN_I2C_ADDR);
-  configured = false;
-  reset_time = millis() + 80;
+  for (uint16_t i = 0; i < WSLEDS; ++i)
+    wsleds[i].mode = WS2812_MODE_ON;
+  ws2812_refresh();
+  run_mode = RUN_MODE_SETUP;
 }
 
 // Initialise module
 void setup(){
-  Serial.begin(9600);
-  SystemClock_Config();
   //Disable next module
   pinMode(NEXT_MODULE_PIN, OUTPUT);
   digitalWrite(NEXT_MODULE_PIN, LOW);
+  pinMode(RUN_PIN, INPUT_PULLDOWN);
 
   ws2812_init(WSLEDS); // Initalise WS2812 (via SPI) before GPI to allow resuse of MOSI & SCLK pins
   for (uint16_t i = 0; i < WSLEDS; ++ i) {
@@ -237,122 +239,63 @@ void setup(){
   for (uint16_t i = 0; i < ADCS; ++i) {
     adcs[i].gpi = adc_gpis[i];
   }
-  reset();
   pinMode(PC13, OUTPUT); // activity LED
-  //delay(2000);
-  //Serial.printf("Module 0x%04X initalised\n", MODULE_TYPE);
+  digitalWrite(PC13, HIGH);
 }
 
 // Main process loop
 void loop() {
-  static bool led_on = false;
-  static int uptime = 0;
-  static int next_second = 0;
-  static int loop_count = 0;
   static bool next_reset = false;
+  static uint32_t next_second = 0;
 
-  static int selected_led = 0;
-  static uint8_t mode = 0;
-
-  ++loop_count;
+  if (!digitalRead(RUN_PIN)) {
+    run_mode = RUN_MODE_INIT;
+    Wire.end();
+  } else {
+    if (run_mode == RUN_MODE_INIT)
+      reset();
+  }
   uint32_t now = millis();
-
-  if(now >= next_second) {
-    next_second = now + 1000;
-    ++uptime;
-    //Serial.printf("Uptime: %d cycles/sec: %d\n", uptime, loop_count);
-    if (configured)
-      led_on = (uptime % 4) == 0;
-    else
-      led_on = !led_on;
-    digitalWrite(PC13, !led_on);
-    loop_count = 0;
-  }
-  if (Serial.available()) {
-    char c = Serial.read();
-    if (c > '0' && c <= '9' && c - '0' < WSLEDS)
-        selected_led = c - '1';
-    else
-      switch(c) {
-        case '+':
-          ++selected_led;
-          break;
-        case '-':
-          --selected_led;
-          break;
-        case '!':
-          reset();
-          break;
-        case '?': {
-          int ms = now;
-          int s = ms / 1000;
-          ms %= 1000;
-          int m = s / 60;
-          s %= 60;
-          int h = m / 60;
-          m %= 60;
-          int d = h / 24;
-          h %= 24;
-          Serial.printf("riban modular\nI2C address: 0x%02X Type: 0x%04X Uptime: %d days %02d:%02d:%02d.%04d\n", i2cAddr, MODULE_TYPE, d, h, m, s, ms);
-          break;
-        }
-        case 'o':
-          wsleds[selected_led].mode = WS2812_MODE_ON;
-          break;
-        case 'O':
-          wsleds[selected_led].mode = WS2812_MODE_OFF;
-          break;
-        case 'i':
-          wsleds[selected_led].mode = WS2812_MODE_ON2;
-          break;
-        case 'f':
-          wsleds[selected_led].mode = WS2812_MODE_SLOW_FLASH;
-          break;
-        case 'F':
-          wsleds[selected_led].mode = WS2812_MODE_FAST_FLASH;
-          break;
-        case 'p':
-          wsleds[selected_led].mode = WS2812_MODE_SLOW_PULSE;
-          break;
-        case 'P':
-          wsleds[selected_led].mode = WS2812_MODE_FAST_PULSE;
-          break;
-      }
+  if (now > next_second) {
+    digitalToggle(PC13);
+    switch(run_mode) {
+      case RUN_MODE_INIT:
+        next_second = now + 100;
+        break;
+      case RUN_MODE_SETUP:
+        next_second = now + 400;
+        break;
+      default:
+        next_second = now + 1000;
+        break;
+    }
   }
 
-  if (reset_time < now)
-  {
-    reset_time = -1;
-    for (uint16_t i = 0; i < WSLEDS; ++i)
-      wsleds[i].mode = WS2812_MODE_OFF;
+  if (run_mode == RUN_MODE_RUN) {
+    processSwitches(now);
+    processAdcs(now);
+    processWs2812(now);
   }
-  processSwitches(now);
-  processAdcs(now);
-  processWs2812(now);
 }
 
 // Handle received I2C data
 void onI2Creceive(int count) {
-  //Serial.printf("onI2Creceive(%d)\n", count);
   if (count) {
     i2cCommand = Wire.read();
     --count;
-    //Serial.printf("  Command: 0x%02X\n", i2cCommand);
   }
   switch(i2cCommand) {
-    case 0xfd: // Test
-      Serial.println("TEST");
-      break;
     case 0xfe: // Set I2C address
-      if (!configured && count) {
+      if (run_mode == RUN_MODE_SETUP && count) {
         uint8_t addr = Wire.read();
         --count;
-        //Serial.printf("Set I2C address >> 0x%02X\n", addr);
         if (addr >= 10 && addr < 111) {
           setAddr(addr);
-          configured = true;
+          run_mode = RUN_MODE_RUN;
+          for (uint16_t i = 0; i < WSLEDS; ++i)
+            wsleds[i].mode = WS2812_MODE_OFF;
           digitalWrite(NEXT_MODULE_PIN, HIGH);
-          //Serial.printf("  Changed I2C address to %02x\n", i2cAddr);
+          ws2812_refresh();
         }
       }
       break;
@@ -381,7 +324,6 @@ void onI2Creceive(int count) {
             }
             count -= 3;
           }
-          //Serial.printf("  LED %d mode %d colour (%d,%d,%d)\n", led, wsleds[led].mode, wsleds[led].r1, wsleds[led].g1, wsleds[led].b1);
         }
       }
       break;
@@ -402,13 +344,12 @@ void onI2Creceive(int count) {
 
 // Handle I2C request for data - assume command was set before request
 void onI2Crequest() {
-  //Serial.printf("onI2Crequest cmd: 0x%02X\n", i2cCommand);
   static uint32_t response; // Response is always 3 bytes: 23:16=addr, 15:0=value
   static uint8_t readSessionPos = 0; // Index of session last read value
   static uint64_t readMask;
+  uint8_t useResponse = true;
   response = i2cCommand << 16;
-  //Serial.printf("onI2Crequest cmd: 0x%02X\n", i2cCommand);
-
+  
   if (i2cCommand == 0) {
     // Get next changed value
     if (changedFlags) {
@@ -438,18 +379,24 @@ void onI2Crequest() {
   } else if (i2cCommand < 0x20) {
     // Get first bank of 32 switches
     response |= switchValues[i2cCommand - 0x10];
-    //Serial.printf("GPI bank %d=%d\n", i2cCommand - 0x10, response);
   } else if (i2cCommand - 0x20 < ADCS) {
     response |= adcs[i2cCommand - 0x20].value;
-    //Serial.printf("ADC %d=%d\n", i2cCommand, response);
     //!@todo Handle multiplexed ADC
   } else if (i2cCommand == 0xF0) {
-    response |= MODULE_TYPE;
-    //Serial.printf("MODULE TYPE\n");
-  } else {
-    //Serial.printf("BAD %d\n", i2cCommand);
+    response |= PANEL_TYPE;
+  } else if (i2cCommand == 0xF1) {
+    response = ((sizeof(BRAND) - 1) << 16) | ((sizeof(PLUGIN) - 1) << 8 | sizeof(MODEL) - 1);
+  } else if (i2cCommand == 0xF2) {
+    Wire.write(BRAND);
+    useResponse = false;
+  } else if (i2cCommand == 0xF3) {
+    Wire.write(PLUGIN);
+    useResponse = false;
+  } else if (i2cCommand == 0xF4) {
+    Wire.write(MODEL);
+    useResponse = false;
   }
-  //Serial.printf("Responding with value 0x%02X,0x%02X,0x%02X\n", (response>>16)&0xFF, (response>>8)&0xFF, response&0xFF);
-  Wire.write((uint8_t*)&response, 3);
+  if (useResponse)
+    Wire.write((uint8_t*)&response, 3);
   delayMicroseconds(10); // Need delay to avoid bad read but too long will corrupt WS2812 bus
 }

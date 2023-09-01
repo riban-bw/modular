@@ -7,12 +7,12 @@
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
   You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-  Defines each module configuration based on preprocessor directive MODULE_TYPE which should be defined in build system.
+  Defines each module configuration based on preprocessor directive PANEL_TYPE which should be defined in build system.
 */
 
-#ifndef MODULE_TYPE
+#ifndef PANEL_TYPE
 #error Module type not defined
-#endif //MODULE_TYPE
+#endif //PANEL_TYPE
 
 /* Available GPI (STM32F103 Bluepill dev board)
 PORT|ADC|PWM|COMMS|Note
@@ -56,202 +56,203 @@ PC15|   |   |     |
 
 #define ADC_PINS {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB0, PB1}
 #define PWM_PINS {PA0, PA1, PA2, PA3, PA6, PA7, PA8, PA9, PA10, PB0, PB1, PB6, PB7, PB8, PB9}
-#define GPI_PINS {PB0, PB1, PB3, PB4, PB5, PB6, PB7, PB8, PB9, PB12, PB13, PB14, PC15, PA15}
+#define GPI_PINS {PB0, PB1, PB3, PB4, PB5, PB6, PB7, PB8, PB9, PB12, PB13, PB14, PA15}
 #define SCL_PIN PB10
 #define SDA_PIN PB11
 #define MOSI_PIN PB15 //WS2812 LED data
-#define RESET_PIN PC14
+#define RUN_PIN PC15 // Held high to start panel
+#define NEXT_MODULE_PIN PC14 // GPI connected to next module's reset pin
 
-#if MODULE_TYPE==1
+#if PANEL_TYPE==1
 // Host Audio
 //!@todo May want a core module that provides audio & MIDI
 #define ADCS 1
 #define SWITCHES 4
 #define WSLEDS 4
-#endif // MODULE_TYPE 1
+#endif // PANEL_TYPE 1
 
-#if MODULE_TYPE==11
+#if PANEL_TYPE==11
 // VCV Fundamental VCO
 #define ADCS 4
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 11
+#endif // PANEL_TYPE 11
 
-#if MODULE_TYPE==12
+#if PANEL_TYPE==12
 // VCV Fundamental VCF
 #define ADCS 6
 #define SWITCHES 6
 #define WSLEDS 6
-#endif // MODULE_TYPE 12
+#endif // PANEL_TYPE 12
 
-#if MODULE_TYPE==13
+#if PANEL_TYPE==13
 // VCV Fundamental VCA
 #define ADCS 1
 #define SWITCHES 3
 #define WSLEDS 3
 //!@todo Indicate level, e.g. +24 (WS)LEDs
-#endif // MODULE_TYPE 13
+#endif // PANEL_TYPE 13
 
-#if MODULE_TYPE==14
+#if PANEL_TYPE==14
 // VCV Fundamental ADSR
 #define ADCS 8
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 14
+#endif // PANEL_TYPE 14
 
-#if MODULE_TYPE==15
+#if PANEL_TYPE==15
 // VCV Fundamental VCA-2
 #define ADCS 2
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 15
+#endif // PANEL_TYPE 15
 
-#if MODULE_TYPE==16
+#if PANEL_TYPE==16
 // VCV Fundamental VCA MIX
 #define ADCS 10
 #define SWITCHES 14
 #define WSLEDS 14
-#endif // MODULE_TYPE 16
+#endif // PANEL_TYPE 16
 
-#if MODULE_TYPE==17
+#if PANEL_TYPE==17
 // VCV Fundamental MERGE
 #define ADCS 0
 #define SWITCHES 17
 #define WSLEDS 17
-#endif // MODULE_TYPE 17
+#endif // PANEL_TYPE 17
 
-#if MODULE_TYPE==18
+#if PANEL_TYPE==18
 // VCV Fundamental RANDOM
 #define ADCS 8
 #define SWITCHES 12
 #define WSLEDS 12
-#endif // MODULE_TYPE 18
+#endif // PANEL_TYPE 18
 
-#if MODULE_TYPE==19
+#if PANEL_TYPE==19
 // VCV Fundamental NOIZ
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
-#endif // MODULE_TYPE 19
+#endif // PANEL_TYPE 19
 
-#if MODULE_TYPE==20
+#if PANEL_TYPE==20
 // VCV Fundamental M/S
 #define ADCS 2
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 20
+#endif // PANEL_TYPE 20
 
-#if MODULE_TYPE==21
+#if PANEL_TYPE==21
 // VCV Fundamental SPLIT
 #define ADCS 0
 #define SWITCHES 17
 #define WSLEDS 17
-#endif // MODULE_TYPE 21
+#endif // PANEL_TYPE 21
 
-#if MODULE_TYPE==22
+#if PANEL_TYPE==22
 // VCV Fundamental 4-1
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
 #define LEDS 3
-#endif // MODULE_TYPE 22
+#endif // PANEL_TYPE 22
 
-#if MODULE_TYPE==23
+#if PANEL_TYPE==23
 // VCV Fundamental 1-4
 #define ADCS 0
 #define SWITCHES 7
 #define WSLEDS 7
 #define LEDS 3
-#endif // MODULE_TYPE 23
+#endif // PANEL_TYPE 23
 
-#if MODULE_TYPE==24
+#if PANEL_TYPE==24
 // VCV Fundamental SEQ3
 #define ADCS 28
 #define SWITCHES 31
 #define WSLEDS 31
-#endif // MODULE_TYPE 24
+#endif // PANEL_TYPE 24
 
-#if MODULE_TYPE==25
+#if PANEL_TYPE==25
 // VCV Fundamental PULSES
 #define ADCS 0
 #define SWITCHES 30
 #define WSLEDS 30
-#endif // MODULE_TYPE 25
+#endif // PANEL_TYPE 25
 
-#if MODULE_TYPE==26
+#if PANEL_TYPE==26
 // VCV Fundamental MUTES
 #define ADCS 0
 #define SWITCHES 30
 #define WSLEDS 30
-#endif // MODULE_TYPE 26
+#endif // PANEL_TYPE 26
 
-#if MODULE_TYPE==27
+#if PANEL_TYPE==27
 // VCV Fundamental 8VERT
 #define ADCS 8
 #define SWITCHES 16
 #define WSLEDS 16
-#endif // MODULE_TYPE 27
+#endif // PANEL_TYPE 27
 
-#if MODULE_TYPE==28
+#if PANEL_TYPE==28
 // VCV Fundamental MIX
 #define ADCS 1
 #define SWITCHES 7
 #define WSLEDS 7
-#endif // MODULE_TYPE 28
+#endif // PANEL_TYPE 28
 
-#if MODULE_TYPE==29
+#if PANEL_TYPE==29
 // VCV Fundamental LFO
 #define ADCS 4
 #define SWITCHES 10
 #define WSLEDS 10
-#endif // MODULE_TYPE 29
+#endif // PANEL_TYPE 29
 
-#if MODULE_TYPE==30
+#if PANEL_TYPE==30
 // VCV Fundamental OCT
 #define ADCS 1
 #define SWITCHES 3
 #define WSLEDS 3
-#endif // MODULE_TYPE 30
+#endif // PANEL_TYPE 30
 
-#if MODULE_TYPE==31
+#if PANEL_TYPE==31
 // VCV Fundamental WT VCO
 #define ADCS 4
 #define SWITCHES 7
 #define WSLEDS 7
 //!@todo Load, select and indicate wavetable / waveform
 #define DISPLAY 1
-#endif // MODULE_TYPE 31
+#endif // PANEL_TYPE 31
 
-#if MODULE_TYPE==32
+#if PANEL_TYPE==32
 // VCV Fundamental SUM
 #define ADCS 1
 #define SWITCHES 2
 #define WSLEDS 2
 #define LEDS 6
-#endif // MODULE_TYPE 32
+#endif // PANEL_TYPE 32
 
-#if MODULE_TYPE==33
+#if PANEL_TYPE==33
 // VCV Fundamental QNT
 #define ADCS 1
 #define SWITCHES 14
 #define WSLEDS 14
 //!@todo Implement keyboard
-#endif // MODULE_TYPE 33
+#endif // PANEL_TYPE 33
 
-#if MODULE_TYPE==34
+#if PANEL_TYPE==34
 // VCV Fundamental WT LFO
 #define ADCS 4
 #define SWITCHES 7
 #define WSLEDS 7
 //!@todo Load, select and indicate wavetable / waveform
-#endif // MODULE_TYPE 33
+#endif // PANEL_TYPE 33
 
-#if MODULE_TYPE==35
+#if PANEL_TYPE==35
 // VCV Fundamental DELAY
 #define ADCS 8
 #define SWITCHES 8
 #define WSLEDS 8
-#endif // MODULE_TYPE 35
+#endif // PANEL_TYPE 35
 
 /*===========================================================================
     Define macros not specified (used) by module

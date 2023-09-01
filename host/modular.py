@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """ riban modular
   
   Copyright 2023 riban ltd <info@riban.co.uk>
@@ -325,7 +326,7 @@ def hw_reset():
     GPIO.output(RESET_PIN, 0)
     sleep(0.1)
     GPIO.output(RESET_PIN, 1)
-    GPIO.setup(RESET_PIN, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
+    #GPIO.setup(RESET_PIN, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
 
 def init_modules():
     """ Initialise rack and detect installed panels"""
@@ -340,13 +341,10 @@ def init_modules():
     logging.debug("Detecting attached modules:")
     while True:
         sleep(0.1) # Wait for panel to initialise
-        if addr > 10:
-            type = get_panel_type(0x77)
-            if type is None:
-                break
-            change_panel_address(0x77, addr)
-        else:
-            type = 1
+        type = get_panel_type(0x77)
+        if type is None:
+            break
+        change_panel_address(0x77, addr)
         if str(type) in cfg:
             mod_cfg = cfg[str(type)]
             patch["modules"].append({"id": addr, "plugin": mod_cfg["plugin"], "model": mod_cfg["model"]})
@@ -505,7 +503,7 @@ def refresh_routes():
 
 def select_source(addr, src):
     """ Select a source for routing
-    
+
     addr - Panel I2C address
     src -  Panel output index
     """
@@ -523,10 +521,10 @@ def select_source(addr, src):
         # elect source
         selected_src = (addr, src)
     refresh_routes()
-        
+
 def select_destination(addr, dst):
     """ Select a destination for routing
-    
+
     addr - Panel I2C address
     dst -  Panel input index
     """
@@ -554,7 +552,6 @@ osc_server.start()
 bus = smbus.SMBus(1)
 init_modules()
 
-toggle_route(11,0,10,0)
 refresh_routes()
 # Main program loop
 while True:
