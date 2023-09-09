@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP XL-2121RGBC-WS2812B
+D RGB LED with integrated controller
+K RGB LED NeoPixel addressable
+F https://datasheet.lcsc.com/lcsc/2301111010_XINGLIGHT-XL-2121RGBC-WS2812B_C5349957.pdf
+$ENDCMP
+#
+#End Doc Library
