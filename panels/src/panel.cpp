@@ -15,16 +15,10 @@
 #include <Wire.h> // I2C inteface
 #include "panel.h"
 #include "ws2812.h"
+#include "detect.h"
 
 #define LEARN_I2C_ADDR 0x77 // I2C address to use when reset
 
-enum {
-  RUN_MODE_INIT,
-  RUN_MODE_SETUP,
-  RUN_MODE_RUN
-};
-
-uint8_t run_mode = RUN_MODE_INIT; // True when initialing
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
@@ -42,7 +36,7 @@ uint8_t pulsePhase = 0; // Step through pulse fade
 bool fastPulseDir = true; // True when fast pulse is increasing
 uint8_t fastPulsePhase = 0; // Step through fast pulse fade
 uint64_t changedFlags = 0; // Bitwise flags indicating a sensor value has changed
-uint8_t i2cAddr = LEARN_I2C_ADDR; // Module's I2C address
+bool run = false; // True when running
 
 struct SWITCH {
   uint8_t gpi; // GPI pin
@@ -196,35 +190,29 @@ void processWs2812(uint32_t now) {
 }
 
 // Set module I2C address
-void setAddr(uint8_t addr) {
+void startI2c() {
   Wire.setSCL(SCL_PIN);
   Wire.setSDA(SDA_PIN);
-  Wire.begin(addr, true);
-  i2cAddr = addr;
+  Wire.begin(getI2cAddress(), true);
   Wire.onRequest(onI2Crequest);
   Wire.onReceive(onI2Creceive);
 }
 
 // Reset and listen for new I2C address
 void reset() {
-  digitalWrite(NEXT_MODULE_PIN, LOW);
   ws2812_set_all(44, 66, 100);
   for (uint16_t i = 0; i < WSLEDS; ++i)
     wsleds[i].mode = WS2812_MODE_ON;
-  setAddr(LEARN_I2C_ADDR);
   for (uint16_t i = 0; i < WSLEDS; ++i)
     wsleds[i].mode = WS2812_MODE_ON;
   ws2812_refresh();
-  run_mode = RUN_MODE_SETUP;
+  Wire.end();
+  init_detect();
 }
 
 // Initialise module
 void setup(){
-  //Disable next module
-  pinMode(NEXT_MODULE_PIN, OUTPUT);
-  digitalWrite(NEXT_MODULE_PIN, LOW);
-  pinMode(RUN_PIN, INPUT_PULLDOWN);
-
+  
   ws2812_init(WSLEDS); // Initalise WS2812 (via SPI) before GPI to allow resuse of MOSI & SCLK pins
   for (uint16_t i = 0; i < WSLEDS; ++ i) {
     wsleds[i].led = i;
@@ -241,41 +229,30 @@ void setup(){
   }
   pinMode(PC13, OUTPUT); // activity LED
   digitalWrite(PC13, HIGH);
+
+  init_detect();
 }
 
 // Main process loop
 void loop() {
-  static bool next_reset = false;
+  if (detect())
+    return;
+  if (run == false) {
+    run = true;
+    startI2c();
+  }
+
   static uint32_t next_second = 0;
 
-  if (!digitalRead(RUN_PIN)) {
-    run_mode = RUN_MODE_INIT;
-    Wire.end();
-  } else {
-    if (run_mode == RUN_MODE_INIT)
-      reset();
-  }
   uint32_t now = millis();
   if (now > next_second) {
     digitalToggle(PC13);
-    switch(run_mode) {
-      case RUN_MODE_INIT:
-        next_second = now + 100;
-        break;
-      case RUN_MODE_SETUP:
-        next_second = now + 400;
-        break;
-      default:
-        next_second = now + 1000;
-        break;
-    }
+    next_second = now + 1000;
   }
 
-  if (run_mode == RUN_MODE_RUN) {
-    processSwitches(now);
-    processAdcs(now);
-    processWs2812(now);
-  }
+  processSwitches(now);
+  processAdcs(now);
+  processWs2812(now);
 }
 
 // Handle received I2C data
@@ -285,20 +262,6 @@ void onI2Creceive(int count) {
     --count;
   }
   switch(i2cCommand) {
-    case 0xfe: // Set I2C address
-      if (run_mode == RUN_MODE_SETUP && count) {
-        uint8_t addr = Wire.read();
-        --count;
-        if (addr >= 10 && addr < 111) {
-          setAddr(addr);
-          run_mode = RUN_MODE_RUN;
-          for (uint16_t i = 0; i < WSLEDS; ++i)
-            wsleds[i].mode = WS2812_MODE_OFF;
-          digitalWrite(NEXT_MODULE_PIN, HIGH);
-          ws2812_refresh();
-        }
-      }
-      break;
     case 0xff: // Reset
       reset();
       break;

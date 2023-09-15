@@ -54,14 +54,23 @@ PC14|   |   |     |Next module reset
 PC15|   |   |     |
 */
 
+#ifdef GENERIC_PROTOTYPE
+#define ADC_PINS {PB1, PC0, PB0, PA0, PC5, PA1, PC4, PA3}
+#define GPI_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PC0, PB0, PA0, PC5, PA1, PC4, PA3}
+#define DETECT_PIN PA2 // 1-wire bus used to detect panels
+#define SCL_PIN PB5
+#define SDA_PIN PB6
+#define MOSI_PIN PB15 //WS2812 LED data
+
+#else
 #define ADC_PINS {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB0, PB1}
 #define PWM_PINS {PA0, PA1, PA2, PA3, PA6, PA7, PA8, PA9, PA10, PB0, PB1, PB6, PB7, PB8, PB9}
 #define GPI_PINS {PB0, PB1, PB3, PB4, PB5, PB6, PB7, PB8, PB9, PB12, PB13, PB14, PA15}
 #define SCL_PIN PB10
 #define SDA_PIN PB11
 #define MOSI_PIN PB15 //WS2812 LED data
-#define RUN_PIN PC15 // Held high to start panel
-#define NEXT_MODULE_PIN PC14 // GPI connected to next module's reset pin
+#define DETECT_PIN PC15 // 1-wire bus used to detect panels
+#endif
 
 #if PANEL_TYPE==1
 // Host Audio
