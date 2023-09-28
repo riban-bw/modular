@@ -13,12 +13,13 @@
 
 import smbus # python3-smbus
 import RPi.GPIO as GPIO # python3-rpi.gpio
-from time import sleep
+from time import sleep, monotonic
 import json
 import liblo # python3-liblo
 import logging
+import subprocess
 
-RESET_PIN = 4 # RPi GPIO pin used to reset first modules
+RESET_PIN = 17 # RPi GPIO pin used to reset first modules
 module_map = {} # Map of module config indexed by I2C address
 sw2dest = {} # Map of destination, mapped by (panel i2c addr, switch index)
 sw2src = {} # Map of source, mapped by (panel i2c addr, switch index)
@@ -296,7 +297,7 @@ def config_source_led(addr, led):
     """
 
     set_wsled(addr, led, LED_OFF, 0x00, 0xff, 0x00)
-    set_wsled_secondary(addr, led, LED_ON2, 0x00, 0x30, 0x00)
+    set_wsled_secondary(addr, led, LED_ON2, 0x00, 0x40, 0x00)
 
 def configure_destination_led(addr, led):
     """ Configure a LED as a destination button
@@ -305,8 +306,8 @@ def configure_destination_led(addr, led):
     led - LED index
     """
 
-    set_wsled(addr, led, LED_OFF, 0x00, 0x00, 0xff)
-    set_wsled_secondary(addr, led, LED_ON2, 0x00, 0x00, 0x30)
+    set_wsled(addr, led, LED_OFF, 0x80, 0x00, 0xff)
+    set_wsled_secondary(addr, led, LED_ON2, 0x10, 0x00, 0x40)
 
 def config_toggle_led(addr, led):
     """ Configure a LED as a destination button
@@ -315,7 +316,7 @@ def config_toggle_led(addr, led):
     led - LED index
     """
 
-    set_wsled(addr, led, LED_OFF, 0x80, 0x80, 0xff)
+    set_wsled(addr, led, LED_OFF, 0x80, 0x00, 0x00)
     set_wsled_secondary(addr, led, LED_OFF, 0x00, 0x00, 0x00)
 
 def hw_reset():
@@ -336,43 +337,46 @@ def init_modules():
     with open("/home/dietpi/modular/config/panel.json", "r") as f:
         cfg = json.load(f)
     hw_reset()
+    sleep(3)
     addr = 10
     module_map = {}
     logging.debug("Detecting attached modules:")
-    while True:
-        sleep(0.1) # Wait for panel to initialise
-        type = get_panel_type(0x77)
-        if type is None:
-            break
-        change_panel_address(0x77, addr)
-        if str(type) in cfg:
-            mod_cfg = cfg[str(type)]
-            patch["modules"].append({"id": addr, "plugin": mod_cfg["plugin"], "model": mod_cfg["model"]})
-            module_map[addr] = cfg[str(type)]
-            dst_n = 0
-            src_n = 0
-            toggle_n = 0
-            pot_n = 0
-            if "dests" in module_map[addr]:
-                for x,y in module_map[addr]["dests"]:
-                    configure_destination_led(addr, x)
-                    sw2dest[(addr, x)] = dst_n
-                    dst_n += 1
-            if "srcs" in module_map[addr]:
-                for x,y in module_map[addr]["srcs"]:
-                    config_source_led(addr, x)
-                    sw2src[(addr, x)] = src_n
-                    src_n += 1
-            if "toggles" in module_map[addr]:
-                for x,y,z in module_map[addr]["toggles"]:
-                    config_toggle_led(addr, x)
-                    sw2toggle[(addr, x)] = toggle_n
-                    toggle_n += 1
-            if "pots" in module_map[addr]:
-                pot_n += len(module_map[addr]['pots'])
-            module_map[addr]["knob_values"] = [0]  * pot_n
-            module_map[addr]["switch_states"] = [0] * (dst_n + src_n + toggle_n)
-        addr += 1
+    result = subprocess.run(['/home/dietpi/modular/host/scan', '10'], stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')
+    sleep(2)
+    logging.warning(f"Found devices: {result}")
+    for line in result:
+        if line:
+            ads,uid = line.split(':')
+            addr = int(ads)
+            type = get_panel_type(addr)
+            if str(type) in cfg:
+                mod_cfg = cfg[str(type)]
+                patch["modules"].append({"id": addr, "plugin": mod_cfg["plugin"], "model": mod_cfg["model"]})
+                module_map[addr] = cfg[str(type)]
+                dst_n = 0
+                src_n = 0
+                toggle_n = 0
+                pot_n = 0
+                if "dests" in module_map[addr]:
+                    for x,y in module_map[addr]["dests"]:
+                        configure_destination_led(addr, x)
+                        sw2dest[(addr, y)] = dst_n
+                        dst_n += 1
+                if "srcs" in module_map[addr]:
+                    for x,y in module_map[addr]["srcs"]:
+                        config_source_led(addr, x)
+                        sw2src[(addr, y)] = src_n
+                        src_n += 1
+                if "toggles" in module_map[addr]:
+                    for x,y,z in module_map[addr]["toggles"]:
+                        config_toggle_led(addr, x)
+                        sw2toggle[(addr, y)] = toggle_n
+                        toggle_n += 1
+                if "pots" in module_map[addr]:
+                    pot_n += len(module_map[addr]['pots'])
+                module_map[addr]["knob_values"] = [0]  * pot_n
+                module_map[addr]["switch_states"] = [0] * (dst_n + src_n + toggle_n)
+    
     with open("/home/dietpi/patch.vcv", "w") as f:
         json.dump(patch, f)
     liblo.send(uri, "/load", ("s", "patch.vcv"))
@@ -383,6 +387,7 @@ def scan_modules():
 
     for addr, cfg in module_map.items():
         while(True):
+            sleep(0.01)
             result = get_changed(addr)
             if result[0] == 0:
                 # No more changed parameters so move to next panel
@@ -457,48 +462,48 @@ def refresh_routes():
         for addr, cfg in module_map.items():
             for i,dest in enumerate(cfg['dests']):
                 if (addr, i) in routing:
-                    set_wsled_mode(addr, dest[1], LED_ON)
+                    set_wsled_mode(addr, dest[0], LED_ON)
                     srcs.append(routing[(addr, i)])
                 else:
-                    set_wsled_mode(addr, dest[1], LED_ON2)
+                    set_wsled_mode(addr, dest[0], LED_ON2)
         for addr, cfg in module_map.items():
             for i,src in enumerate(cfg['srcs']):
                 if (addr,i) in srcs:
-                    set_wsled_mode(addr, src[1], LED_ON)
+                    set_wsled_mode(addr, src[0], LED_ON)
                 else:
-                    set_wsled_mode(addr, src[1], LED_ON2)
+                    set_wsled_mode(addr, src[0], LED_ON2)
     elif selected_src is None:
         # Only destination selected so flash destination, highlight connected source and show available sources
         for addr, cfg in module_map.items():
             for i,src in enumerate(cfg['srcs']):
-                set_wsled_mode(addr, src[1], LED_ON2)
+                set_wsled_mode(addr, src[0], LED_ON2)
             for i,dest in enumerate(cfg['dests']):
-                set_wsled_mode(addr, dest[1], LED_OFF)
+                set_wsled_mode(addr, dest[0], LED_OFF)
         addr = selected_dst[0]
         port = selected_dst[1]
-        led = module_map[addr]['dests'][port][1]
+        led = module_map[addr]['dests'][port][0]
         set_wsled_mode(addr, led, LED_FLASH)
         if (addr, port) in routing:
             src_addr = routing[(addr, port)][0]
             src_port = routing[(addr, port)][1]
-            src_led = module_map[src_addr]['srcs'][src_port][1]
+            src_led = module_map[src_addr]['srcs'][src_port][0]
             set_wsled_mode(src_addr, src_led, LED_ON)
     elif selected_dst is None:
         # Only source selected so flash source, highlight connected destinaton and show available destinations
         for addr, cfg in module_map.items():
             for i,src in enumerate(cfg['srcs']):
-                set_wsled_mode(addr, src[1], LED_OFF)
+                set_wsled_mode(addr, src[0], LED_OFF)
             for i,dest in enumerate(cfg['dests']):
                 if (addr, i) in routing:
                     if selected_src == routing[(addr, i)]:
-                        set_wsled_mode(addr, dest[1], LED_ON)
+                        set_wsled_mode(addr, dest[0], LED_ON)
                     else:
-                        set_wsled_mode(addr, dest[1], LED_OFF)
+                        set_wsled_mode(addr, dest[0], LED_OFF)
                 else:
-                    set_wsled_mode(addr, dest[1], LED_ON2)
+                    set_wsled_mode(addr, dest[0], LED_ON2)
         addr = selected_src[0]
         port = selected_src[1]
-        led = module_map[addr]['srcs'][port][1]
+        led = module_map[addr]['srcs'][port][0]
         set_wsled_mode(addr, led, LED_FLASH)
 
 def select_source(addr, src):
@@ -553,6 +558,11 @@ bus = smbus.SMBus(1)
 init_modules()
 
 refresh_routes()
+next_check = monotonic() + 5
 # Main program loop
 while True:
     scan_modules()
+    if monotonic() > next_check:
+        next_check = monotonic() + 5
+
+    
