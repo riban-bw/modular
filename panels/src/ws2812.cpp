@@ -24,7 +24,7 @@ void ws2812_init(uint16_t leds) {
     // Have to set MISO & SCLK but subsequently reuse for GPI
     SPI.setMISO(PB14);
     SPI.setSCLK(PB13);
-    SPISettings spiSettings(4000000, MSBFIRST, SPI_MODE_3, SPI_TRANSMITONLY);
+    SPISettings spiSettings(6000000, MSBFIRST, SPI_MODE_3, SPI_TRANSMITONLY);
     SPI.beginTransaction(spiSettings);
     memset(ws2812_buffer, 0, WS2812_BUFFER_SIZE);
     ws2812_set_all(0, 0, 0);
@@ -69,4 +69,5 @@ void ws2812_set_all(uint8_t red, uint8_t green, uint8_t blue) {
         WS2812_FILL_BUFFER(red);
         WS2812_FILL_BUFFER(blue);
     }
+    ws2812_pending = true;
 }

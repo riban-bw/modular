@@ -57,7 +57,6 @@ bool detect() {
       return true;
     if (bootTimer + 200 > now) {
       // Too short for start bit
-      // Serial.printf("Start bit too short %u - %u = %u\n", now, bootTimer, now - bootTimer);
       bootMode = 0;
       return true;
     }
@@ -100,7 +99,6 @@ bool detect() {
       return true;
     if (!detectState) {
       // Another device has higher UID so drop out of detection
-      Serial.printf("Other device detected\n");
       bootMode = 0;
     } else {
       // Prepare to process next bit
@@ -146,10 +144,6 @@ bool detect() {
       bootMode = 13;
   } else if (bootMode == 13) {
     // I2C address set (0 if invalid)
-    Serial.printf("UID: 0x");
-    for (uint8_t i = 0; i < 13; ++i)
-      Serial.printf("%02x", uid[i]);
-    Serial.printf(" set I2C address to 0x%02x\n", i2cAddress);
     if (i2cAddress)
       bootMode = 14;
     else
