@@ -18,6 +18,7 @@ import json
 import liblo # python3-liblo
 import logging
 import subprocess
+import jack
 
 RESET_PIN = 17 # RPi GPIO pin used to reset first modules
 module_map = {} # Map of module config indexed by I2C address
@@ -559,6 +560,14 @@ init_modules()
 
 refresh_routes()
 next_check = monotonic() + 5
+
+client = jack.Client("riban")
+try:
+    client.connect("Cardinal:audio_out_1", "system:playback_1")
+    client.connect("Cardinal:audio_out_2", "system:playback_2")
+except:
+    pass
+
 # Main program loop
 while True:
     scan_modules()
