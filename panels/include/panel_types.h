@@ -89,13 +89,22 @@ PC15|   |   |     |
 #define WSLEDS {3, 4, 5, 6, 2, 1, 8, 7, 0, 15, 13}
 #define ADC_PINS {PC0, PA0, PA1, PA3}
 #define SWITCH_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PB0, PC4}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "VCO"
 #endif // PANEL_TYPE 11
 
 #if PANEL_TYPE==12
-// VCV Fundamental VCF
-#define ADCS 6
-#define SWITCHES 6
-#define WSLEDS 6
+// Bogaudio LVCF
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define DETECT_PIN PC15 // 1-wire bus used to detect panels
+#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
+#define ADC_PINS {PA0, PA1, PA2}
+#define SWITCH_PINS {PA3, PA4, PA5, PA6}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "LVCO"
 #endif // PANEL_TYPE 12
 
 #if PANEL_TYPE==13
