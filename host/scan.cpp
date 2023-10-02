@@ -17,9 +17,12 @@ int main(int argc, char** argv) {
     }
 
     uint8_t i2cAddress = atoi(argv[1]);
+    if (i2cAddress < 10 || i2cAddress > 0x77) {
+        fprintf(stderr, "I2C address out of range 10..119\n");
+        return -1;
+    }
 
-    while (i2cAddress < 0x77) {
-
+    while (true) {
         // Configure pin to pull high when listenting and low when sending clock
         bcm2835_gpio_set_pud(PIN, BCM2835_GPIO_PUD_UP);
         bcm2835_gpio_fsel(PIN, BCM2835_GPIO_FSEL_INPT);
@@ -70,14 +73,13 @@ int main(int argc, char** argv) {
         if (checksum)
             fprintf(stderr, "Checksum error\n");
         else {
-            printf("%d:0x", i2cAddress);
             for (uint8_t i = 0; i < 13; ++i)
                 printf("%02x", uid[i]);
             printf("\n");
-            ++i2cAddress;
+            break;
         }
     }
-
+    
     bcm2835_close();
     return 0;
 }
