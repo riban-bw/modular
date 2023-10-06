@@ -17,16 +17,18 @@ from time import sleep, monotonic
 import json
 import liblo # python3-liblo
 import logging
-import subprocess
 import jack
 from threading import Thread, Lock
+from subprocess import run, Popen, DEVNULL, PIPE
+from glob import glob
+from shutil import rmtree
 
 logging.basicConfig(level=logging.DEBUG)
 RESET_PIN = 17 # RPi GPIO pin used to reset first modules
 module_map = {} # Map of module config indexed by I2C address
-sw2dest = {} # Map of destination, mapped by (panel i2c addr, switch index)
-sw2src = {} # Map of source, mapped by (panel i2c addr, switch index)
-sw2toggle = {} # Map of [module index, toggle param], mapped by (panel i2c addr, switch index)
+sw2dest = {} # Map of destination, mapped by (mod_id, switch index)
+sw2src = {} # Map of source, mapped by (module_id, switch index)
+sw2toggle = {} # Map of [module index, toggle param], mapped by (mod_id, switch index)
 selected_src = None # Currently selected source in format (panel i2c addr, output index)
 selected_dst = None # Currently selected destination in format (panel i2c addr, input index)
 gpi_values = {} # Map of gpi_values indexed by panel id (I2C address) in form [x,x,x...] where x is 16-bitwise values for each bank of GPI
@@ -156,7 +158,7 @@ def get_adc(addr, adc):
     
     addr - Panel I2C address
     adc - ADC index
-    Returns - ADC value [0..1023] or 0 if ADC not found
+    Returns - ADC value [0..1023] or 0 if ADCload_patch not found
     """
 
     try:
@@ -205,7 +207,7 @@ def get_changed(addr):
     """ Get the next changed parameter from panel
 
     addr - Panel I2C address
-    Returns - Tuple containing (parameter index, parameter value) or (0, 0) if no more parameters changed or parameter not found
+    Returns - Tuple containing (parameter index, parameter value) or (0, 0) if no more parameters changed parameter not found or None on error 
     Note - (0,0) is returned after all changed parameters have been read even if one of those parameters has subsequently changed value
     """
 
@@ -213,7 +215,7 @@ def get_changed(addr):
         result = bus.read_i2c_block_data(addr, 0x00, 3)
         return (result[2], result[0] | (result[1] << 8))
     except:
-        return (0, 0)
+        return None
 
 def reset(addr):
     """ Reset panel
@@ -311,7 +313,7 @@ def config_toggle_led(addr, led):
     set_wsled_secondary(addr, led, LED_OFF, 0x00, 0x00, 0x00)
 
 def hw_reset():
-    """ Reset first panel"""
+    """ Reset all panels"""
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(RESET_PIN, GPIO.OUT)
@@ -329,21 +331,22 @@ def add_module(i2c_addr, mod_index, mod_cfg):
     src_n = 0
     toggle_n = 0
     pot_n = 0
+    mod_id = mod_cfg["mod_id"]
     if "dests" in mod_cfg:
         for x,y in mod_cfg["dests"]:
             configure_destination_led(i2c_addr, x)
-            sw2dest[(i2c_addr, y)] = dst_n
+            sw2dest[(mod_id, y)] = dst_n
             dst_n += 1
     if "srcs" in mod_cfg:
         for x,y in mod_cfg["srcs"]:
             config_source_led(i2c_addr, x)
-            sw2src[(i2c_addr, y)] = src_n
+            sw2src[(mod_id, y)] = src_n
             src_n += 1
     if "toggles" in mod_cfg:
         for x,y,z in mod_cfg["toggles"]:
             for l in z:
                 config_toggle_led(i2c_addr, l[0])
-            sw2toggle[(i2c_addr, y)] = [mod_index, toggle_n]
+            sw2toggle[(mod_id, y)] = [mod_index, toggle_n]
             toggle_n += 1
     if "pots" in mod_cfg:
         pot_n += len(mod_cfg['pots'])
@@ -354,7 +357,7 @@ def add_module(i2c_addr, mod_index, mod_cfg):
 def init_module(i2c_addr, uid):
     """ Initialise rack and detect installed panels"""
 
-    global module_map, sw2dest, sw2src, sw2toggle, module_count, universal_panels
+    global module_map, universal_panels
     update = False
     with open("/home/dietpi/modular/config/panel.json", "r") as f:
         cfg = json.load(f)
@@ -387,10 +390,15 @@ def scan_modules():
 
     global module_count
 
+    missing_modules = []
+
     for addr, cfgs in module_map.items():
         while(True):
             sleep(0.01)
             result = get_changed(addr)
+            if result is None:
+                missing_modules.append(addr)
+                continue
             if result[0] == 0:
                 # No more changed parameters so move to next panel
                 break
@@ -426,25 +434,26 @@ def scan_modules():
                             value = gpis & 1
                             flag = gpi_flags & 1
                             if flag and value:
-                                # Switch has been pressed
-                                if (addr, switch) in sw2toggle:
-                                    toggle = sw2toggle[(addr, switch)][0]
+                                # Switch has been pressed#
+                                mod_id = cfg["mod_id"]
+                                if (mod_id, switch) in sw2toggle:
+                                    toggle = sw2toggle[(mod_id, switch)][0]
                                     leds = cfg["toggles"][toggle][2]
                                     param = cfg["toggles"][toggle][0]
                                     state = int(cfg["switch_states"][switch]) + 1
                                     if state >= len(leds):
                                         state = 0
                                     cfg["switch_states"][switch] = state
-                                    set_param(addr, param, state)
+                                    set_param(cfg["mod_id"], param, state)
                                     for led,val in leds:
                                         if val == state:
                                             set_wsled_mode(addr, led, LED_ON)
                                         else:
                                             set_wsled_mode(addr, led, LED_OFF)                                
-                                elif (addr, switch) in sw2dest:
-                                    select_destination(addr, sw2dest[(addr, switch)])
-                                elif (addr, switch) in sw2src:
-                                    select_source(addr, sw2src[(addr, switch)])
+                                elif (mod_id, switch) in sw2dest:
+                                    select_destination(addr, sw2dest[(mod_id, switch)])
+                                elif (mod_id, switch) in sw2src:
+                                    select_source(mod_id, sw2src[(mod_id, switch)])
                             gpis >>= 1
                             gpi_flags >>= 1
             elif result[0] < 0x50:
@@ -459,14 +468,17 @@ def scan_modules():
                         r = cfg["pots"][pot][2] - cfg["pots"][pot][1]
                         set_param(cfg["mod_id"], param, cfg["pots"][pot][1] + r * result[1] / 1023)
                         cfg['knob_values'][pot] = result[1]
+    
+    if missing_modules:
+        load_patch()
 
 
-def toggle_route(src_addr, src_port, dst_addr, dst_port):
+def toggle_route(src_id, src_port, dst_id, dst_port):
     """ Toggle routing between specified source and destination
 
-    src_addr - Source module I2C address
+    src_id - Source module ID
     src_port - Source output index
-    dst_addr - Destination module I2C address
+    dst_id - Destination module ID
     dst_port - Destination output index
     """
 
@@ -477,17 +489,6 @@ def toggle_route(src_addr, src_port, dst_addr, dst_port):
     mod_dst = dst_port
     src_id = None
     dst_id = None
-
-    for cfg in module_map[src_addr]:
-        if mod_src < len(cfg["srcs"]):
-            src_id = cfg["mod_id"]
-            break
-        mod_src -= len(cfg("srcs"))
-    for cfg in module_map[dst_addr]:
-        if mod_dst < len(cfg["dests"]):
-            dst_id = cfg["mod_id"]
-            break
-        mod_dst -= len(cfg("dests"))
 
     if src_id is None or dst_id is None:
         logging.WARNING("Failed to find source / destination to route")
@@ -502,7 +503,7 @@ def toggle_route(src_addr, src_port, dst_addr, dst_port):
     # Request to make new connection
     if connect:
         add_cable(src_id, mod_src, dst_id, mod_dst)
-        routing[(dst_id, dst_port)] = (src_id, src_port)
+        routing[(dst_id, dst_port)] = (src_id, src_port,)
 
 def refresh_routes():
     """ Update routing LEDs"""
@@ -513,8 +514,9 @@ def refresh_routes():
         port = 0
         for addr, cfgs in module_map.items():
             for cfg in cfgs:
+                mod_id = cfg["mod_id"]
                 for dest in cfg['dests']:
-                    if (addr, port) in routing:
+                    if (mod_id, port) in routing:
                         set_wsled_mode(addr, dest[0], LED_ON)
                         srcs.append(routing[(addr, port)])
                     else:
@@ -523,8 +525,9 @@ def refresh_routes():
         port = 0
         for addr, cfgs in module_map.items():
             for cfg in cfgs:
+                mod_id = cfg["mod_id"]
                 for src in cfg['srcs']:
-                    if (addr, port) in srcs:
+                    if (mod_id, port) in srcs:
                         set_wsled_mode(addr, src[0], LED_ON)
                     else:
                         set_wsled_mode(addr, src[0], LED_ON2)
@@ -539,14 +542,15 @@ def refresh_routes():
             s_port = 0
             d_port = 0
             for cfg in cfgs:
+                mod_id = cfg["mod_id"]
                 for dest in cfg['dests']:
-                    if selected_dst[0] == addr and d_port == selected_dst[1]:
+                    if selected_dst[0] == mod_id and d_port == selected_dst[1]:
                         set_wsled_mode(addr, dest[0], LED_FLASH)
                     else:
                         set_wsled_mode(addr, dest[0], LED_OFF)
                     d_port += 1
                 for src in cfg['srcs']:
-                    if (addr, s_port) == routed_src:
+                    if (mod_id, s_port) == routed_src:
                         set_wsled_mode(addr, src[0], LED_ON)
                     else:
                         set_wsled_mode(addr, src[0], LED_ON2)
@@ -558,14 +562,15 @@ def refresh_routes():
             s_port = 0
             d_port = 0
             for cfg in cfgs:
+                mod_id = cfg["mod_id"]
                 for src in cfg['srcs']:
-                    if addr == selected_src[0] and s_port == src_port:
+                    if mod_id == selected_src[0] and s_port == src_port:
                       set_wsled_mode(addr, src[0], LED_FLASH)
                     else:
                       set_wsled_mode(addr, src[0], LED_OFF)
                     s_port += 1
                 for dest in cfg['dests']:
-                    if (addr, d_port) in routing:
+                    if (mod_id, d_port) in routing:
                         if selected_src == routing[(addr, d_port)]:
                             set_wsled_mode(addr, dest[0], LED_ON)
                         else:
@@ -575,7 +580,7 @@ def refresh_routes():
                     d_port += 1
 
 
-def select_source(addr, src):
+def select_source(mod_id, src):
     """ Select a source for routing
 
     addr - Panel I2C address
@@ -585,18 +590,18 @@ def select_source(addr, src):
     global selected_src, selected_dst
     if selected_dst:
         # Destination already selected so toggle route
-        toggle_route(addr, src, selected_dst[0], selected_dst[1])
+        toggle_route(mod_id, src, selected_dst[0], selected_dst[1])
         selected_src = None
         selected_dst = None
-    elif selected_src == (addr, src):
+    elif selected_src == (mod_id, src):
         # Source already selected so deselect
         selected_src = None
     else:
         # elect source
-        selected_src = (addr, src)
+        selected_src = (mod_id, src)
     refresh_routes()
 
-def select_destination(addr, dst):
+def select_destination(mod_id, dst):
     """ Select a destination for routing
 
     addr - Panel I2C address
@@ -606,47 +611,68 @@ def select_destination(addr, dst):
     global selected_src, selected_dst
     if selected_src:
         # Source already selected so toggle route
-        toggle_route(selected_src[0], selected_src[1], addr, dst)
+        toggle_route(selected_src[0], selected_src[1], mod_id, dst)
         selected_src = None
         selected_dst = None
-    elif selected_dst == (addr, dst):
+    elif selected_dst == (mod_id, dst):
         # Destination already selected so deselect
         selected_dst = None
     else:
         # Select destination
-        selected_dst = (addr, dst)
+        selected_dst = (mod_id, dst)
     refresh_routes()
 
-# Initiate OSC communication with rack
-osc_server = liblo.ServerThread(2001)
-osc_server.add_method(None, None, on_osc, None)
-osc_server.start()
 
-# Find installed panels and initiate rack
-bus = smbus.SMBus(1)
-hw_reset()
-sleep(3)
-module_map = {}
-mutex = Lock()
 
-#refresh_routes()
+def on_xrun(arg):
+    global xcount
+    xcount += 1
+    logging.warning(f"xrun ({xcount}): {arg}")
 
-client = jack.Client("riban")
-try:
-    client.connect("Cardinal:audio_out_1", "system:playback_1")
-    client.connect("Cardinal:audio_out_2", "system:playback_2")
-    client.connect("system:midi_capture_1", "Cardinal:events-in")
-except:
-    pass
+
+def reset_xrun():
+    global xcount
+    xcount = 0
+
+def connect_audio():
+    """Connect Cardinal audio output to soundcard outputs"""
+
+    try:
+        client.connect("Cardinal:audio_out_1", "system:playback_1")
+    except:
+        pass
+    try:
+        client.connect("Cardinal:audio_out_2", "system:playback_2")
+    except:
+        pass
+
+def connect_midi():
+    """Connect MIDI input to Cardinal MIDI input"""
+
+    src_ports = client.get_ports(is_midi=True, is_output=True)
+    for port in src_ports:
+        if port.name.startswith("Cardinal"):
+            continue
+        try:
+            client.connect(port, "Cardinal:events-in")
+        except:
+            pass
+
+def autoconnect_worker():
+    while running:
+        connect_audio()
+        connect_midi()
+        sleep(2)
+
 
 def detect_modules():
     global mutex
     i2c_addr = 10
     uid = ""
     new_addrs = []
-    while True:
+    while running:
         update = False
-        uid = subprocess.run(['/home/dietpi/modular/host/scan', str(i2c_addr)], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode('utf-8').split('\n')[0]
+        uid = run(['/home/dietpi/modular/host/scan', str(i2c_addr)], stdout=PIPE, stderr=PIPE).stdout.decode('utf-8').split('\n')[0]
         sleep(1)
         if uid:
             new_addrs.append([i2c_addr, uid])
@@ -662,12 +688,53 @@ def detect_modules():
         else:
             sleep(5)
 
+# Initiate OSC communication with rack
+osc_server = liblo.ServerThread(2001)
+osc_server.add_method(None, None, on_osc, None)
+osc_server.start()
+
+# Find installed panels and initiate rack
+bus = smbus.SMBus(1)
+hw_reset()
+sleep(3)
+module_map = {}
+mutex = Lock()
+
+#refresh_routes()
+xcount = 0
+
+# Jack client
+client = jack.Client("riban")
+client.set_xrun_callback(on_xrun)
+client.activate()
+
+running = True
 detect_thread = Thread(target=detect_modules, daemon=True, name="Detect Modules")
 detect_thread .start()
+autoconnect_thread = Thread(name="Autoconnect", target=autoconnect_worker, daemon=True)
+autoconnect_thread.start()
+
+###############################################################################
+# Start Cardinal
+try:
+    for dir in glob("/tmp/Cardinal*"):
+        rmtree(dir)
+except:
+    pass
+cardinal_proc = Popen(['/home/dietpi/Cardinal/bin/Cardinal'])#, stdout=DEVNULL, stderr=DEVNULL)
 
 # Main program loop
 while True:
+    if cardinal_proc.poll() is not None:
+        # Cardninal has terminated so let's restart it
+        logging.warning("Restarting Cardinal")
+        try:
+            rmtree("/tmp/Cardinal*")
+        except:
+            pass
+        cardinal_proc = Popen(['/home/dietpi/Cardinal/bin/Cardinal'])#, stdout=DEVNULL, stderr=DEVNULL)
+        load_patch()
     mutex.acquire()
     scan_modules()
     mutex.release()
-    sleep(0.1)
+    #sleep(0.1)
