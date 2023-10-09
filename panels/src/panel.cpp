@@ -19,6 +19,13 @@
 
 #define LEARN_I2C_ADDR 0x77 // I2C address to use when reset
 
+uint8_t ledPins[] WSLEDS;
+uint8_t adcPins[] = ADC_PINS;
+uint8_t switchPins[] = SWITCH_PINS;
+static const size_t nAdcs = sizeof(adcPins);
+static const size_t nSwitches = sizeof(switchPins);
+static const size_t nLeds = sizeof(ledPins);
+
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 uint8_t avCount = 0; // Index of ADC averaging filter
@@ -44,7 +51,7 @@ struct SWITCH {
   uint32_t lastChange = 0; // Time of last value change
 };
 
-struct ADC {
+struct ADC_T {
   uint8_t gpi; // GPI pin
   uint32_t sum = 0; // Sum of last 16 samples
   uint16_t value = 0; // Current filtered / averaged value
@@ -69,15 +76,14 @@ struct WS_LED {
     bool dir = true; // Fade direction for pulse or state for flash
 };
 
-struct SWITCH switches[SWITCHES];
-struct ADC adcs[ADCS];
-struct LED leds[LEDS];
-struct WS_LED wsleds[WSLEDS];
+struct SWITCH switches[nSwitches];
+struct ADC_T adcs[nAdcs];
+struct WS_LED wsleds[nLeds];
 
 // Process switches
 void processSwitches(uint32_t now) {
   //!@todo Add stretching, long press, etc.
-  for (uint16_t i = 0; i < SWITCHES; ++i) {
+  for (uint16_t i = 0; i < nSwitches; ++i) {
     if (now - switches[i].lastChange < 20)
       continue; //debounce
     bool state = !digitalRead(switches[i].gpi);
@@ -92,7 +98,7 @@ void processSwitches(uint32_t now) {
 
 // Process ADCs
 void processAdcs(uint32_t now) {
-  for (uint16_t i = 0; i < ADCS; ++i) {
+  for (uint16_t i = 0; i < nAdcs; ++i) {
     uint16_t value = analogRead(adcs[i].gpi);
     adcs[i].sum -= adcs[i].avValues[avCount];
     adcs[i].avValues[avCount] = value;
@@ -141,7 +147,7 @@ void processWs2812(uint32_t now) {
       fastPulseDir = true;
     scheduledFastPulse += 5;
   }
-  for (uint16_t i = 0; i < WSLEDS; ++i) {
+  for (uint16_t i = 0; i < nLeds; ++i) {
       if(wsleds[i].mode == WS2812_MODE_OFF) {
           ws2812_set(wsleds[i].led, 0, 0, 0);
           wsleds[i].mode = WS2812_MODE_IDLE;
@@ -201,9 +207,9 @@ void startI2c() {
 // Reset and listen for new I2C address
 void reset() {
   ws2812_set_all(44, 66, 100);
-  for (uint16_t i = 0; i < WSLEDS; ++i)
+  for (uint16_t i = 0; i < nLeds; ++i)
     wsleds[i].mode = WS2812_MODE_ON;
-  for (uint16_t i = 0; i < WSLEDS; ++i)
+  for (uint16_t i = 0; i < nLeds; ++i)
     wsleds[i].mode = WS2812_MODE_ON;
   ws2812_refresh();
   Wire.end();
@@ -212,24 +218,40 @@ void reset() {
 
 // Initialise module
 void setup(){
-  
-  ws2812_init(WSLEDS); // Initalise WS2812 (via SPI) before GPI to allow resuse of MOSI & SCLK pins
-  for (uint16_t i = 0; i < WSLEDS; ++ i) {
-    wsleds[i].led = i;
+  #ifdef GENERIC_PROTOTYPE
+  //!@todo factor this out
+  pinMode(PB5, INPUT); // Cope with r1 bad PCB design
+  #endif
+  uint8_t n = 0;
+  for (uint16_t i = 0; i < nLeds; ++ i) {
+    wsleds[i].led = ledPins[i];
+    if (ledPins[i] + 1 > n)
+      n = ledPins[i] + 1;
   }
+  ws2812_init(n); // Initalise WS2812 (via SPI) before GPI to allow resuse of MOSI & SCLK nLeds
 
-  uint8_t switch_gpis[] = GPI_PINS;
-  for (uint16_t i = 0; i < SWITCHES; ++i) {
-    switches[i].gpi = switch_gpis[i];
-    pinMode(switch_gpis[i], INPUT_PULLUP);
+  for (uint16_t i = 0; i < nSwitches; ++i) {
+    switches[i].gpi = switchPins[i];
+    pinMode(switches[i].gpi, INPUT_PULLUP);
   }
-  uint8_t adc_gpis[] = ADC_PINS;
-  for (uint16_t i = 0; i < ADCS; ++i) {
-    adcs[i].gpi = adc_gpis[i];
+  for (uint16_t i = 0; i < nAdcs; ++i) {
+    adcs[i].gpi = adcPins[i];
   }
-  pinMode(PC13, OUTPUT); // activity LED
-  digitalWrite(PC13, HIGH);
-
+  uint8_t o=0,r=0,g=0,b=50;
+  for (uint8_t j = 0; j < 1; ++j) {
+    o=r;
+    r=g;
+    g=b;
+    b=o;
+    for (uint8_t i = 0; i < nLeds; ++i) {
+      ws2812_set(wsleds[i].led, r, g, b);
+      ws2812_refresh();
+      delay(100);
+      ws2812_set_all(0,0,0);
+      ws2812_refresh();
+      delay(100);
+    }
+  }
   init_detect();
 }
 
@@ -238,6 +260,7 @@ void loop() {
   if (detect())
     return;
   if (run == false) {
+    delay(100);
     run = true;
     startI2c();
   }
@@ -246,7 +269,6 @@ void loop() {
 
   uint32_t now = millis();
   if (now > next_second) {
-    digitalToggle(PC13);
     next_second = now + 1000;
   }
 
@@ -270,7 +292,7 @@ void onI2Creceive(int count) {
       if (count) {
         uint8_t led = Wire.read();
         --count;
-        if (led < WSLEDS) {
+        if (led < nLeds) {
           if (count == 1 || count == 4) {
             wsleds[led].mode = Wire.read();
             --count;
@@ -321,7 +343,7 @@ void onI2Crequest() {
         if (readMask & changedFlags) {
           if (readSessionPos < 0x10)
             response = ((0x10 + readSessionPos) << 16) | switchValues[readSessionPos];
-          else if (readSessionPos < 0x10 + ADCS) {
+          else if (readSessionPos < 0x10 + nAdcs) {
             if (adcs[readSessionPos - 0x10].value != adcs[readSessionPos - 0x10].lastValue) {
               response = ((0x10 + readSessionPos) << 16) | adcs[readSessionPos - 0x10].value;
               adcs[readSessionPos - 0x10].lastValue = adcs[readSessionPos - 0x10].value;
@@ -342,7 +364,7 @@ void onI2Crequest() {
   } else if (i2cCommand < 0x20) {
     // Get first bank of 32 switches
     response |= switchValues[i2cCommand - 0x10];
-  } else if (i2cCommand - 0x20 < ADCS) {
+  } else if (i2cCommand - 0x20 < nAdcs) {
     response |= adcs[i2cCommand - 0x20].value;
     //!@todo Handle multiplexed ADC
   } else if (i2cCommand == 0xF0) {
@@ -361,5 +383,5 @@ void onI2Crequest() {
   }
   if (useResponse)
     Wire.write((uint8_t*)&response, 3);
-  delayMicroseconds(10); // Need delay to avoid bad read but too long will corrupt WS2812 bus
+  //delayMicroseconds(1); // Need delay to avoid bad read but too long will corrupt WS2812 bus
 }

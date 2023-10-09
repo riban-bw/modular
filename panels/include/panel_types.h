@@ -10,6 +10,8 @@
   Defines each module configuration based on preprocessor directive PANEL_TYPE which should be defined in build system.
 */
 
+#ifndef PANEL_TYPES_H
+
 #ifndef PANEL_TYPE
 #error Module type not defined
 #endif //PANEL_TYPE
@@ -54,44 +56,55 @@ PC14|   |   |     |Next module reset
 PC15|   |   |     |
 */
 
-#ifdef GENERIC_PROTOTYPE
-#define ADC_PINS {PB1, PC0, PB0, PA0, PC5, PA1, PC4, PA3}
-#define GPI_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PC0, PB0, PA0, PC5, PA1, PC4, PA3}
+#ifdef ARDUINO_GENERIC_F072R8TX
 #define DETECT_PIN PA2 // 1-wire bus used to detect panels
-#define SCL_PIN PB5
-#define SDA_PIN PB6
+#define SCL_PIN PB6
+#define SDA_PIN PB7
 #define MOSI_PIN PB15 //WS2812 LED data
+#endif
 
-#else
-#define ADC_PINS {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB0, PB1}
-#define PWM_PINS {PA0, PA1, PA2, PA3, PA6, PA7, PA8, PA9, PA10, PB0, PB1, PB6, PB7, PB8, PB9}
-#define GPI_PINS {PB0, PB1, PB3, PB4, PB5, PB6, PB7, PB8, PB9, PB12, PB13, PB14, PA15}
+#if PANEL_TYPE==0
+// Generic Test Panel
+#define ADCS 8
+#define SWITCHES 16
+#define WSLEDS 16
+#endif // PANEL_TYPE 0
+
+#if PANEL_TYPE==1
+// Brain
 #define SCL_PIN PB10
 #define SDA_PIN PB11
 #define MOSI_PIN PB15 //WS2812 LED data
 #define DETECT_PIN PC15 // 1-wire bus used to detect panels
-#endif
-
-#if PANEL_TYPE==1
-// Host Audio
-//!@todo May want a core module that provides audio & MIDI
-#define ADCS 1
-#define SWITCHES 4
-#define WSLEDS 4
+#define WSLEDS {0, 1, 2, 3}
+#define ADC_PINS {PA0}
+#define SWITCH_PINS {PB5, PB4, PB3, PA15}
+#define BRAND "RIBAN"
+#define PLUGIN "Core"
+#define MODEL "Brain"
 #endif // PANEL_TYPE 1
 
 #if PANEL_TYPE==11
-// VCV Fundamental VCO
-#define ADCS 4
-#define SWITCHES 10
-#define WSLEDS 10
+// Bogaudio VCO
+#define WSLEDS {3, 4, 5, 6, 2, 1, 8, 7, 0, 15, 13}
+#define ADC_PINS {PC0, PA0, PA1, PA3}
+#define SWITCH_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PB0, PC4}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "VCO"
 #endif // PANEL_TYPE 11
 
 #if PANEL_TYPE==12
-// VCV Fundamental VCF
-#define ADCS 6
-#define SWITCHES 6
-#define WSLEDS 6
+// Bogaudio LVCF
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define DETECT_PIN PC15 // 1-wire bus used to detect panels
+#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
+#define ADC_PINS {PA0, PA1, PA2}
+#define SWITCH_PINS {PA3, PA4, PA5, PA6}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "LVCO"
 #endif // PANEL_TYPE 12
 
 #if PANEL_TYPE==13
@@ -269,15 +282,4 @@ PC15|   |   |     |
     DO NOT CHANGE THIS - add new modules above
 */
 
-#ifndef SWITCHES
-#define SWITCHES 0 // Defines quantity of switch pins
-#endif //SWITCHES
-#ifndef ADCS
-#define ADCS 0 // Defines quantity of analogue inputs like potentiometers
-#endif //ADCS
-#ifndef LEDS
-#define LEDS 0 // Defines quanity of simple LED outputs
-#endif //LEDS
-#ifndef WSLEDS
-#define WSLEDS 0  // Defines quantity of WS2812 LEDs
-#endif //WSLEDS
+#endif //PANEL_TYPES_H
