@@ -84,6 +84,19 @@ PC15|   |   |     |
 #define MODEL "Brain"
 #endif // PANEL_TYPE 1
 
+#if PANEL_TYPE==2
+// MIDI
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define DETECT_PIN PB1
+#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
+#define ADC_PINS {}
+#define SWITCH_PINS {PA3, PA4, PA5, PA6}
+#define BRAND "riban"
+#define PLUGIN "riban"
+#define MODEL "MIDI"
+#endif // PANEL_TYPE 2
+
 #if PANEL_TYPE==11
 // Bogaudio VCO
 #define WSLEDS {3, 4, 5, 6, 2, 1, 8, 7, 0, 15, 13}
@@ -98,7 +111,7 @@ PC15|   |   |     |
 // Bogaudio LVCF
 #define SCL_PIN PB10
 #define SDA_PIN PB11
-#define DETECT_PIN PC15 // 1-wire bus used to detect panels
+#define DETECT_PIN PB1 // 1-wire bus used to detect panels
 #define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
 #define ADC_PINS {PA0, PA1, PA2}
 #define SWITCH_PINS {PA3, PA4, PA5, PA6}
@@ -116,14 +129,17 @@ PC15|   |   |     |
 #endif // PANEL_TYPE 13
 
 #if PANEL_TYPE==14
-// VCV Fundamental ADSR
-#define ADCS 8
-#define SWITCHES 8
-#define WSLEDS 8
+// Dual Bogaudio ADSR
+#define WSLEDS {3, 4, 2, 5, 6, 8}
+#define ADC_PINS {PB1, PB0, PC5, PC4, PC0, PA0, PA1, PA3}
+#define SWITCH_PINS {PA9, PA11, PA10, PC10, PC12, PA15}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "ADSR"
 #endif // PANEL_TYPE 14
 
 #if PANEL_TYPE==15
-// VCV Fundamental VCA-2
+// Bogaudio VCA
 #define ADCS 2
 #define SWITCHES 8
 #define WSLEDS 8

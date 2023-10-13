@@ -55,8 +55,8 @@ struct ADC_T {
   uint8_t gpi; // GPI pin
   uint32_t sum = 0; // Sum of last 16 samples
   uint16_t value = 0; // Current filtered / averaged value
-  uint16_t lastValue = 0; // Last retrieved filtered / averaged value
-  uint16_t avValues[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // Last 16 samples
+  float ema_a = 0.6; // filter coeficient
+  uint16_t lastValue = 0; //Last retrieved filtered value
 };
 
 struct LED {
@@ -98,19 +98,14 @@ void processSwitches(uint32_t now) {
 
 // Process ADCs
 void processAdcs(uint32_t now) {
+  static uint16_t value;
   for (uint16_t i = 0; i < nAdcs; ++i) {
-    uint16_t value = analogRead(adcs[i].gpi);
-    adcs[i].sum -= adcs[i].avValues[avCount];
-    adcs[i].avValues[avCount] = value;
-    adcs[i].sum += value;
-    value = adcs[i].sum / 16;
-    if (value != adcs[i].value) {
-      changedFlags |= (1ULL << (0x10 + i));
+    value = (adcs[i].ema_a * analogRead(adcs[i].gpi)) + ((1 - adcs[i].ema_a) * adcs[i].value);
+    if (adcs[i].value != value) {
       adcs[i].value = value;
+      changedFlags |= (1ULL << (0x10 + i));
     }
   }
-  if (++avCount > 15)
-    avCount = 0;
 }
 
 // Process WS2812 animation
@@ -199,7 +194,7 @@ void processWs2812(uint32_t now) {
 void startI2c() {
   Wire.setSCL(SCL_PIN);
   Wire.setSDA(SDA_PIN);
-  Wire.begin(getI2cAddress(), true);
+  Wire.begin(getI2cAddress());
   Wire.onRequest(onI2Crequest);
   Wire.onReceive(onI2Creceive);
 }
@@ -263,6 +258,8 @@ void loop() {
     delay(100);
     run = true;
     startI2c();
+    for (uint8_t i = 0; i < nAdcs; ++i)
+      adcs[i].value = analogRead(adcs[i].gpi);
   }
 
   static uint32_t next_second = 0;

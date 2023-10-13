@@ -20,9 +20,8 @@ bool updatePending = false; // True when a change of modules needs to be communi
 uint8_t srcButton = 0; // Index of selected source
 
 SWITCH encSwitch(25);
-SWITCH backSwitch(0);
-SWITCH selectSwitch(35);
-ENCODER encoder(26, 27);
+SWITCH backSwitch(33);
+ENCODER encoder(27, 26);
 MODULE* available_modules[3];
 MODULE* installedModules[] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
 char menuEntries[8][13];
@@ -156,8 +155,10 @@ void setup() {
   available_modules[2] = new MODULE(2, "MIDI");
 
   tft.init();
+  tft.setRotation(2);
   pinMode(RESET_PIN, INPUT);
   reset();
+  //Serial.begin(9600);
 }
 
 void loop() {
@@ -185,7 +186,7 @@ void loop() {
   uint32_t now = millis();
 
   // Check encoder button
-  switch(processSwitch(encSwitch, now) | processSwitch(selectSwitch, now)) {
+  switch(processSwitch(encSwitch, now)) {
     case SWITCH_SHORT:
       // Short press release
       switch (selectedMenu) {
@@ -334,6 +335,7 @@ void startI2c() {
 
 // Handle received I2C data
 void onI2Creceive(int count) {
+  //Serial.printf("I2C Rx %d\n", count);
   if (count) {
     i2cCommand = Wire.read();
     --count;
@@ -400,6 +402,9 @@ void onI2Crequest() {
     Wire.write(MODEL);
     useResponse = false;
   }
+
   if (useResponse)
-    Wire.write((uint8_t*)&response, 3);
+    Wire.slaveWrite((uint8_t*)&response, 3);
+  
+  //Serial.printf("I2C Req %08X\n", response);
 }
