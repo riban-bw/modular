@@ -29,10 +29,10 @@ module_map = {} # Map of module config indexed by I2C address
 sw2dest = {} # Map of destination, mapped by (mod_id, switch index)
 sw2src = {} # Map of source, mapped by (module_id, switch index)
 sw2toggle = {} # Map of [module index, toggle param], mapped by (mod_id, switch index)
-selected_src = None # Currently selected source in format (panel i2c addr, output index)
-selected_dst = None # Currently selected destination in format (panel i2c addr, input index)
+selected_src = None # Currently selected source in format (mod_id, output index)
+selected_dst = None # Currently selected destination in format (mod_id, input index)
 gpi_values = {} # Map of gpi_values indexed by panel id (I2C address) in form [x,x,x...] where x is 16-bitwise values for each bank of GPI
-routing = {} # Routing graph as list of (source module I2C address, source output index), indexed by destination
+routing = {} # Routing graph as list of (source module mod_id, source output index), indexed by destination
 # For panels controlling multiple modules the source and destinations indicies are concatenated
 uri = "osc.udp://localhost:2228"
 module_count = 0 # Quantity of modules installed
@@ -437,21 +437,23 @@ def scan_modules():
                                 # Switch has been pressed#
                                 mod_id = cfg["mod_id"]
                                 if (mod_id, switch) in sw2toggle:
-                                    toggle = sw2toggle[(mod_id, switch)][0]
+                                    toggle = sw2toggle[(mod_id, switch)][1]
                                     leds = cfg["toggles"][toggle][2]
                                     param = cfg["toggles"][toggle][0]
                                     state = int(cfg["switch_states"][switch]) + 1
                                     if state >= len(leds):
                                         state = 0
                                     cfg["switch_states"][switch] = state
-                                    set_param(cfg["mod_id"], param, state)
-                                    for led,val in leds:
-                                        if val == state:
-                                            set_wsled_mode(addr, led, LED_ON)
-                                        else:
-                                            set_wsled_mode(addr, led, LED_OFF)                                
+                                    value = leds[state][1]
+                                    set_param(cfg["mod_id"], param, value)
+                                    for i, led_cfg in enumerate(leds):
+                                        if led_cfg[0] != -1:
+                                            if i == state:
+                                                set_wsled_mode(addr, led_cfg[0], LED_ON)
+                                            else:
+                                                set_wsled_mode(addr, led_cfg[0], LED_OFF)
                                 elif (mod_id, switch) in sw2dest:
-                                    select_destination(addr, sw2dest[(mod_id, switch)])
+                                    select_destination(mod_id, sw2dest[(mod_id, switch)])
                                 elif (mod_id, switch) in sw2src:
                                     select_source(mod_id, sw2src[(mod_id, switch)])
                             gpis >>= 1
@@ -487,12 +489,6 @@ def toggle_route(src_id, src_port, dst_id, dst_port):
 
     mod_src = src_port
     mod_dst = dst_port
-    src_id = None
-    dst_id = None
-
-    if src_id is None or dst_id is None:
-        logging.WARNING("Failed to find source / destination to route")
-        return
 
     if (dst_id, dst_port) in routing:
         # Already has a source routed
@@ -511,20 +507,20 @@ def refresh_routes():
     if selected_dst is None and selected_src is None:
         srcs = []
         # No selection so highlight currently routed ports
-        port = 0
         for addr, cfgs in module_map.items():
             for cfg in cfgs:
+                port = 0
                 mod_id = cfg["mod_id"]
                 for dest in cfg['dests']:
                     if (mod_id, port) in routing:
                         set_wsled_mode(addr, dest[0], LED_ON)
-                        srcs.append(routing[(addr, port)])
+                        srcs.append(routing[(mod_id, port)])
                     else:
                         set_wsled_mode(addr, dest[0], LED_ON2)
                     port += 1
-        port = 0
         for addr, cfgs in module_map.items():
             for cfg in cfgs:
+                port = 0
                 mod_id = cfg["mod_id"]
                 for src in cfg['srcs']:
                     if (mod_id, port) in srcs:
@@ -571,7 +567,7 @@ def refresh_routes():
                     s_port += 1
                 for dest in cfg['dests']:
                     if (mod_id, d_port) in routing:
-                        if selected_src == routing[(addr, d_port)]:
+                        if selected_src == routing[(mod_id, d_port)]:
                             set_wsled_mode(addr, dest[0], LED_ON)
                         else:
                             set_wsled_mode(addr, dest[0], LED_OFF)
@@ -686,7 +682,7 @@ def detect_modules():
             mutex.release()
             new_addrs = []
         else:
-            sleep(5)
+            sleep(2)
 
 # Initiate OSC communication with rack
 osc_server = liblo.ServerThread(2001)

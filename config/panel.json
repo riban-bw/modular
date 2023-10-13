@@ -1,9 +1,9 @@
 {
     "1": [{"brand": "DISTRHO", "plugin": "Cardinal", "model": "HostAudio2", "dests": [[2,2],[3,3]], "srcs": [[0,0],[1,1]], "pots": [[0,0,2]]}],
     "2": [{"brand": "DISTRHO", "plugin": "Cardinal", "model": "HostMIDI", "dests": [], "srcs": [[0,0],[1,1],[2,2],[3,3]], "pots": []}],
-    "11": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-VCO", "dests": [[10,10],[4,4],[8,8],[9,9]], "srcs": [[3,3],[2,2],[1,1],[0,0]], "pots": [[4,0,1],[3,-1,1],[1,-1,1],[0,-3, 6]], "toggles": [[5,5,[[5,1]]],[6,6,[[6,1]]],[2,7,[[7,1]]]]}],
-    "12": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-LVCF", "dests": [[0,0],[2,2]], "srcs": [[1,1]], "pots": [[2,0,1],[1,-1,1],[0,0,1]], "toggles": [[3,3,[[4,0],[5,1],[6,2],[7,3]]]]}],
-    "14": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-ADSR", "dests": [[0,0]], "srcs": [[1,1]], "pots": [[3,0,1],[2,0,1],[1,0,1],[0,0, 1]], "toggles": [[4,2,[[2,1]]]]},
-          {"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-ADSR", "dests": [[3,3]], "srcs": [[4,4]], "pots": [[7,0,1],[6,0,1],[5,0,1],[4,0, 1]], "toggles": [[4,5,[[5,1]]]]}],
-    "15": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "VCA", "dests": [[0,0],[1,1],[4,4],[5,5]], "srcs": [[2,2],[3,3],[6,6],[7,7]], "pots": [[0,0,1],[1,0,1]], "toggles": [[2,8,[[8,1]]]]}]
+    "11": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-VCO", "dests": [[10,10],[4,4],[9,9],[8,8]], "srcs": [[3,3],[2,2],[1,1],[0,0]], "pots": [[4,0,1],[3,-1,1],[1,-1,1],[0,-3, 6]], "toggles": [[5,5,[[-1,0],[5,1]]],[6,6,[[-1,0],[6,1]]],[2,7,[[-1,0],[7,1]]]]}],
+    "12": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-LVCF", "dests": [[0,0],[2,2]], "srcs": [[1,1]], "pots": [[2,0,1],[0,0,1],[1,-1,1]], "toggles": [[3,3,[[4,0],[5,1],[6,2],[7,3]]]]}],
+    "14": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-ADSR", "dests": [[0,0]], "srcs": [[1,1]], "pots": [[3,0,1],[2,0,1],[1,0,1],[0,0, 1]], "toggles": [[4,2,[[-1,0],[2,1]]]]},
+          {"brand": "Bogaudio", "plugin": "Bogaudio", "model": "Bogaudio-ADSR", "dests": [[3,3]], "srcs": [[4,4]], "pots": [[7,0,1],[6,0,1],[5,0,1],[4,0, 1]], "toggles": [[4,5,[[-1,0],[5,1]]]]}],
+    "15": [{"brand": "Bogaudio", "plugin": "Bogaudio", "model": "VCA", "dests": [[0,0],[1,1],[4,4],[5,5]], "srcs": [[2,2],[3,3],[6,6],[7,7]], "pots": [[0,0,1],[1,0,1]], "toggles": [[2,8,[[-1,0],[8,1]]]]}]
 }
