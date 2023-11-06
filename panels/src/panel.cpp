@@ -7,7 +7,7 @@
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
   You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-  Provides the core firmware for hardware panels implemented on STM32F107C microcontrollers.
+  Provides the core firmware for hardware panels implemented on STM32F072C microcontrollers.
   Panels are generic using the same firmware and are setup at compile time using preprocessor directive PANEL_TYPE
 */
 
