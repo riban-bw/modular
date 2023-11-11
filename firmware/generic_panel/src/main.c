@@ -64,8 +64,10 @@ int main(void) {
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
     uint32_t next_sec = 0;  // 1s counter (ms since epoch until next second boundary)
 
+    // Populate panel info
     desig_get_unique_id(panel_info.uid);
     panel_info.version = VERSION;
+    panel_info.type = PANEL_TYPE;
 
     // Initialise LEDs
     {  // Enclose in {} to avoid leds array remaining in memory
@@ -106,20 +108,20 @@ int main(void) {
         }
         if (run_mode == RUN_MODE_DETECT) {
             switch (detect_state) {
-                case DETECT_STATE_RX_ID:
-                    set_run_mode(RUN_MODE_RUN);
-                    break;
                 case DETECT_STATE_INIT:
-                    // Send REQ_ID_0 UID[0] UID[1]
+                    // Start of detection processs - send id[16:95]
                     detect_state = DETECT_STATE_PENDING_1;
                     send_msg(CAN_MSG_REQ_ID_1, (uint8_t *)panel_info.uid, 8);
                     watchdog_ts = ms_uptime;
                     break;
                 case DETECT_STATE_RTS_2:
-                    // Send REQ_ID_1 UID[1] TYPE
+                    // Phase 2 - send id[0:5] + panel type
                     detect_state = DETECT_STATE_PENDING_2;
-                    send_msg(CAN_MSG_REQ_ID_2, (uint8_t *)panel_info.uid, 8);
+                    send_msg(CAN_MSG_REQ_ID_2, (uint8_t *)(panel_info.uid + 8), 8);
                     watchdog_ts = ms_uptime;
+                    break;
+                case DETECT_STATE_RX_ID:
+                    set_run_mode(RUN_MODE_RUN);
                     break;
                 default:
                     break;
@@ -260,6 +262,7 @@ void set_run_mode(uint8_t mode) {
             // Extinguise all LEDs - will be illuminated by config messages
             for (uint8_t led = 0; led < num_leds; ++led)
                 ws2812_set_mode(led, WS2812_MODE_OFF);
+            // Send panel version to inform brain of presence, e.g. allow for firmware update if required
             send_msg(CAN_MSG_VERSION, (uint8_t *)&panel_info.id, 8);
             break;
         case RUN_MODE_DETECT:
