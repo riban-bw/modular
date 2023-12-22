@@ -155,35 +155,35 @@ void can_rx1_isr() {
                     // Sent REQ_ID_1, pending ACK_ID_1
                     if (id == CAN_MSG_ACK_ID_1 && data_len == 8) {
                         // Brain has acknowledged stage 1 so check if we are a contender for stage 2
-                        //!@todo Casting in this way is not recommended - may need to check each byte individually
-                        uint64_t *a = (uint64_t *)data;
-                        uint64_t *b = (uint64_t *)panel_info.uid;
-                        if (*a == *b) {
-                            // Matches so progress to stage 2
-                            detect_state = DETECT_STATE_RTS_2;
-                            //!@todo Should we send next message from here to avoid wait until detect() is called in main loop?
-                            watchdog_ts = ms_uptime;
-                        } else {
-                            // Not a winner so restart detection
-                            set_run_mode(RUN_MODE_DETECT);
-                            //!@todo Maybe restart will add too much bus contention - may be better to just wait for timeout
+                        for (uint8_t i = 0; i < 8; ++i) {
+                            if (*(((uint8_t*)panel_info.uid) + i)  != data[i]) {
+                                // Not a winner so restart detection
+                                set_run_mode(RUN_MODE_DETECT);
+                                //!@todo Maybe restart will add too much bus contention - may be better to just wait for timeout
+                                return;
+                            }
                         }
+                        // Matches so progress to stage 2
+                        detect_state = DETECT_STATE_RTS_2;
+                        //!@todo Should we send next message from here to avoid wait until detect() is called in main loop?
+                        watchdog_ts = ms_uptime;
                     }
                     break;
                 case DETECT_STATE_PENDING_2:
                     // Sent REQ_ID_2, pending SET_ID
                     if (id == CAN_MSG_SET_ID) {
                         // Brain has assigned a panel id so check if it was for us
-                        //!@todo Casting in this way is not recommended - may need to check each byte individually
-                        uint32_t *a = (uint32_t *)data;
-                        if (data_len > 3 && *a == panel_info.uid[2]) {
-                            // Matches so set panel id
-                            panel_info.id = data[4];
-                            detect_state = DETECT_STATE_RX_ID;
-                        } else {
-                            // Not a winner so restart detection
-                            set_run_mode(RUN_MODE_DETECT);
+                        for (uint8_t i = 0; i < 4; ++i) {
+                            if (*(((uint8_t*)panel_info.uid) + 8 + i) != data[i]) {
+                                // Not a winner so restart detection
+                                set_run_mode(RUN_MODE_DETECT);
+                                //!@todo Maybe restart will add too much bus contention - may be better to just wait for timeout
+                                return;
+                            }
                         }
+                        // Matches so set panel id
+                        panel_info.id = data[4];
+                        detect_state = DETECT_STATE_RX_ID;
                     }
                     break;
             }
@@ -215,7 +215,7 @@ void can_rx1_isr() {
             break;
         case CAN_FILTER_NUM_RUN:
             // Run mode
-            switch (id & CAN_MSG_LED) {
+            switch (id & CAN_FILTER_MASK_BROADCAST) {
                 case CAN_MSG_LED:
                     if (data_len > 7)
                         ws2812_set_mode(data[0], data[7]);

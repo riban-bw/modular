@@ -48,7 +48,7 @@ P>B | ENC+PID     | Offset [0:7] Value [0:31]    | Encoder value +/-
         00011 ADC
         00100 ENC
         10000 DETECT / FIRMWARE
-        11111 BROQDCAST
+        11111 BROADCAST
 
     DETECT - Panel filter: 10000000000/11111111100
     10000000000 P>B REQ_ID_1

@@ -43,7 +43,7 @@ void ws2812_init(uint16_t leds)
 {
     // Configure TIM15
     rcc_periph_clock_enable(RCC_TIM15);
-    timer_disable_counter(TIM1);
+    timer_disable_counter(TIM15);
     timer_disable_preload(TIM15);
     timer_set_period(TIM15, WS2812_PWM_0 + WS2812_PWM_1 - 1);
     timer_set_prescaler(TIM15, 0);

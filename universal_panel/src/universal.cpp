@@ -166,6 +166,7 @@ void loop() {
   static char s[10];
 
   // Wait for module to be detected by brain
+  /*
   if (detect())
     return;
 
@@ -174,11 +175,12 @@ void loop() {
     reset();
     return;
   }
+  */
 
   // Init after reset
   if (!run) {
     // First loop after reset
-    startI2c();
+    //startI2c();
     run = true;
     drawMenu();
   }
