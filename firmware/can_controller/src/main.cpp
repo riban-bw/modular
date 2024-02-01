@@ -11,7 +11,8 @@
   STM3F103C is using internal clock (not external crystal) which limits clock speed to 64MHz.
 */
 
-#include "can.h"         // Provides riban modular CAN specific functions (STM32_CAN.h needs to be included before (or instead of) Arduino.h)
+#include "global.h"
+#include <STM32CAN.h>
 #include <Wire.h>        // Provides I2C interface
 
 // Global variables
@@ -93,7 +94,16 @@ void onI2cRx(int count) {
       Wire.readBytes(canMsg.data.bytes, count);
       Can1.write(canMsg);
       count = 0;
-    }
+      break;
+    case 0xf1:
+      canMsg.id = CAN_MSG_LEDC | 11;
+      canMsg.dlc = count;
+      Wire.readBytes(canMsg.data.bytes, count);
+      Can1.write(canMsg);
+      count = 0;
+      break;
+  }
+
   while (count--)
     Wire.read();
 }

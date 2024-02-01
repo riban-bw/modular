@@ -12,8 +12,7 @@
   Panels are generic using the same firmware and are setup at compile time using preprocessor directive PANEL_TYPE
 */
 
-#include "can.h" // Provides riban modular CAN specific functions (STM32_CAN.h needs to be included before (or instead of) Arduino.h)
-#include <Arduino.h>
+#include <STM32CAN.h>    // Provides CAN bus interface
 #include "global.h"      // Provides enums, structures, etc.
 #include "panel_types.h" // Definition of panel types
 #include "ws2812.hpp"    // Implements WS2812 LED functionality
@@ -154,9 +153,15 @@ void loop()
       // Panel specic
       switch (canMsg.id & (~panelInfo.id)) {
         case CAN_MSG_LED:
-          setLedState(canMsg.data.bytes[0], canMsg.data.bytes[1]);
-          if (canMsg.dlc > 2)
-            setLedType(canMsg.data.bytes[0], canMsg.data.bytes[2]);
+          if (canMsg.dlc > 1) {
+            setLedState(canMsg.data.bytes[0], canMsg.data.bytes[1]);
+            if (canMsg.dlc > 4) {
+              setLedColour1(canMsg.data.bytes[0], canMsg.data.bytes[2], canMsg.data.bytes[3], canMsg.data.bytes[4]);
+              if (canMsg.dlc > 7) {
+                setLedColour2(canMsg.data.bytes[0], canMsg.data.bytes[5], canMsg.data.bytes[6], canMsg.data.bytes[7]);
+              }
+            }
+          }
           break;
         case CAN_MSG_FU_START:
           setRunMode(RUN_MODE_FIRMWARE);
@@ -171,6 +176,7 @@ void loop()
 
 void setRunMode(uint8_t mode)
 {
+  //!@todo Use group filter for broadcast
   runMode = mode;
   switch (mode)
   {
@@ -189,7 +195,8 @@ void setRunMode(uint8_t mode)
     // Pulse all LEDs blue to indicate detect mode
     for (uint8_t led = 0; led < NUM_LEDS; ++led)
     {
-      setLedType(led, LED_TYPE_INFO);
+      setLedColour1(led, 0, 0, 200);
+      setLedColour2(led, 0, 0, 20);
       setLedState(led, LED_STATE_FAST_PULSING);
     }
     canMsg.id = CAN_MSG_REQ_ID_1;
@@ -204,10 +211,11 @@ void setRunMode(uint8_t mode)
     Can1.setFilter(
         CAN_FILTER_ID_FIRMWARE,
         CAN_FILTER_MASK_FIRMWARE, 0, 0);
-    // Flash all LEDs blue to indicate firmware upload mode
+    // Flash all LEDs to indicate firmware upload mode
     for (uint8_t led = 0; led < NUM_LEDS; ++led)
     {
-      setLedType(led, LED_TYPE_INFO);
+      setLedColour1(led, 0, 0, 200);
+      setLedColour2(led, 0, 0, 20);
       setLedState(led, LED_STATE_FAST_FLASHING);
     }
     break;

@@ -7,32 +7,54 @@
   riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
   You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-  Header for riban modular CAN Bus protocol
+  Header provides global constants and structures
 */
 
-#ifndef CAN_H
-#define CAN_H
+#ifndef GLOBAL_H
+#define GLOBAL_H
 
-#include <STM32CAN.h>
+#include <stdint.h>  // Provides fixed size integers
+
+// Defines
+#define MSG_TIMEOUT 2000  // CAN message timeout in ms
+
+// Enumerations
+enum RUN_MODE {
+    RUN_MODE_INIT,       // Not started detect process
+    RUN_MODE_PENDING_1,  // Sent REQ_ID_1, pending ACK_ID_1
+    RUN_MODE_PENDING_2,  // Sent REQ_ID_2, pending SET_ID
+    RUN_MODE_RUN,        // Received SET_ID - detection complete
+    RUN_MODE_FIRMWARE,   // Firmware update in progress
+};
+
+// Structures
+struct PANEL_ID_T {
+    uint32_t uid[3];   // 96-bit UID of STM32
+    uint32_t type;     // Panel type (see panel_types.h)
+    uint8_t id;        // Panel id used for CAN bus comms
+    uint32_t version;  // Panel firmware version
+};
+
 
 /*
 CAN Messages
 ============
 
-Dir | ID          | Payload                            | Purpose
-----|-------------|------------------------------------|---------
-P>B | REQ_ID_1    | ID [32:95]                         | Request panel ID stage 1
-B>P | ACK_ID_1    | UID [32:95]                        | Acknowledge REQ_ID_1
-P>B | REQ_ID_2    | UID [0:31] TYPE [0:31]             | Request panel ID stage 2
-B>P | SET_ID      | UID [0:31] PanelID [0:7]           | Set panel ID
-P>B | ACK_ID      | Version [0:32] PanelID [0:7]       | End request for module ID
-B>P | START_FU    | Panel type [0:31] Ver [0:31]       | Start firmware update
-B>P | FU_BLOCK    | Firmware block [0:64]              | 8 byte block of firmware
-B>P | END_FU      | Checksum / MD5?                    | End of firmware update
-B>P | LED+PID     | Offset [0:7] Mode [0:7] Type [0:7] | Set LED type and mode
-P>B | ADC+PID     | Offset [0:7] Value [0:31]          | ADC value
-P>B | SW+PID      | Offset [0:7] Bitmap [0:31]         | Switch state (x32)
-P>B | ENC+PID     | Offset [0:7] Value [0:31]          | Encoder value +/-
+Dir | ID          | Payload                              | Purpose
+----|-------------|--------------------------------------|---------------------------
+P>B | REQ_ID_1    | ID [32:95]                           | Request panel ID stage 1
+B>P | ACK_ID_1    | UID [32:95]                          | Acknowledge REQ_ID_1
+P>B | REQ_ID_2    | UID [0:31] TYPE [0:31]               | Request panel ID stage 2
+B>P | SET_ID      | UID [0:31] PanelID [0:7]             | Set panel ID
+P>B | ACK_ID      | Version [0:32] PanelID [0:7]         | End request for module ID
+B>P | START_FU    | Panel type [0:31] Ver [0:31]         | Start firmware update
+B>P | FU_BLOCK    | Firmware block [0:64]                | 8 byte block of firmware
+B>P | END_FU      | Checksum / MD5?                      | End of firmware update
+B>P | LED+PID     | Offset [0:7] Mode [0:7]              | Set LED type and mode
+    |             | RGB1 [0:23] RGB2 [0:23]              | Optional RGB colours
+P>B | ADC+PID     | Offset [0:7] Value [0:31]            | ADC value
+P>B | SW+PID      | Offset [0:7] Bitmap [0:31]           | Switch state (x32)
+P>B | ENC+PID     | Offset [0:7] Value [0:31]            | Encoder value +/-
 */
 
 /*	CAN_MESSAGE_ID is 11-bit word
@@ -82,10 +104,11 @@ enum CAN_MESSAGE_ID
     CAN_MSG_FU_END              = 0x405,
 
     CAN_MSG_LED                 = 0x040, // | panel id
+    CAN_MSG_LEDC                = 0x080, // | panel id
 
-    CAN_MSG_ADC                 = 0x080, // | panel id
-    CAN_MSG_SWITCH              = 0x0C0, // | panel id
-    CAN_MSG_QUADENC             = 0x100, // | panel id
+    CAN_MSG_ADC                 = 0x0C0, // | panel id
+    CAN_MSG_SWITCH              = 0x100, // | panel id
+    CAN_MSG_QUADENC             = 0x140, // | panel id
 
     CAN_MSG_BROADCAST           = 0x7FF
 };
@@ -111,4 +134,4 @@ enum CAN_FILTER_MASK {
     CAN_FILTER_MASK_BROADCAST   = 0x7C0,
 };
 
-#endif // CAN_H
+#endif  // GLOBAL_H
