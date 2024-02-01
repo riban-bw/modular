@@ -1,6 +1,6 @@
 /* riban modular
   
-  Copyright 2023 riban ltd <info@riban.co.uk>
+  Copyright 2023-2024 riban ltd <info@riban.co.uk>
 
   This file is part of riban modular.
   riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -11,8 +11,6 @@
 */
 
 #ifndef PANEL_TYPES_H
-
-#define VERSION  1 // Firmware version
 
 #ifndef PANEL_TYPE
 #error Module type not defined
@@ -58,18 +56,246 @@ PC14|   |   |     |Next module reset
 PC15|   |   |     |
 */
 
-#ifndef PANEL_TYPE
-#define PANEL_TYPE 0
-#endif // PANEL_TYPE
+#ifdef ARDUINO_GENERIC_F072R8TX
+#define DETECT_PIN PA2 // 1-wire bus used to detect panels
+#define SCL_PIN PB6
+#define SDA_PIN PB7
+#define MOSI_PIN PB15 //WS2812 LED data
+#endif
 
-// ===== Generic Test Panel =====
 #if PANEL_TYPE==0
-// Define The offset of each WS2812 LED in the chain in the order that they will be referenced, i.e. first index will be WS2812[0]
-#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
-// Define the index of each ADC input, in the order they will be referenced
-#define ADCS {0, 1, 2, 3, 4, 5, 6, 7}
-// Define the index of each switch, in the order they will be referenced
-#define SWITCH_PINS {0, 1, 2, 3, 4, 5, 6, 7}
+// Generic Test Panel
+#define ADCS 8
+#define SWITCHES 16
+#define WSLEDS 16
 #endif // PANEL_TYPE 0
+
+#if PANEL_TYPE==1
+// Brain
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define MOSI_PIN PB15 //WS2812 LED data
+#define DETECT_PIN PC15 // 1-wire bus used to detect panels
+#define WSLEDS {0, 1, 2, 3}
+#define ADC_PINS {PA0}
+#define SWITCH_PINS {PB5, PB4, PB3, PA15}
+#define BRAND "RIBAN"
+#define PLUGIN "Core"
+#define MODEL "Brain"
+#endif // PANEL_TYPE 1
+
+#if PANEL_TYPE==2
+// MIDI
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define DETECT_PIN PB1
+#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
+#define ADC_PINS {}
+#define SWITCH_PINS {PA3, PA4, PA5, PA6}
+#define BRAND "riban"
+#define PLUGIN "riban"
+#define MODEL "MIDI"
+#endif // PANEL_TYPE 2
+
+#if PANEL_TYPE==11
+// Bogaudio VCO
+#define WSLEDS {3, 4, 5, 6, 2, 1, 8, 7, 0, 15, 13}
+#define ADC_PINS {PC0, PA0, PA1, PA3}
+#define SWITCH_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PB0, PC4}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "VCO"
+#endif // PANEL_TYPE 11
+
+#if PANEL_TYPE==12
+// Bogaudio LVCF
+#define SCL_PIN PB10
+#define SDA_PIN PB11
+#define DETECT_PIN PB1 // 1-wire bus used to detect panels
+#define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
+#define ADC_PINS {PA0, PA1, PA2}
+#define SWITCH_PINS {PA3, PA4, PA5, PA6}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "LVCO"
+#endif // PANEL_TYPE 12
+
+#if PANEL_TYPE==13
+// VCV Fundamental VCA
+#define ADCS 1
+#define SWITCHES 3
+#define WSLEDS 3
+//!@todo Indicate level, e.g. +24 (WS)LEDs
+#endif // PANEL_TYPE 13
+
+#if PANEL_TYPE==14
+// Dual Bogaudio ADSR
+#define WSLEDS {3, 4, 2, 5, 6, 8}
+#define ADC_PINS {PB1, PB0, PC5, PC4, PC0, PA0, PA1, PA3}
+#define SWITCH_PINS {PA9, PA11, PA10, PC10, PC12, PA15}
+#define BRAND "Bogaudio"
+#define PLUGIN "Bogaudio"
+#define MODEL "ADSR"
+#endif // PANEL_TYPE 14
+
+#if PANEL_TYPE==15
+// Bogaudio VCA
+#define ADCS 2
+#define SWITCHES 8
+#define WSLEDS 8
+#endif // PANEL_TYPE 15
+
+#if PANEL_TYPE==16
+// VCV Fundamental VCA MIX
+#define ADCS 10
+#define SWITCHES 14
+#define WSLEDS 14
+#endif // PANEL_TYPE 16
+
+#if PANEL_TYPE==17
+// VCV Fundamental MERGE
+#define ADCS 0
+#define SWITCHES 17
+#define WSLEDS 17
+#endif // PANEL_TYPE 17
+
+#if PANEL_TYPE==18
+// VCV Fundamental RANDOM
+#define ADCS 8
+#define SWITCHES 12
+#define WSLEDS 12
+#endif // PANEL_TYPE 18
+
+#if PANEL_TYPE==19
+// VCV Fundamental NOIZ
+#define ADCS 0
+#define SWITCHES 7
+#define WSLEDS 7
+#endif // PANEL_TYPE 19
+
+#if PANEL_TYPE==20
+// VCV Fundamental M/S
+#define ADCS 2
+#define SWITCHES 10
+#define WSLEDS 10
+#endif // PANEL_TYPE 20
+
+#if PANEL_TYPE==21
+// VCV Fundamental SPLIT
+#define ADCS 0
+#define SWITCHES 17
+#define WSLEDS 17
+#endif // PANEL_TYPE 21
+
+#if PANEL_TYPE==22
+// VCV Fundamental 4-1
+#define ADCS 0
+#define SWITCHES 7
+#define WSLEDS 7
+#define LEDS 3
+#endif // PANEL_TYPE 22
+
+#if PANEL_TYPE==23
+// VCV Fundamental 1-4
+#define ADCS 0
+#define SWITCHES 7
+#define WSLEDS 7
+#define LEDS 3
+#endif // PANEL_TYPE 23
+
+#if PANEL_TYPE==24
+// VCV Fundamental SEQ3
+#define ADCS 28
+#define SWITCHES 31
+#define WSLEDS 31
+#endif // PANEL_TYPE 24
+
+#if PANEL_TYPE==25
+// VCV Fundamental PULSES
+#define ADCS 0
+#define SWITCHES 30
+#define WSLEDS 30
+#endif // PANEL_TYPE 25
+
+#if PANEL_TYPE==26
+// VCV Fundamental MUTES
+#define ADCS 0
+#define SWITCHES 30
+#define WSLEDS 30
+#endif // PANEL_TYPE 26
+
+#if PANEL_TYPE==27
+// VCV Fundamental 8VERT
+#define ADCS 8
+#define SWITCHES 16
+#define WSLEDS 16
+#endif // PANEL_TYPE 27
+
+#if PANEL_TYPE==28
+// VCV Fundamental MIX
+#define ADCS 1
+#define SWITCHES 7
+#define WSLEDS 7
+#endif // PANEL_TYPE 28
+
+#if PANEL_TYPE==29
+// VCV Fundamental LFO
+#define ADCS 4
+#define SWITCHES 10
+#define WSLEDS 10
+#endif // PANEL_TYPE 29
+
+#if PANEL_TYPE==30
+// VCV Fundamental OCT
+#define ADCS 1
+#define SWITCHES 3
+#define WSLEDS 3
+#endif // PANEL_TYPE 30
+
+#if PANEL_TYPE==31
+// VCV Fundamental WT VCO
+#define ADCS 4
+#define SWITCHES 7
+#define WSLEDS 7
+//!@todo Load, select and indicate wavetable / waveform
+#define DISPLAY 1
+#endif // PANEL_TYPE 31
+
+#if PANEL_TYPE==32
+// VCV Fundamental SUM
+#define ADCS 1
+#define SWITCHES 2
+#define WSLEDS 2
+#define LEDS 6
+#endif // PANEL_TYPE 32
+
+#if PANEL_TYPE==33
+// VCV Fundamental QNT
+#define ADCS 1
+#define SWITCHES 14
+#define WSLEDS 14
+//!@todo Implement keyboard
+#endif // PANEL_TYPE 33
+
+#if PANEL_TYPE==34
+// VCV Fundamental WT LFO
+#define ADCS 4
+#define SWITCHES 7
+#define WSLEDS 7
+//!@todo Load, select and indicate wavetable / waveform
+#endif // PANEL_TYPE 33
+
+#if PANEL_TYPE==35
+// VCV Fundamental DELAY
+#define ADCS 8
+#define SWITCHES 8
+#define WSLEDS 8
+#endif // PANEL_TYPE 35
+
+/*===========================================================================
+    Define macros not specified (used) by module
+
+    DO NOT CHANGE THIS - add new modules above
+*/
 
 #endif //PANEL_TYPES_H

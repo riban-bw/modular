@@ -16,6 +16,7 @@
 #include <stdint.h>  // Provides fixed size integers
 
 // Defines
+#define VERSION 2         // Software version
 #define MSG_TIMEOUT 2000  // CAN message timeout in ms
 
 // Enumerations
@@ -37,101 +38,70 @@ struct PANEL_ID_T {
 
 
 /*
-CAN Messages
-============
+riban modular CAN Messages
+==========================
 
-Dir | ID          | Payload                              | Purpose
-----|-------------|--------------------------------------|---------------------------
-P>B | REQ_ID_1    | ID [32:95]                           | Request panel ID stage 1
-B>P | ACK_ID_1    | UID [32:95]                          | Acknowledge REQ_ID_1
-P>B | REQ_ID_2    | UID [0:31] TYPE [0:31]               | Request panel ID stage 2
-B>P | SET_ID      | UID [0:31] PanelID [0:7]             | Set panel ID
-P>B | ACK_ID      | Version [0:32] PanelID [0:7]         | End request for module ID
-B>P | START_FU    | Panel type [0:31] Ver [0:31]         | Start firmware update
-B>P | FU_BLOCK    | Firmware block [0:64]                | 8 byte block of firmware
-B>P | END_FU      | Checksum / MD5?                      | End of firmware update
-B>P | LED+PID     | Offset [0:7] Mode [0:7]              | Set LED type and mode
-    |             | RGB1 [0:23] RGB2 [0:23]              | Optional RGB colours
-P>B | ADC+PID     | Offset [0:7] Value [0:31]            | ADC value
-P>B | SW+PID      | Offset [0:7] Bitmap [0:31]           | Switch state (x32)
-P>B | ENC+PID     | Offset [0:7] Value [0:31]            | Encoder value +/-
+CAN_MESSAGE_ID is 11-bit word
+Bits [10:5] Target panel id (0..63) 63=broadcast, 62=detect, 0=brain
+Bits [4..0] Opcode (0..31)
+
+Panel specific messages
+Dir | ID       | OpCode | Payload                                 | Purpose
+----|----------|--------|-----------------------------------------|---------------------------
+P>B | REQ_ID_1 | 0x00   | ID [32:95]                              | Request panel ID stage 1
+P>B | REQ_ID_2 | 0x01   | UID [0:31] TYPE [0:31]                  | Request panel ID stage 2
+P>B | ACK_ID   | 0x02   | Version [0:32] PanelID [0:7] Type [0:7] | End request for module ID
+B>P | LED+PID  | 0x03   | Offset [0:7] Mode [0:7]                 | Set LED type and mode
+    |          |        | RGB1 [0:23] RGB2 [0:23]                 | Optional RGB colours
+P>B | ADC+PID  | 0x03   | Offset [0:7] Value [0:31]               | ADC value
+P>B | SW+PID   | 0x04   | Bitmap [0:31] PanelId [0:7]             | Switch state (x32)
+P>B | ENC+PID  | 0x05   | Offset [0:7] Value [0:31]               | Encoder value +/-
+
+Detect messages (Address 0x7C0)
+Dir | ID       | OpCode | Payload                                 | Purpose
+----|----------|--------|-----------------------------------------|---------------------------
+B>P | ACK_ID_1 | 0x00   | UID [32:95]                             | Acknowledge REQ_ID_1
+B>P | SET_ID   | 0x01   | UID [0:31] PanelID [0:7]                | Set panel ID
+
+Broadcast messages (Address 0x7E)
+Dir | ID       | OpCode | Payload                                 | Purpose
+----|----------|--------|-----------------------------------------|---------------------------
+B>P | START_FU | 0x0C   | Panel type [0:31] Ver [0:31]            | Start firmware update
+B>P | FU_BLOCK | 0x0D   | Firmware block [0:64]                   | 8 byte block of firmware
+B>P | END_FU   | 0x0E   | Checksum / MD5?                         | End of firmware update
+B>P | RESET    | 0x0F   | ResendId[0]                             | Request all panels to reset. Flags define behaviour:
+                                                                  | ResendId: Do not reset. Just send ACK_ID message
 */
 
-/*	CAN_MESSAGE_ID is 11-bit word
-    Bit 11: Broadcast - 0: Panel specific, 1: All panels
-    For non-broadcast, bits [0:5] define panel id (0x00..0x5F). Brain has panel id 0x00
-    Bits [10:6] define opcode:
-        0 0000 ACK_ID
-        0 0001 LED
-        0 0010 GPI
-        0 0011 ADC
-        0 0100 ENC
-        1 0000 DETECT / FIRMWARE
-        1 1111 BROADCAST
-
-    DETECT - Panel filter: 10000000000/11111111100
-    100 0000 0000 P>B REQ_ID_1
-    100 0000 0001 B>P ACK_ID_1
-    100 0000 0010 P>B REQ_ID_2
-    100 0000 0011 B>P SET_ID
-    000 00ii iiii P>B ACK_ID (Populate panel id which brain will understand as the source)
-
-    FIRMWARE - Panel filter: 10000000100/11111111100
-    100 0000 0100 B>P FU_BLOCK
-    100 0000 0101 B>P FU_END
-
-    RUN - Panel filter: 00000iiiiii/10000111111
-    000 01ii iiii B>P LED
-    000 10ii iiii P>B GPI (Populate panel id which brain will understand as the source)
-    000 11ii iiii P>B ADC (Populate panel id which brain will understand as the source)
-    001 00ii iiii P>B ENC (Populate panel id which brain will understand as the source)
-
-    BROADCAST - Panel filter: 11111000000/11111000000
-    111 1100 0001 B>P START_FU
-    111 1111 1111 B>P BROADCAST, e.g. reset, etc.
-*/
 enum CAN_MESSAGE_ID
 {
-    CAN_MSG_REQ_ID_1            = 0x400,
-    CAN_MSG_ACK_ID_1            = 0x401,
-    CAN_MSG_REQ_ID_2            = 0x402,
-    CAN_MSG_SET_ID              = 0x403,
-    CAN_MSG_ACK_ID              = 0x404,
-    CAN_MSG_VERSION             = 0x000, // | panel id
+    CAN_MSG_REQ_ID_1            = 0x000,
+    CAN_MSG_ACK_ID_1            = 0x000,
+    CAN_MSG_REQ_ID_2            = 0x001,
+    CAN_MSG_SET_ID              = 0x001,
+    CAN_MSG_ACK_ID              = 0x002,
 
-    CAN_MSG_FU_START            = 0x7C1,
-    CAN_MSG_FU_BLOCK            = 0x404,
-    CAN_MSG_FU_END              = 0x405,
+    CAN_MSG_FU_START            = 0x7EC,
+    CAN_MSG_FU_BLOCK            = 0x7ED,
+    CAN_MSG_FU_END              = 0x7EE,
+    CAN_MSG_RESET               = 0x7EF,
 
-    CAN_MSG_LED                 = 0x040, // | panel id
-    CAN_MSG_LEDC                = 0x080, // | panel id
-
-    CAN_MSG_ADC                 = 0x0C0, // | panel id
-    CAN_MSG_SWITCH              = 0x100, // | panel id
-    CAN_MSG_QUADENC             = 0x140, // | panel id
-
-    CAN_MSG_BROADCAST           = 0x7FF
-};
-
-enum CAN_FILTER_NUM {
-    CAN_FILTER_NUM_FIRMWARE,
-    CAN_FILTER_NUM_DETECT,
-    CAN_FILTER_NUM_RUN,
-    CAN_FILTER_NUM_BROADCAST
+    CAN_MSG_LED                 = 0x003, // | (panelId << 5)
+    CAN_MSG_ADC                 = 0x003, // | (panelId << 5)
+    CAN_MSG_SWITCH              = 0x004, // | (panelId << 5)
+    CAN_MSG_QUADENC             = 0x005, // | (panelId << 5)
 };
 
 enum CAN_FILTER_ID {
-    CAN_FILTER_ID_DETECT        = 0x400,
-    CAN_FILTER_ID_FIRMWARE      = 0x404,
-    CAN_FILTER_ID_RUN           = 0x000,
-    CAN_FILTER_ID_BROADCAST     = 0x7C0,
+    CAN_FILTER_ID_DETECT        = 0x7C0, // Filter messages during detect phase - isolate detect messages from runtime messages
+    CAN_FILTER_ID_BROADCAST     = 0x7E0 // Filter broadcast messages used by all panels during runtime as well as direct messages by panel id 
 };
 
 enum CAN_FILTER_MASK {
-    CAN_FILTER_MASK_DETECT      = 0x7FC,
-    CAN_FILTER_MASK_FIRMWARE    = 0x7FC,
-    CAN_FILTER_MASK_RUN         = 0x43F,
-    CAN_FILTER_MASK_BROADCAST   = 0x7C0,
+    CAN_FILTER_MASK_ADDR        = 0x7E0,
+    CAN_FILTER_MASK_OPCODE      = 0x01F
 };
+
+#define CAN_MASK_PANEL_ID 0b11111
 
 #endif  // GLOBAL_H

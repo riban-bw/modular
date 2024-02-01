@@ -14,11 +14,11 @@
 #include "ws2812.h"
 
 uint8_t * ws2812_buffer; // Pointer to buffer holding data to send to WS2812 via SPI 
-uint16_t ws2812_num_leds = 0; // Quantity of LEDs controlled
+uint16_t MAX_LEDS = 0; // Quantity of LEDs controlled
 bool ws2812_pending = false; // True indicates a value has changed since last refresh
 
 void ws2812_init(uint16_t leds) {
-    ws2812_num_leds = leds;
+    MAX_LEDS = leds;
     ws2812_buffer = new uint8_t[WS2812_BUFFER_SIZE];
     SPI.setMOSI(PB15);
     // Have to set MISO & SCLK but subsequently reuse for GPI
@@ -33,27 +33,14 @@ void ws2812_init(uint16_t leds) {
 
 void ws2812_refresh(bool mute) {
     if (mute) {
-        for(uint16_t i = 0; i < ws2812_num_leds * 24; ++i)
-            SPI.transfer(0b10000000);
-        for(uint16_t i = 0; i < WS2812_RESET_PULSE; ++i)
-            SPI.transfer(0b00000000);
     } else if (ws2812_pending) {
         SPI.transfer(ws2812_buffer, WS2812_BUFFER_SIZE);
         ws2812_pending = false;
     }
 }
 
-#define WS2812_FILL_BUFFER(COLOUR) \
-    for( uint8_t mask = 0x80; mask; mask >>= 1 ) { \
-        if( COLOUR & mask ) { \
-            *ptr++ = 0b11111100; \
-        } else { \
-            *ptr++ = 0b10000000; \
-        } \
-    }
-
 void ws2812_set(uint16_t led, uint8_t red, uint8_t green, uint8_t blue) {
-    if (led >= ws2812_num_leds)
+    if (led >= MAX_LEDS)
         return;
     uint8_t * ptr = &ws2812_buffer[24 * led];
     WS2812_FILL_BUFFER(green);
@@ -64,7 +51,7 @@ void ws2812_set(uint16_t led, uint8_t red, uint8_t green, uint8_t blue) {
 
 void ws2812_set_all(uint8_t red, uint8_t green, uint8_t blue) {
     uint8_t * ptr = ws2812_buffer;
-    for( uint16_t i = 0; i < ws2812_num_leds; ++i) {
+    for( uint16_t i = 0; i < MAX_LEDS; ++i) {
         WS2812_FILL_BUFFER(green);
         WS2812_FILL_BUFFER(red);
         WS2812_FILL_BUFFER(blue);

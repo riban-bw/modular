@@ -69,7 +69,7 @@ void init_adcs(void) {
         adcs[i].gpi = ADC_GPI_MAP[channel * 2];
         adcs[i].value = 0;
         rcc_periph_clock_enable(adcs[i].port);
-        gpio_set_mode(adcs[i].port, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, adcs[i].gpi);
+        //gpio_set_mode(adcs[i].port, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, adcs[i].gpi);
     }
 
     // Configure DMA

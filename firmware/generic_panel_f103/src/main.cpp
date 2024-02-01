@@ -16,6 +16,7 @@
 #include "global.h"      // Provides enums, structures, etc.
 #include "panel_types.h" // Definition of panel types
 #include "ws2812.hpp"    // Implements WS2812 LED functionality
+#include "switches.hpp"  // Implements switch / button functionality
 
 // Global variables
 static volatile uint32_t now = 0; // Uptime in ms (49 day roll-over)
@@ -43,6 +44,7 @@ void setup()
   panelInfo.type = PANEL_TYPE;
 
   initLeds();
+  initSwitches();
 
   Can1.begin(CAN_BPS_50K);
   setRunMode(RUN_MODE_INIT);
@@ -77,26 +79,83 @@ void loop()
   {
     if (now - watchdogTs > MSG_TIMEOUT)
       setRunMode(RUN_MODE_INIT);
+  } else {
+    uint32_t swChanged = processSwitches(now);
+    if (swChanged) {
+      canMsg.id = CAN_MSG_SWITCH;
+      canMsg.dlc = 8;
+      canMsg.data.low = switchValues;
+      canMsg.data.high = panelInfo.id;
+      Can1.write(canMsg);
+    }
   }
 
   // Handle incoming CAN messages
   if (Can1.read(canMsg))
   {
-    if (canMsg.id & 0x400) {
-      // Broadcast
-      switch (canMsg.id)
-      {
-      case CAN_MSG_ACK_ID_1:
-        if (runMode == RUN_MODE_PENDING_1)
-        {
-          // Sent REQ_ID_1, pending ACK_ID_1
+    switch (runMode) {
+      case RUN_MODE_RUN:
+        if ((canMsg.id & CAN_FILTER_MASK_ADDR) == CAN_FILTER_ID_BROADCAST) {
+          switch (canMsg.id) {
+            case CAN_MSG_FU_START:
+              setRunMode(RUN_MODE_FIRMWARE);
+              break;
+            case CAN_MSG_RESET:
+              if (canMsg.data.bytes[0] & 0x01) {
+                canMsg.id = CAN_MSG_ACK_ID;
+                canMsg.dlc = 6;
+                canMsg.data.low = panelInfo.version;
+                canMsg.data.bytes[4] = panelInfo.id;
+                canMsg.data.bytes[5] = panelInfo.type;
+                delay(random(500));
+                Can1.write(canMsg);
+              }
+              delay(random(2000));
+              SystemInit();
+              break;
+          }
+        } else if ((canMsg.id & CAN_FILTER_MASK_ADDR) == (panelInfo.id << 5)) {
+          switch (canMsg.id & CAN_FILTER_MASK_OPCODE) {
+            case CAN_MSG_LED:
+              if (canMsg.dlc > 1) {
+                setLedState(canMsg.data.bytes[0], canMsg.data.bytes[1]);
+                if (canMsg.dlc > 4) {
+                  setLedColour1(canMsg.data.bytes[0], canMsg.data.bytes[2], canMsg.data.bytes[3], canMsg.data.bytes[4]);
+                  if (canMsg.dlc > 7) {
+                    setLedColour2(canMsg.data.bytes[0], canMsg.data.bytes[5], canMsg.data.bytes[6], canMsg.data.bytes[7]);
+                  }
+                }
+              }
+              break;
+          }
+        }
+        break;
+      case RUN_MODE_FIRMWARE:
+        switch (canMsg.id) {
+          case CAN_MSG_FU_BLOCK:
+            //!@todo flash(update_firmware_offset++, *fu_data);
+            firmwareChecksum += canMsg.data.low;
+            //!@todo flash(update_firmware_offset++, *(fu_data + 1));
+            firmwareChecksum += canMsg.data.high;
+            watchdogTs = now;
+            break;
+          case CAN_MSG_FU_END:
+            // Simple checksum - should use stronger validation, e.g. BLAKE2
+            if (canMsg.data.low == firmwareChecksum)
+            {
+              //!@todo Set partion bootable
+              delay(random(2000));
+              SystemInit();
+            }
+            break;
+        }
+      case RUN_MODE_PENDING_1:
+        // Sent REQ_ID_1, pending ACK_ID_1
+        if ((canMsg.id & CAN_FILTER_MASK_OPCODE) == CAN_MSG_ACK_ID_1) {
           // Brain has acknowledged stage 1 so check if we are a contender for stage 2
           if (canMsg.data.low != panelInfo.uid[0] || canMsg.data.high != panelInfo.uid[1])
-            // Not a winner so restart detection
-            setRunMode(RUN_MODE_INIT);
-          //!@todo Maybe restart will add too much bus contention - may be better to just wait for timeout
-          else
-          {
+            setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
+          else {
             // Matches so progress to stage 2
             canMsg.id = CAN_MSG_REQ_ID_2;
             canMsg.data.low = panelInfo.uid[2];
@@ -106,70 +165,28 @@ void loop()
               runMode = RUN_MODE_PENDING_2;
             watchdogTs = now;
           }
+          break;
         }
-        break;
-      case CAN_MSG_SET_ID:
-        if (runMode == RUN_MODE_PENDING_2) {
+      case RUN_MODE_PENDING_2:
+        if ((canMsg.id & CAN_FILTER_MASK_OPCODE) == CAN_MSG_SET_ID) {
           // Brain has assigned a panel id so check if it was for us
           if (canMsg.data.low != panelInfo.uid[2])
           {
-            // Not a winner so restart detection
-            setRunMode(RUN_MODE_INIT);
-            //!@todo Maybe restart will add too much bus contention - may be better to just wait for timeout
+            setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
           }
           else
           {
             // Matches so set panel id
             panelInfo.id = canMsg.data.bytes[4];
             canMsg.id = CAN_MSG_ACK_ID;
-            canMsg.dlc = 5;
+            canMsg.dlc = 6;
             canMsg.data.low = panelInfo.version;
-            canMsg.data.high = panelInfo.id;
+            canMsg.data.bytes[5] = panelInfo.type;
             if (Can1.write(canMsg))
               setRunMode(RUN_MODE_RUN);
           }
         }
         break;
-      case CAN_MSG_FU_BLOCK:
-        //!@todo flash(update_firmware_offset++, *fu_data);
-        firmwareChecksum += canMsg.data.low;
-        //!@todo flash(update_firmware_offset++, *(fu_data + 1));
-        firmwareChecksum += canMsg.data.high;
-        watchdogTs = now;
-        break;
-      case CAN_MSG_FU_END:
-        // Simple checksum - should use stronger validation, e.g. BLAKE2
-        if (canMsg.data.low == firmwareChecksum)
-        {
-          // Set partion bootable and reboot
-          SystemInit();
-        }
-        break;
-      default:
-        // Not a known or expected CAN broadcast id
-        break;
-      }
-    } else if (runMode == RUN_MODE_RUN && (canMsg.id & panelInfo.id) == panelInfo.id) {
-      // Panel specic
-      switch (canMsg.id & (~panelInfo.id)) {
-        case CAN_MSG_LED:
-          if (canMsg.dlc > 1) {
-            setLedState(canMsg.data.bytes[0], canMsg.data.bytes[1]);
-            if (canMsg.dlc > 4) {
-              setLedColour1(canMsg.data.bytes[0], canMsg.data.bytes[2], canMsg.data.bytes[3], canMsg.data.bytes[4]);
-              if (canMsg.dlc > 7) {
-                setLedColour2(canMsg.data.bytes[0], canMsg.data.bytes[5], canMsg.data.bytes[6], canMsg.data.bytes[7]);
-              }
-            }
-          }
-          break;
-        case CAN_MSG_FU_START:
-          setRunMode(RUN_MODE_FIRMWARE);
-          break;
-        default:
-          // Not a known or expected CAN target specific message id
-          break;
-      }
     }
   }
 }
@@ -182,18 +199,27 @@ void setRunMode(uint8_t mode)
   {
   case RUN_MODE_RUN:
     Can1.setFilter(
-        CAN_FILTER_ID_RUN | panelInfo.id,
-        CAN_FILTER_MASK_RUN, 0, 0);
+        panelInfo.id << 5,
+        CAN_FILTER_MASK_ADDR,
+        0,
+        IDStd);
+    Can1.setFilter(
+        CAN_FILTER_ID_BROADCAST,
+        CAN_FILTER_MASK_ADDR,
+        1,
+        IDStd);
     // Extinguise all LEDs - will be illuminated by config messages
-    for (uint8_t led = 0; led < NUM_LEDS; ++led)
+    for (uint8_t led = 0; led < WSLEDS; ++led)
       setLedState(led, LED_STATE_OFF);
     break;
   case RUN_MODE_INIT:
     Can1.setFilter(
         CAN_FILTER_ID_DETECT,
-        CAN_FILTER_MASK_DETECT, 0, 0);
+        CAN_FILTER_MASK_ADDR,
+        0,
+        IDStd);
     // Pulse all LEDs blue to indicate detect mode
-    for (uint8_t led = 0; led < NUM_LEDS; ++led)
+    for (uint8_t led = 0; led < WSLEDS; ++led)
     {
       setLedColour1(led, 0, 0, 200);
       setLedColour2(led, 0, 0, 20);
@@ -209,10 +235,12 @@ void setRunMode(uint8_t mode)
   case RUN_MODE_FIRMWARE:
     updateFirmwareOffset = 0;
     Can1.setFilter(
-        CAN_FILTER_ID_FIRMWARE,
-        CAN_FILTER_MASK_FIRMWARE, 0, 0);
+        CAN_FILTER_ID_BROADCAST,
+        CAN_FILTER_MASK_ADDR,
+        0,
+        IDStd);
     // Flash all LEDs to indicate firmware upload mode
-    for (uint8_t led = 0; led < NUM_LEDS; ++led)
+    for (uint8_t led = 0; led < WSLEDS; ++led)
     {
       setLedColour1(led, 0, 0, 200);
       setLedColour2(led, 0, 0, 20);

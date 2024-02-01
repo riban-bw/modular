@@ -41,25 +41,25 @@ uint32_t animation_rate = 1000; // Steps to complete one animation, e.g. pulse
 
 void ws2812_init(uint16_t leds)
 {
-    // Configure TIM15
-    rcc_periph_clock_enable(RCC_TIM15);
-    timer_disable_counter(TIM15);
-    timer_disable_preload(TIM15);
-    timer_set_period(TIM15, WS2812_PWM_0 + WS2812_PWM_1 - 1);
-    timer_set_prescaler(TIM15, 0);
-    timer_set_repetition_counter(TIM15, 0);
-    timer_disable_oc_output(TIM15, TIM_OC1);
-    timer_reset_output_idle_state(TIM15, TIM_OC1);
-    timer_reset_output_idle_state(TIM15, TIM_OC1N);
-    timer_set_oc_mode(TIM15, TIM_OC1, TIM_OCM_PWM1);
-    timer_set_oc_value(TIM15, TIM_OC1, 0); // Set PWM duty to zero ???
-    timer_set_oc_polarity_high(TIM15, TIM_OC1);
-    timer_set_oc_polarity_high(TIM15, TIM_OC1N);
-    timer_enable_oc_preload(TIM15, TIM_OC1);
-    timer_enable_irq(TIM15, TIM_DIER_CC1DE); // Enable DMA on output compare channel 1
-    timer_enable_oc_output(TIM15, TIM_OC1N); // Enable output compare
-    timer_enable_break_main_output(TIM15); // Enable main output
-    timer_generate_event(TIM15, TIM_EGR_UG); // Load config into device
+    // Configure TIM2
+    rcc_periph_clock_enable(RCC_TIM2);
+    timer_disable_counter(TIM2);
+    timer_disable_preload(TIM2);
+    timer_set_period(TIM2, WS2812_PWM_0 + WS2812_PWM_1 - 1);
+    timer_set_prescaler(TIM2, 0);
+    timer_set_repetition_counter(TIM2, 0);
+    timer_disable_oc_output(TIM2, TIM_OC1);
+    timer_reset_output_idle_state(TIM2, TIM_OC1);
+    timer_reset_output_idle_state(TIM2, TIM_OC1N);
+    timer_set_oc_mode(TIM2, TIM_OC1, TIM_OCM_PWM1);
+    timer_set_oc_value(TIM2, TIM_OC1, 0); // Set PWM duty to zero ???
+    timer_set_oc_polarity_high(TIM2, TIM_OC1);
+    timer_set_oc_polarity_high(TIM2, TIM_OC1N);
+    timer_enable_oc_preload(TIM2, TIM_OC1);
+    timer_enable_irq(TIM2, TIM_DIER_CC1DE); // Enable DMA on output compare channel 1
+    timer_enable_oc_output(TIM2, TIM_OC1N); // Enable output compare
+    timer_enable_break_main_output(TIM2); // Enable main output
+    timer_generate_event(TIM2, TIM_EGR_UG); // Load config into device
 
     // Configure DMA1
     rcc_periph_clock_enable(RCC_DMA1);
@@ -206,10 +206,10 @@ void ws2812_send(void) {
         dma_disable_channel(DMA1, DMA_CHANNEL5); // Can't change config whilst DMA enabled
         dma_clear_interrupt_flags(DMA1, DMA_CHANNEL5, DMA_GIF); // Clear all interrupt flags
         dma_set_number_of_data(DMA1, DMA_CHANNEL5, DATA_SIZE); // Quantity of DMA transfers
-        dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&TIM15_CCR1); // Destination address
+        dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&TIM2_CCR1); // Destination address
         dma_set_memory_address(DMA1, DMA_CHANNEL5, (uint32_t)ws2812_pwm_data); // Source address
         dma_enable_channel(DMA1, DMA_CHANNEL5);
-        timer_enable_counter(TIM15); // Start transfer
+        timer_enable_counter(TIM2); // Start transfer
 
         ws2812_state = WS2812_STATE_INIT | WS2812_STATE_BUSY;
     }

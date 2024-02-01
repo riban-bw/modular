@@ -1,8 +1,14 @@
 #include "FastLED.h" // Provides WS2812 LED interface
-#define NUM_LEDS 8
+#ifndef WSLEDS
+#define WSLEDS 0
+#endif //WSLEDS
+#ifndef SWITCHES
+#define SWITCHES 0
+#endif //SWITCHES
+#ifndef ADCS
+#define ADCS 0
+#endif //ADCS
 #define LED_DATA_PIN PB15
-#define PULSE_DEPTH_MAX 100
-#define PULSE_DEPTH_MIN 0
 #define REFRESH_RATE 60
 #define PULSE_RATE REFRESH_RATE / 8
 #define PULSE_RATE_FAST PULSE_RATE * 4
@@ -31,15 +37,15 @@ struct LED
 };
 
 // Arrays to hold led config
-LED leds[NUM_LEDS];        // LED config indexed by LED
-CRGB ledColours[NUM_LEDS]; // LED colour indexed by LED
+LED leds[WSLEDS];        // LED config indexed by LED
+CRGB ledColours[WSLEDS]; // LED colour indexed by LED
 
 /*  @brief  Initiate WS2812 LEDs
  */
 void initLeds()
 {
     // Initialise and clear LEDs
-    FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(&ledColours[0], NUM_LEDS);
+    FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(&ledColours[0], WSLEDS);
     FastLED.showColor(CRGB::Black);
 }
 
@@ -80,7 +86,7 @@ static inline CRGB getFade(CHSV hsv1, CHSV hsv2, uint8_t phase) {
 */
 void setLedColour1(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (led >= NUM_LEDS)
+    if (led >= WSLEDS)
         return;
     leds[led].rgb1 = CRGB(r, g, b);
     leds[led].hsv1 = rgb2hsv_approximate(leds[led].rgb1);
@@ -96,7 +102,7 @@ void setLedColour1(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 */
 void setLedColour2(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (led >= NUM_LEDS)
+    if (led >= WSLEDS)
         return;
     leds[led].rgb2 = CRGB(r, g, b);
     leds[led].hsv2 = rgb2hsv_approximate(leds[led].rgb2);
@@ -108,7 +114,7 @@ void setLedColour2(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 */
 void setLedState(uint8_t led, uint8_t state)
 {
-    if (led >= NUM_LEDS || state >= LED_STATE_QUANTITY)
+    if (led >= WSLEDS || state >= LED_STATE_QUANTITY)
         return;
     leds[led].state = state;
 }
@@ -118,42 +124,42 @@ void setLedState(uint8_t led, uint8_t state)
 */
 void processLeds()
 {
-    static int8_t phase = PULSE_DEPTH_MAX;
+    static int8_t phase = 100;
     static int8_t dPhase = -PULSE_RATE;
-    static int8_t phaseFast = PULSE_DEPTH_MAX;
+    static int8_t phaseFast = 100;
     static int8_t dPhaseFast = -PULSE_RATE_FAST;
 
     // Update slow flash / pulse
     phase += dPhase;
-    if (phase <= PULSE_DEPTH_MIN)
+    if (phase <= 0)
     {
-        phase = PULSE_DEPTH_MIN;
+        phase = 0;
         dPhase = PULSE_RATE;
     }
-    else if (phase >= PULSE_DEPTH_MAX)
+    else if (phase >= 100)
     {
-        phase = PULSE_DEPTH_MAX;
+        phase = 100;
         dPhase = -PULSE_RATE;
     }
 
     // Update fast flash / pulse
     phaseFast += dPhaseFast;
-    if (phaseFast <= PULSE_DEPTH_MIN)
+    if (phaseFast <= 0)
     {
-        phaseFast = PULSE_DEPTH_MIN;
+        phaseFast = 0;
         dPhaseFast = PULSE_RATE_FAST;
     }
-    else if (phaseFast >= PULSE_DEPTH_MAX)
+    else if (phaseFast >= 100)
     {
-        phaseFast = PULSE_DEPTH_MAX;
+        phaseFast = 100;
         dPhaseFast = -PULSE_RATE_FAST;
     }
 
-    bool phaseOff = phase < PULSE_DEPTH_MAX / 2;
-    bool phaseFastOff = phaseFast < PULSE_DEPTH_MAX / 2;
+    bool phaseOff = phase < 100 / 2;
+    bool phaseFastOff = phaseFast < 100 / 2;
 
     CRGB colour;
-    for (uint8_t i = 0; i < NUM_LEDS; ++i)
+    for (uint8_t i = 0; i < WSLEDS; ++i)
     {
         LED *led = &leds[i]; // LED object
         CRGB &ledColour = ledColours[i]; // Current WS2812 colour 

@@ -1,6 +1,6 @@
 /* riban modular
 
-  Copyright 2023 riban ltd <info@riban.co.uk>
+  Copyright 2023-2024 riban ltd <info@riban.co.uk>
 
   This file is part of riban modular.
   riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -8,6 +8,7 @@
   You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
   Provides the core firmware for hardware panels implemented on STM32F103C microcontrollers using libopencm3 framework.
+  STM3F103C is using internal clock (not external crystal) which limits clock speed to 64MHz.
   Panels are generic using the same firmware and are setup at compile time using preprocessor directive PANEL_TYPE
 */
 
@@ -37,12 +38,12 @@ enum RUN_MODE {
 // Global variables
 static volatile uint64_t ms_uptime = 0;  // Uptime in ms
 static volatile uint8_t ms_tick = 0;     // Flag indicating ms timer ticked without being processed/cleared
-uint8_t run_mode = 0;                    // Current run mode - see RUN_MODE
-uint32_t update_firmware_offset;         // Offset in firmware update
-uint32_t firmware_checksum;              //!@todo Use stronger firmware validation, e.g. BLAKE2
-volatile uint32_t watchdog_ts;           // Time that last operation occured
+uint8_t runMode = 0;                    // Current run mode - see RUN_MODE
+uint32_t updateFirmwareOffset;         // Offset in firmware update
+uint32_t firmwareChecksum;              //!@todo Use stronger firmware validation, e.g. BLAKE2
+volatile uint32_t watchdogTs;           // Time that last operation occured
 struct PANEL_ID_T panel_info;
-volatile uint8_t detect_state = DETECT_STATE_INIT;
+volatile uint8_t detectState = DETECT_STATE_INIT;
 extern uint16_t num_leds;
 
 // Function forward declarations
@@ -93,11 +94,11 @@ int main(void) {
         uint32_t now = ms_uptime;
         if (ms_tick) {
             // 1ms actions
-            if (run_mode == RUN_MODE_RUN) {
+            if (runMode == RUN_MODE_RUN) {
                 process_switches(now);
                 process_adcs();
             }
-            ws2812_refresh(now);
+            //ws2812_refresh(now);
             ms_tick = 0;
         }
         if (now > next_sec) {
@@ -106,19 +107,19 @@ int main(void) {
             next_sec = ms_uptime + 1000;
             gpio_toggle(GPIOC, GPIO13);
         }
-        if (run_mode == RUN_MODE_DETECT) {
-            switch (detect_state) {
+        if (runMode == RUN_MODE_DETECT) {
+            switch (detectState) {
                 case DETECT_STATE_INIT:
                     // Start of detection processs - send id[16:95]
-                    detect_state = DETECT_STATE_PENDING_1;
+                    detectState = DETECT_STATE_PENDING_1;
                     send_msg(CAN_MSG_REQ_ID_1, (uint8_t *)panel_info.uid, 8);
-                    watchdog_ts = ms_uptime;
+                    watchdogTs = ms_uptime;
                     break;
                 case DETECT_STATE_RTS_2:
                     // Phase 2 - send id[0:5] + panel type
-                    detect_state = DETECT_STATE_PENDING_2;
+                    detectState = DETECT_STATE_PENDING_2;
                     send_msg(CAN_MSG_REQ_ID_2, (uint8_t *)(panel_info.uid + 8), 8);
-                    watchdog_ts = ms_uptime;
+                    watchdogTs = ms_uptime;
                     break;
                 case DETECT_STATE_RX_ID:
                     set_run_mode(RUN_MODE_RUN);
@@ -126,8 +127,8 @@ int main(void) {
                 default:
                     break;
             }
-            if (now - watchdog_ts > MSG_TIMEOUT)
-                detect_state = DETECT_STATE_INIT;
+            if (now - watchdogTs > MSG_TIMEOUT)
+                detectState = DETECT_STATE_INIT;
         }
     }
     return 0;  // We never get here but compiler warns if main does not return int
@@ -150,7 +151,7 @@ void can_rx1_isr() {
 
     switch (filter_num) {
         case CAN_FILTER_NUM_DETECT:
-            switch (detect_state) {
+            switch (detectState) {
                 case DETECT_STATE_PENDING_1:
                     // Sent REQ_ID_1, pending ACK_ID_1
                     if (id == CAN_MSG_ACK_ID_1 && data_len == 8) {
@@ -164,9 +165,9 @@ void can_rx1_isr() {
                             }
                         }
                         // Matches so progress to stage 2
-                        detect_state = DETECT_STATE_RTS_2;
+                        detectState = DETECT_STATE_RTS_2;
                         //!@todo Should we send next message from here to avoid wait until detect() is called in main loop?
-                        watchdog_ts = ms_uptime;
+                        watchdogTs = ms_uptime;
                     }
                     break;
                 case DETECT_STATE_PENDING_2:
@@ -183,7 +184,7 @@ void can_rx1_isr() {
                         }
                         // Matches so set panel id
                         panel_info.id = data[4];
-                        detect_state = DETECT_STATE_RX_ID;
+                        detectState = DETECT_STATE_RX_ID;
                     }
                     break;
             }
@@ -191,26 +192,30 @@ void can_rx1_isr() {
         case CAN_FILTER_NUM_FIRMWARE:
             switch (id) {
                 case CAN_MSG_FU_BLOCK:
+                {
                     //!@todo Casting in this way is not recommended - may need to check each byte individually
                     uint32_t *fu_data = (uint32_t *)data;
                     if (data_len > 3) {
                         //!@todo flash(update_firmware_offset++, *fu_data);
-                        firmware_checksum += *fu_data;
+                        firmwareChecksum += *fu_data;
                     }
                     if (data_len > 7) {
                         //!@todo flash(update_firmware_offset++, *(fu_data + 1));
-                        firmware_checksum += *fu_data;
+                        firmwareChecksum += *fu_data;
                     }
-                    watchdog_ts = ms_uptime;
+                    watchdogTs = ms_uptime;
                     break;
+                }
                 case CAN_MSG_FU_END:
+                {
                     // Simple checksum - should use stronger validation, e.g. BLAKE2
                     uint64_t *checksum = (uint64_t *)data;
-                    if (*checksum == firmware_checksum) {
+                    if (*checksum == firmwareChecksum) {
                         // Set partion bootable and reboot
                     }
                     scb_reset_system();
                     break;
+                }
             }
             break;
         case CAN_FILTER_NUM_RUN:
@@ -272,7 +277,7 @@ void set_run_mode(uint8_t mode) {
                 CAN_FILTER_MASK_DETECT,
                 0,
                 true);
-            detect_state = DETECT_STATE_INIT;
+            detectState = DETECT_STATE_INIT;
             // Flash all LEDs red/green to indicate detect mode
             for (uint8_t led = 0; led < num_leds; ++led) {
                 ws2812_set_colour_1(led, 200, 0, 0);
@@ -281,7 +286,7 @@ void set_run_mode(uint8_t mode) {
             }
             break;
         case RUN_MODE_FIRMWARE:
-            update_firmware_offset = 0;
+            updateFirmwareOffset = 0;
             can_filter_id_mask_32bit_init(
                 CAN_FILTER_NUM_FIRMWARE,
                 CAN_FILTER_ID_FIRMWARE,
@@ -296,6 +301,6 @@ void set_run_mode(uint8_t mode) {
             }
             break;
     }
-    watchdog_ts = ms_uptime;
-    run_mode = mode;
+    watchdogTs = ms_uptime;
+    runMode = mode;
 }

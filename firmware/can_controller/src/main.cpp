@@ -15,27 +15,65 @@
 #include <STM32CAN.h>
 #include <Wire.h>        // Provides I2C interface
 
+#define MAX_PANELS 63
+#define MAX_MSG_QUEUE 100
+
+struct PANEL_T {
+  uint32_t uuid0 = 0;
+  uint32_t uuid1 = 0;
+  uint32_t uuid2 = 0;
+  uint32_t switches = 0;
+  uint8_t type = 0;
+};
+
 // Global variables
 static volatile uint32_t now = 0; // Uptime in ms (49 day roll-over)
 uint32_t i2cValue = 0; // Received I2C value to read / write
 uint8_t i2cCommand = 0; // Received I2C command
 volatile uint8_t i2cEvent = 0; // CAN bus event type
-uint8_t i2cResponseBuffer[8];
+uint8_t i2cResponseBuffer[9];
 uint32_t eventTime;
 static CAN_message_t canMsg;
+PANEL_T panels[MAX_PANELS];
+uint8_t msgQueue[MAX_MSG_QUEUE][9]; // Queue of CAN messages (first byte is panel id)
+uint8_t qFront = 0;
+uint8_t qBack = 0;
+uint8_t nextFreePanelId = 1;
 
 // Forward declarations
 void onI2cRx(int count);
 void onI2cRequest();
 
+void pushToQueue(uint8_t panelId, uint8_t* data) {
+  msgQueue[qFront][0] = panelId;
+  memcpy(&msgQueue[qFront][1], data, 8);
+  if (++qFront >= MAX_MSG_QUEUE)
+    qFront = 0;
+}
+
+uint8_t popFromQueue(uint8_t* buffer) {
+  if (qFront == qBack)
+    return 0;
+  memcpy(buffer, &msgQueue[qBack][1], 8);
+  uint8_t panelId = msgQueue[qBack][qBack];
+  if (++qBack >= MAX_MSG_QUEUE)
+    qBack = 0;
+  return panelId;
+}
+
 void setup() {
   // Configure debug
   pinMode(PC13, OUTPUT);
   digitalWrite(PC13, HIGH);
-  Can1.begin(CAN_BPS_50K);
   Wire.begin(100); // Start I2C client on address 100
   Wire.onReceive(onI2cRx);
   Wire.onRequest(onI2cRequest);
+  Can1.begin(CAN_BPS_50K);
+  Can1.setFilter(0, CAN_FILTER_MASK_ADDR, 0, IDStd);
+  canMsg.id = CAN_MSG_RESET;
+  canMsg.dlc = 1;
+  canMsg.data.bytes[0] = 0x01;
+  Can1.write(canMsg);
 }
 
 void loop() {
@@ -58,24 +96,37 @@ void loop() {
   if (Can1.read(canMsg)) {
     switch(canMsg.id) {
       case CAN_MSG_REQ_ID_1:
-        canMsg.id = CAN_MSG_ACK_ID_1;
+        canMsg.id = CAN_FILTER_ID_DETECT | CAN_MSG_ACK_ID_1;
         Can1.write(canMsg);
+        panels[nextFreePanelId].uuid0 = canMsg.data.low;
+        panels[nextFreePanelId].uuid1 = canMsg.data.high;
         break;
       case CAN_MSG_REQ_ID_2:
-        canMsg.id = CAN_MSG_SET_ID;
-        canMsg.data.high = 11; //!@todo Assign next available module id and store locally
+        canMsg.id = CAN_FILTER_ID_DETECT | CAN_MSG_SET_ID;
+        canMsg.data.bytes[4] = nextFreePanelId;
         canMsg.dlc = 5;
         Can1.write(canMsg);
+        panels[nextFreePanelId].uuid2 = canMsg.data.low;
         break;
       case CAN_MSG_ACK_ID:
         uint32_t version = canMsg.data.low;
         uint8_t panelId = canMsg.data.bytes[4];
+        uint8_t panelType = canMsg.data.bytes[5];
+        if (panelId < MAX_PANELS) {
+          panels[panelId].type = panelType;
+          //!@todo Populate rest of panel info
+        }
+        if (panelId >= nextFreePanelId)
+          nextFreePanelId = panelId + 1;
         break;
     }
-    i2cEvent = 2;
+    uint8_t panelId = canMsg.id & CAN_MASK_PANEL_ID;
+    switch(canMsg.id & CAN_FILTER_MASK_OPCODE) {
+      case CAN_MSG_SWITCH:
+        panels[panelId].switches = canMsg.data.low;
+        pushToQueue(panelId, canMsg.data.bytes);
+    }
     digitalToggle(PC13);
-    //Serial.printf("\nCAN Rx:\n\tID: 0x%04u\n\tLength: %u\n\tPayload: 0x%02u 0x%02u 0x%02u 0x%02u 0x%02u 0x%02u 0x%02u 0x%02u",
-    //  canMsg.id, canMsg.len, canMsg.buf[0], canMsg.buf[1], canMsg.buf[2], canMsg.buf[3], canMsg.buf[4], canMsg.buf[5], canMsg.buf[6], canMsg.buf[7]);
   }
 }
 
@@ -85,56 +136,33 @@ void onI2cRx(int count) {
     --count;
   } else {
     i2cCommand = 0;
-    return;
   }
-  switch (i2cCommand) {
-    case 0xf0:
-      canMsg.id = CAN_MSG_LED | 11;
-      canMsg.dlc = count;
-      Wire.readBytes(canMsg.data.bytes, count);
-      Can1.write(canMsg);
-      count = 0;
-      break;
-    case 0xf1:
-      canMsg.id = CAN_MSG_LEDC | 11;
-      canMsg.dlc = count;
-      Wire.readBytes(canMsg.data.bytes, count);
-      Can1.write(canMsg);
-      count = 0;
-      break;
-  }
+  if (i2cCommand && count) {
+    canMsg.id = i2cCommand;
+    canMsg.dlc = count;
+    Wire.readBytes(canMsg.data.bytes, count);
+    Can1.write(canMsg);
 
-  while (count--)
-    Wire.read();
+    // Clear read buffer
+    while (Wire.read() > 0)
+      ;
+  }
 }
 
 void onI2cRequest() {
   switch (i2cCommand) {
     case 0x00:
-      Wire.write(i2cEvent);
-      break;
-    case 0x01:
-      for (int i = 0; i < 8; ++i) {
-        i2cResponseBuffer[i] = eventTime & 0xff;
-        eventTime >>= 8;
+      if (qBack == qFront)
+        memset(i2cResponseBuffer, 0, 9);
+      else {
+        i2cResponseBuffer[0] = popFromQueue(i2cResponseBuffer + 1);
       }
-      Wire.write(i2cResponseBuffer, 8);
-      i2cEvent = 0;
-      break;
-    case 0x02:
-      for (int i = 0; i < 4; ++i)
-        i2cResponseBuffer[i] = canMsg.id >> (i * 8);
-      i2cResponseBuffer[4] = canMsg.dlc;
-      for (int i = 5; i < 8; ++i) {
-        i2cResponseBuffer[i] = 0;
-      }
-      Wire.write(i2cResponseBuffer, 8);
-      i2cEvent = 0;
+      Wire.write(i2cResponseBuffer, 9);
       break;
     default:
-        memset(i2cResponseBuffer, 0, 8);
-        Wire.write(i2cResponseBuffer, 8);
+        memset(i2cResponseBuffer, 0, 9);
       break;
   }
+  Wire.write(i2cResponseBuffer, 9);
   delayMicroseconds(100); // Required to avoid request sending wrong data
 }
