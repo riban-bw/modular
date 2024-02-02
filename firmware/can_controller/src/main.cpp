@@ -68,7 +68,7 @@ void setup() {
   Wire.begin(100); // Start I2C client on address 100
   Wire.onReceive(onI2cRx);
   Wire.onRequest(onI2cRequest);
-  Can1.begin(CAN_BPS_50K);
+  Can1.begin(CAN_BPS_10K);
   Can1.setFilter(0, CAN_FILTER_MASK_ADDR, 0, IDStd);
   canMsg.id = CAN_MSG_RESET;
   canMsg.dlc = 1;
@@ -94,23 +94,30 @@ void loop() {
   }
   // Handle incoming CAN messages
   if (Can1.read(canMsg)) {
+    uint8_t panelId;
     switch(canMsg.id) {
       case CAN_MSG_REQ_ID_1:
         canMsg.id = CAN_FILTER_ID_DETECT | CAN_MSG_ACK_ID_1;
         Can1.write(canMsg);
-        panels[nextFreePanelId].uuid0 = canMsg.data.low;
-        panels[nextFreePanelId].uuid1 = canMsg.data.high;
+        panels[0].uuid0 = canMsg.data.low;
+        panels[0].uuid1 = canMsg.data.high;
         break;
       case CAN_MSG_REQ_ID_2:
+        panels[0].uuid2 = canMsg.data.low;
+        // Recieved full UUID so check if already have a record
+        for (panelId = 1; panelId < nextFreePanelId; ++panelId) {
+          if (panels[panelId].uuid0 == panels[0].uuid0 && panels[panelId].uuid1 == panels[0].uuid1 && panels[panelId].uuid2 == panels[0].uuid2)
+            break;
+        }
+        panels[panelId] = panels[0];          
         canMsg.id = CAN_FILTER_ID_DETECT | CAN_MSG_SET_ID;
-        canMsg.data.bytes[4] = nextFreePanelId;
+        canMsg.data.bytes[4] = panelId;
         canMsg.dlc = 5;
         Can1.write(canMsg);
-        panels[nextFreePanelId].uuid2 = canMsg.data.low;
         break;
       case CAN_MSG_ACK_ID:
         uint32_t version = canMsg.data.low;
-        uint8_t panelId = canMsg.data.bytes[4];
+        panelId = canMsg.data.bytes[4];
         uint8_t panelType = canMsg.data.bytes[5];
         if (panelId < MAX_PANELS) {
           panels[panelId].type = panelType;
@@ -120,7 +127,7 @@ void loop() {
           nextFreePanelId = panelId + 1;
         break;
     }
-    uint8_t panelId = canMsg.id & CAN_MASK_PANEL_ID;
+    panelId = canMsg.id & CAN_MASK_PANEL_ID;
     switch(canMsg.id & CAN_FILTER_MASK_OPCODE) {
       case CAN_MSG_SWITCH:
         panels[panelId].switches = canMsg.data.low;
@@ -130,6 +137,11 @@ void loop() {
   }
 }
 
+/*  Handles I2C received messages
+    First byte indicates the command:
+      0x00: Read last received CAN message - todo change this
+      0x01: Send CAN message: CAN ID[1:2] CAN Payload[3:x] (x <= 10)
+*/
 void onI2cRx(int count) {
   if (count) {
     i2cCommand = Wire.read();
@@ -137,8 +149,11 @@ void onI2cRx(int count) {
   } else {
     i2cCommand = 0;
   }
-  if (i2cCommand && count) {
-    canMsg.id = i2cCommand;
+  if (i2cCommand && count > 1) {
+    uint32_t id = Wire.read() << 8;
+    id |= Wire.read();
+    canMsg.id = id;
+    count -= 2;
     canMsg.dlc = count;
     Wire.readBytes(canMsg.data.bytes, count);
     Can1.write(canMsg);

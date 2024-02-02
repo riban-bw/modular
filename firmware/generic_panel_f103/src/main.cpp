@@ -46,7 +46,7 @@ void setup()
   initLeds();
   initSwitches();
 
-  Can1.begin(CAN_BPS_50K);
+  Can1.begin(CAN_BPS_10K);
   setRunMode(RUN_MODE_INIT);
 }
 
@@ -107,11 +107,12 @@ void loop()
                 canMsg.data.low = panelInfo.version;
                 canMsg.data.bytes[4] = panelInfo.id;
                 canMsg.data.bytes[5] = panelInfo.type;
-                delay(random(500));
+                delay(random(MAX_RESET_WAIT));
                 Can1.write(canMsg);
+              } else {
+                delay(random(MAX_RESET_WAIT));
+                HAL_NVIC_SystemReset();
               }
-              delay(random(2000));
-              SystemInit();
               break;
           }
         } else if ((canMsg.id & CAN_FILTER_MASK_ADDR) == (panelInfo.id << 5)) {
@@ -144,8 +145,8 @@ void loop()
             if (canMsg.data.low == firmwareChecksum)
             {
               //!@todo Set partion bootable
-              delay(random(2000));
-              SystemInit();
+              delay(random(MAX_RESET_WAIT));
+              HAL_NVIC_SystemReset();
             }
             break;
         }

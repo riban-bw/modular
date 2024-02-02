@@ -18,6 +18,7 @@
 // Defines
 #define VERSION 2         // Software version
 #define MSG_TIMEOUT 2000  // CAN message timeout in ms
+#define MAX_RESET_WAIT 500 // Maximum time to delay before resetting self - used with random to stagger panel resets
 
 // Enumerations
 enum RUN_MODE {
