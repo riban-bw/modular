@@ -46,6 +46,7 @@ void setup()
 
   initLeds();
   initSwitches();
+  initAdcs();
 
   Can1.begin(CAN_SPEED);
   setRunMode(RUN_MODE_INIT);
@@ -56,6 +57,7 @@ void loop()
   static uint32_t lastNow = 0;
   static uint32_t nextRefresh = 0;
   static uint32_t nextSec = 0;
+  static uint32_t next10ms = 0;
   static uint8_t led = 0, mode = 1;
 
   now = millis();
@@ -74,29 +76,36 @@ void loop()
         // digitalToggle(PC13);
       }
     }
-    uint32_t swChanged = processSwitches(now);
-    if (swChanged) {
-      canMsg.id = CAN_MSG_SWITCH;
-      canMsg.dlc = 8;
-      canMsg.ide = IDStd;
-      canMsg.data.low = switchValues;
-      canMsg.data.high = panelInfo.id;
-      Can1.write(canMsg);
-    }
-    uint32_t adcChanged = processAdcs(now);
-    uint8_t i = 0;
-    while (adcChanged) {
-      if (adcChanged & 0x01) {
-        canMsg.id = CAN_MSG_ADC;
-        canMsg.dlc = 4;
+
+    if (now > next10ms) {
+      // 10ms actions - ADC EMA filter optimised to 10ms sample rate ~ 20Hz cutoff
+      uint32_t adcChanged = processAdcs(now);
+      uint8_t i = 0;
+      while (adcChanged) {
+        if (adcChanged & 0x01) {
+          canMsg.id = CAN_MSG_ADC;
+          canMsg.dlc = 4;
+          canMsg.ide = IDStd;
+          canMsg.data.bytes[2] = panelInfo.id;
+          canMsg.data.bytes[3] = i;
+          canMsg.data.s0 = adcs[i].value;
+          Can1.write(canMsg);
+        }
+        adcChanged >>= 1;
+        ++i;
+      }
+
+      uint32_t swChanged = processSwitches(now);
+      if (swChanged) {
+        canMsg.id = CAN_MSG_SWITCH;
+        canMsg.dlc = 8;
         canMsg.ide = IDStd;
-        canMsg.data.bytes[2] = panelInfo.id;
-        canMsg.data.bytes[3] = i;
-        canMsg.data.s0 = adcs[i].value;
+        canMsg.data.low = switchValues;
+        canMsg.data.high = panelInfo.id;
         Can1.write(canMsg);
       }
-      adcChanged >>= 1;
-      ++i;
+
+      next10ms = now + 15;
     }
   }
 

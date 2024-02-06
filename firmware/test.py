@@ -1,6 +1,7 @@
 import smbus
 #import RPi.GPIO as GPIO
 from time import sleep
+from math import pi, acos
 
 RESET = 0x7EF
 
@@ -42,6 +43,9 @@ def get_changed_values():
     elif data[0] == 4:
         return {"panel": data[5], "type": "SWITCH", "value": data[1] + (data[2] << 8) + (data[3] << 16) + (data[4] << 24)}
     return None
+
+def get_ema_cutoff(fs, a):
+     return fs / (2 * pi) * acos(1 - (a / (2 * (1 - a))))
 
 def read_i2c():
     while bus.read_i2c_block_data(100, 0, 1)[0] == 0:
