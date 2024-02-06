@@ -19,13 +19,17 @@
 #define VERSION 2         // Software version
 #define MSG_TIMEOUT 2000  // CAN message timeout in ms
 #define MAX_RESET_WAIT 500 // Maximum time to delay before resetting self - used with random to stagger panel resets
+#define CAN_SPEED CAN_BPS_10K // CAN bus speed (using 10kbps during testing - raise to 500kbps for proper CAN interface)
 
 // Enumerations
 enum RUN_MODE {
     RUN_MODE_INIT,       // Not started detect process
-    RUN_MODE_PENDING_1,  // Sent REQ_ID_1, pending ACK_ID_1
-    RUN_MODE_PENDING_2,  // Sent REQ_ID_2, pending SET_ID
+    RUN_MODE_PENDING_1,  // Initialised, pending DETECT_1
+    RUN_MODE_PENDING_2,  // Sent DETECT_1, pending DETECT_2
+    RUN_MODE_PENDING_3,  // Sent DETECT_2, pending DETECT_3
+    RUN_MODE_PENDING_4,  // Sent DETECT_3, pending DETECT_4
     RUN_MODE_RUN,        // Received SET_ID - detection complete
+    RUN_MODE_READY,       // Configured awaiting run command
     RUN_MODE_FIRMWARE,   // Firmware update in progress
 };
 
@@ -46,61 +50,72 @@ CAN_MESSAGE_ID is 11-bit word
 Bits [10:5] Target panel id (0..63) 63=broadcast, 62=detect, 0=brain
 Bits [4..0] Opcode (0..31)
 
-Panel specific messages
+Panel specific messages (First bit 0, 6 bits of panel id (1..63), 4 bits of opcode)
 Dir | ID       | OpCode | Payload                                 | Purpose
 ----|----------|--------|-----------------------------------------|---------------------------
-P>B | REQ_ID_1 | 0x00   | ID [32:95]                              | Request panel ID stage 1
-P>B | REQ_ID_2 | 0x01   | UID [0:31] TYPE [0:31]                  | Request panel ID stage 2
-P>B | ACK_ID   | 0x02   | Version [0:32] PanelID [0:7] Type [0:7] | End request for module ID
-B>P | LED+PID  | 0x03   | Offset [0:7] Mode [0:7]                 | Set LED type and mode
+B>P | LED+PID  | 0x01   | Offset [0:7] Mode [0:7]                 | Set LED type and mode
     |          |        | RGB1 [0:23] RGB2 [0:23]                 | Optional RGB colours
-P>B | ADC+PID  | 0x03   | Offset [0:7] Value [0:31]               | ADC value
-P>B | SW+PID   | 0x04   | Bitmap [0:31] PanelId [0:7]             | Switch state (x32)
-P>B | ENC+PID  | 0x05   | Offset [0:7] Value [0:31]               | Encoder value +/-
+P>B | ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:31] | ADC value
+P>B | SW       | 0x03   | Bitmap [0:31] PanelId [0:7]             | Switch state (x32)
+P>B | ENC+PID  | 0x04   | Offset [0:7] Value [0:31]               | Encoder value +/-
 
-Detect messages (Address 0x7C0)
-Dir | ID       | OpCode | Payload                                 | Purpose
-----|----------|--------|-----------------------------------------|---------------------------
-B>P | ACK_ID_1 | 0x00   | UID [32:95]                             | Acknowledge REQ_ID_1
-B>P | SET_ID   | 0x01   | UID [0:31] PanelID [0:7]                | Set panel ID
 
-Broadcast messages (Address 0x7E)
-Dir | ID       | OpCode | Payload                                 | Purpose
-----|----------|--------|-----------------------------------------|---------------------------
-B>P | START_FU | 0x0C   | Panel type [0:31] Ver [0:31]            | Start firmware update
-B>P | FU_BLOCK | 0x0D   | Firmware block [0:64]                   | 8 byte block of firmware
-B>P | END_FU   | 0x0E   | Checksum / MD5?                         | End of firmware update
-B>P | RESET    | 0x0F   | ResendId[0]                             | Request all panels to reset. Flags define behaviour:
-                                                                  | ResendId: Do not reset. Just send ACK_ID message
+Detect messages (Extended CAN ID)
+Dir | ID        | ID                | Payload                    | Purpose
+----|-----------|-------------------|----------------------------|---------------------------
+P>B | DETECT_1  | 0x1F<UUID[0:23]>  |                            | Notify brain that panel is added to bus but not initialised
+B>P | DETECT_1  | 0x1F000000        | UUID[0:23]                 | Brain acknowledges lowest UUID (or first) panels (configured panels should go to READY mode)
+P>B | DETECT_2  | 0x1E<UUID[24:47]  |                            | Panel requests detect stage 2
+B>P | DETECT_2  | 0x1E000000        | UUID[24:47]                | Brain acknowledges lowest UUID (or first) panels
+P>B | DETECT_3  | 0x1D<UUID[48:71]  |                            | Panel requests detect stage 3
+B>P | DETECT_3  | 0x1D000000        | UUID[48:71]                | Brain acknowledges lowest UUID (or first) panels
+P>B | DETECT_4  | 0x1C<UUID[71:95]  |                            | Panel requests detect stage 4
+B>P | DETECT_4  | 0x1C000000        | UUID[72:95] PanelID[0:7]   | Brain acknowledges UUID of only remaining panel
+P>B | ACK_ID    | 0x1B0000<PanelId> | Type [0:31] Version [0:31] | Panel acknowledges ID and informs Brain of its version & type
+
+Broadcast messages
+Dir | ID        | ID         | Payload                           | Purpose
+----|-----------|------------|-----------------------------------|---------------------------------------------------------
+B>P | BROADCAST | 0x00000000 | OPCODE[0:7]                       | Broadcast from brain payload continas opcode (see below)
+B>P | BROADCAST | 0x00000000 | 0x00                              | Full reset - all panels should perform software reset
+B>P | BROADCAST | 0x00000000 | 0x01 UUID[0:23]                   | Start detection - initialised panels should go to READY mode, unititalised panels should join detection
+B>P | BROADCAST | 0x00000000 | 0x02 PanelType [0:23] Ver [0:31]  | Start firmware update
+B>P | BROADCAST | 0x00000000 | 0x03 Checksum [0:31]              | End firmware update
+B>P | FIRMWARE  | 0x01000000 | Firmware Block [0:63]             | Firmware update data block
 */
 
-enum CAN_MESSAGE_ID
-{
-    CAN_MSG_REQ_ID_1            = 0x000,
-    CAN_MSG_ACK_ID_1            = 0x000,
-    CAN_MSG_REQ_ID_2            = 0x001,
-    CAN_MSG_SET_ID              = 0x001,
-    CAN_MSG_ACK_ID              = 0x002,
+enum CAN_MESSAGE_ID {
+    CAN_MSG_BROADCAST           = 0x00000000,
+    CAN_MSG_DETECT_1            = 0x1F000000,
+    CAN_MSG_DETECT_2            = 0x1E000000,
+    CAN_MSG_DETECT_3            = 0x1D000000,
+    CAN_MSG_DETECT_4            = 0x1C000000,
+    CAN_MSG_ACK_ID              = 0x1B000000,
 
-    CAN_MSG_FU_START            = 0x7EC,
-    CAN_MSG_FU_BLOCK            = 0x7ED,
-    CAN_MSG_FU_END              = 0x7EE,
-    CAN_MSG_RESET               = 0x7EF,
 
-    CAN_MSG_LED                 = 0x003, // | (panelId << 5)
+    CAN_MSG_LED                 = 0x001, // | (panelId << 5)
     CAN_MSG_ADC                 = 0x003, // | (panelId << 5)
     CAN_MSG_SWITCH              = 0x004, // | (panelId << 5)
     CAN_MSG_QUADENC             = 0x005, // | (panelId << 5)
 };
 
+enum CAN_BROADCAST_CODE {
+    CAN_BROADCAST_RESET             = 0x00,
+    CAN_BROADCAST_START_DETECT      = 0x01,
+    CAN_BROADCAST_RUN               = 0x02,
+    CAN_BROADCAST_START_FIRMWARE    = 0X03,
+    CAN_BROADCAST_END_FIRMWARE      = 0X04
+};
+
 enum CAN_FILTER_ID {
-    CAN_FILTER_ID_DETECT        = 0x7C0, // Filter messages during detect phase - isolate detect messages from runtime messages
-    CAN_FILTER_ID_BROADCAST     = 0x7E0 // Filter broadcast messages used by all panels during runtime as well as direct messages by panel id 
+    CAN_FILTER_ID_DETECT        = 0x1f000000, // Filter messages during detect phase
+    CAN_FILTER_ID_RUN           = 0x7E0 // Filter broadcast messages used by all panels during runtime as well as direct messages by panel id 
 };
 
 enum CAN_FILTER_MASK {
-    CAN_FILTER_MASK_ADDR        = 0x7E0,
-    CAN_FILTER_MASK_OPCODE      = 0x01F
+    CAN_FILTER_MASK_DETECT      = 0x18ffffff,
+    CAN_FILTER_MASK_RUN         = 0x7E0,
+    CAN_MASK_OPCODE             = 0x00f
 };
 
 #define CAN_MASK_PANEL_ID 0b11111

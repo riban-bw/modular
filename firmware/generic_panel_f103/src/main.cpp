@@ -46,7 +46,7 @@ void setup()
   initLeds();
   initSwitches();
 
-  Can1.begin(CAN_BPS_10K);
+  Can1.begin(CAN_SPEED);
   setRunMode(RUN_MODE_INIT);
 }
 
@@ -84,6 +84,7 @@ void loop()
     if (swChanged) {
       canMsg.id = CAN_MSG_SWITCH;
       canMsg.dlc = 8;
+      canMsg.ide = IDStd;
       canMsg.data.low = switchValues;
       canMsg.data.high = panelInfo.id;
       Can1.write(canMsg);
@@ -95,28 +96,9 @@ void loop()
   {
     switch (runMode) {
       case RUN_MODE_RUN:
-        if ((canMsg.id & CAN_FILTER_MASK_ADDR) == CAN_FILTER_ID_BROADCAST) {
-          switch (canMsg.id) {
-            case CAN_MSG_FU_START:
-              setRunMode(RUN_MODE_FIRMWARE);
-              break;
-            case CAN_MSG_RESET:
-              if (canMsg.data.bytes[0] & 0x01) {
-                canMsg.id = CAN_MSG_ACK_ID;
-                canMsg.dlc = 6;
-                canMsg.data.low = panelInfo.version;
-                canMsg.data.bytes[4] = panelInfo.id;
-                canMsg.data.bytes[5] = panelInfo.type;
-                delay(random(MAX_RESET_WAIT));
-                Can1.write(canMsg);
-              } else {
-                delay(random(MAX_RESET_WAIT));
-                HAL_NVIC_SystemReset();
-              }
-              break;
-          }
-        } else if ((canMsg.id & CAN_FILTER_MASK_ADDR) == (panelInfo.id << 5)) {
-          switch (canMsg.id & CAN_FILTER_MASK_OPCODE) {
+        if (canMsg.ide == IDStd) {
+          // Standard CAN messages
+          switch (canMsg.id & CAN_MASK_OPCODE) {
             case CAN_MSG_LED:
               if (canMsg.dlc > 1) {
                 setLedState(canMsg.data.bytes[0], canMsg.data.bytes[1]);
@@ -129,39 +111,47 @@ void loop()
               }
               break;
           }
+        } else {
+          // Extended CAN messages
+          switch (canMsg.id) {
+            case CAN_MSG_DETECT_1:
+              // Already configured so switch to READY mode
+              setRunMode(RUN_MODE_READY);
+              break;
+            case CAN_MSG_BROADCAST:
+              switch (canMsg.data.bytes[0]) {
+                case CAN_BROADCAST_START_FIRMWARE:
+                  setRunMode(RUN_MODE_FIRMWARE);
+                  break;
+                case CAN_BROADCAST_START_DETECT:
+                  setRunMode(RUN_MODE_INIT);
+                  break;
+                case CAN_BROADCAST_RESET:
+                  HAL_NVIC_SystemReset();
+                  break;
+              }
+              break;
+          }
         }
         break;
-      case RUN_MODE_FIRMWARE:
-        switch (canMsg.id) {
-          case CAN_MSG_FU_BLOCK:
-            //!@todo flash(update_firmware_offset++, *fu_data);
-            firmwareChecksum += canMsg.data.low;
-            //!@todo flash(update_firmware_offset++, *(fu_data + 1));
-            firmwareChecksum += canMsg.data.high;
-            watchdogTs = now;
-            break;
-          case CAN_MSG_FU_END:
-            // Simple checksum - should use stronger validation, e.g. BLAKE2
-            if (canMsg.data.low == firmwareChecksum)
-            {
-              //!@todo Set partion bootable
-              delay(random(MAX_RESET_WAIT));
-              HAL_NVIC_SystemReset();
-            }
-            break;
+      case RUN_MODE_READY:
+        if (canMsg.id == CAN_MSG_BROADCAST) {
+          if (canMsg.data.bytes[0] == CAN_BROADCAST_RUN)
+            setRunMode(RUN_MODE_RUN);
+          else if (canMsg.data.bytes[0] == CAN_BROADCAST_RESET)
+            HAL_NVIC_SystemReset();
         }
+        break;
       case RUN_MODE_PENDING_1:
-        // Sent REQ_ID_1, pending ACK_ID_1
-        if ((canMsg.id & CAN_FILTER_MASK_OPCODE) == CAN_MSG_ACK_ID_1) {
+        // Sent CAN_MSG_DETECT_1
+        if (canMsg.id == CAN_MSG_DETECT_1) {
           // Brain has acknowledged stage 1 so check if we are a contender for stage 2
-          if (canMsg.data.low != panelInfo.uid[0] || canMsg.data.high != panelInfo.uid[1])
+          if (canMsg.data.low != (panelInfo.uid[0] >> 8))
             setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
           else {
             // Matches so progress to stage 2
-            canMsg.id = CAN_MSG_REQ_ID_2;
-            canMsg.data.low = panelInfo.uid[2];
-            canMsg.data.high = panelInfo.type;
-            canMsg.dlc = 8;
+            canMsg.id = CAN_MSG_DETECT_2 | ((panelInfo.uid[0] & 0x000000FF) << 16) | (panelInfo.uid[1] >> 16);
+            canMsg.dlc = 0;
             if (Can1.write(canMsg))
               runMode = RUN_MODE_PENDING_2;
             watchdogTs = now;
@@ -169,23 +159,58 @@ void loop()
           break;
         }
       case RUN_MODE_PENDING_2:
-        if ((canMsg.id & CAN_FILTER_MASK_OPCODE) == CAN_MSG_SET_ID) {
-          // Brain has assigned a panel id so check if it was for us
-          if (canMsg.data.low != panelInfo.uid[2])
-          {
+        // Sent CAN_MSG_DETECT_2
+        if (canMsg.id == CAN_MSG_DETECT_2) {
+          // Brain has acknowledged stage 2 so check if we are a contender for stage 3
+          if ((canMsg.data.bytes[2] != (panelInfo.uid[0] & 0xFF)) || (canMsg.data.s0) != (panelInfo.uid[1] >> 16))
             setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
-          }
-          else
-          {
-            // Matches so set panel id
-            panelInfo.id = canMsg.data.bytes[4];
-            canMsg.id = CAN_MSG_ACK_ID;
-            canMsg.dlc = 6;
-            canMsg.data.low = panelInfo.version;
-            canMsg.data.bytes[5] = panelInfo.type;
+          else {
+            // Matches so progress to stage 3
+            canMsg.id = CAN_MSG_DETECT_3 | ((panelInfo.uid[1] & 0x0000FFFF) << 8) | (panelInfo.uid[2] >> 24);
+            canMsg.dlc = 0;
             if (Can1.write(canMsg))
-              setRunMode(RUN_MODE_RUN);
+              runMode = RUN_MODE_PENDING_3;
+            watchdogTs = now;
           }
+          break;
+        }
+        break;
+      case RUN_MODE_PENDING_3:
+        // Sent CAN_MSG_DETECT_3
+        if (canMsg.id == CAN_MSG_DETECT_3) {
+          // Brain has acknowledged stage 3 so check if we are a contender for stage 4
+          if ((canMsg.data.low >> 8) != (panelInfo.uid[1] & 0xFFFF) || (canMsg.data.bytes[0] != (panelInfo.uid[2] >> 24)))
+            setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
+          else {
+            // Matches so progress to stage 4
+            canMsg.id = CAN_MSG_DETECT_4 | ((panelInfo.uid[2] & 0x00FFFFFF));
+            canMsg.dlc = 0;
+            if (Can1.write(canMsg))
+              runMode = RUN_MODE_PENDING_3;
+            watchdogTs = now;
+          }
+          break;
+        }
+      case RUN_MODE_PENDING_4:
+        // Sent CAN_MSG_DETECT_4
+        if (canMsg.id == CAN_MSG_DETECT_4) {
+          // Brain has acknowledged stage 4 complete detection
+          if ((canMsg.data.low >> 8) != (panelInfo.uid[2] & 0x00FFFFFF))
+            setRunMode(RUN_MODE_INIT); // Not a winner so restart detection
+          else {
+            // Matches so complete detection
+            panelInfo.id = canMsg.data.bytes[0];
+            canMsg.id = CAN_MSG_ACK_ID | panelInfo.id;
+            canMsg.dlc = 8;
+            canMsg.data.low = panelInfo.type;
+            canMsg.data.high = panelInfo.version;
+            if (Can1.write(canMsg))
+              setRunMode(RUN_MODE_READY);
+            else
+              setRunMode(RUN_MODE_INIT);
+            watchdogTs = now;
+          }
+          break;
         }
         break;
     }
@@ -194,60 +219,68 @@ void loop()
 
 void setRunMode(uint8_t mode)
 {
-  //!@todo Use group filter for broadcast
   runMode = mode;
   switch (mode)
   {
-  case RUN_MODE_RUN:
-    Can1.setFilter(
-        panelInfo.id << 5,
-        CAN_FILTER_MASK_ADDR,
+    case RUN_MODE_RUN:
+      Can1.setFilter(
+        // Panel specific messages
+        panelInfo.id << 4,
+        0x7f0,
         0,
         IDStd);
-    Can1.setFilter(
-        CAN_FILTER_ID_BROADCAST,
-        CAN_FILTER_MASK_ADDR,
+      Can1.setFilter(
+        // Broadcast messages
+        0x0000000,
+        0x1ffffff,
         1,
-        IDStd);
-    // Extinguise all LEDs - will be illuminated by config messages
-    for (uint8_t led = 0; led < WSLEDS; ++led)
-      setLedState(led, LED_STATE_OFF);
-    break;
-  case RUN_MODE_INIT:
-    Can1.setFilter(
-        CAN_FILTER_ID_DETECT,
-        CAN_FILTER_MASK_ADDR,
-        0,
-        IDStd);
-    // Pulse all LEDs blue to indicate detect mode
-    for (uint8_t led = 0; led < WSLEDS; ++led)
-    {
-      setLedColour1(led, 0, 0, 200);
-      setLedColour2(led, 0, 0, 20);
-      setLedState(led, LED_STATE_FAST_PULSING);
+        IDExt);
+      // Extinguise all LEDs - will be illuminated by config messages
+      for (uint8_t led = 0; led < WSLEDS; ++led)
+        setLedState(led, LED_STATE_OFF);
+      break;
+    case RUN_MODE_INIT:
+      Can1.setFilter(
+          CAN_FILTER_ID_DETECT,
+          CAN_FILTER_MASK_DETECT,
+          0,
+          IDExt);
+      // Pulse all LEDs blue to indicate detect mode
+      for (uint8_t led = 0; led < WSLEDS; ++led)
+      {
+        setLedColour1(led, 0, 0, 200);
+        setLedColour2(led, 0, 0, 20);
+        setLedState(led, LED_STATE_FAST_PULSING);
+      }
+      canMsg.id = CAN_MSG_DETECT_1 | (panelInfo.uid[0] >> 8);
+      canMsg.dlc = 0;
+      canMsg.ide = IDExt;
+      Can1.write(canMsg);
+      runMode = RUN_MODE_PENDING_1;
+      break;
+    case RUN_MODE_READY:
+      Can1.setFilter(
+          0,
+          0x1fffffff,
+          0,
+          IDExt);
+      for (uint8_t led = 0; led < WSLEDS; ++led)
+      {
+        setLedColour1(led, 0, 100, 100);
+        setLedColour2(led, 0, 10, 10);
+        setLedState(led, LED_STATE_PULSING);
+      }
+      break;
+    case RUN_MODE_FIRMWARE:
+      updateFirmwareOffset = 0;
+      // Flash all LEDs to indicate firmware upload mode
+      for (uint8_t led = 0; led < WSLEDS; ++led)
+      {
+        setLedColour1(led, 0, 0, 200);
+        setLedColour2(led, 0, 0, 20);
+        setLedState(led, LED_STATE_FAST_FLASHING);
+      }
+      break;
     }
-    canMsg.id = CAN_MSG_REQ_ID_1;
-    canMsg.data.low = panelInfo.uid[0];
-    canMsg.data.high = panelInfo.uid[1];
-    canMsg.dlc = 8;
-    Can1.write(canMsg);
-    runMode = RUN_MODE_PENDING_1;
-    break;
-  case RUN_MODE_FIRMWARE:
-    updateFirmwareOffset = 0;
-    Can1.setFilter(
-        CAN_FILTER_ID_BROADCAST,
-        CAN_FILTER_MASK_ADDR,
-        0,
-        IDStd);
-    // Flash all LEDs to indicate firmware upload mode
-    for (uint8_t led = 0; led < WSLEDS; ++led)
-    {
-      setLedColour1(led, 0, 0, 200);
-      setLedColour2(led, 0, 0, 20);
-      setLedState(led, LED_STATE_FAST_FLASHING);
-    }
-    break;
-  }
   watchdogTs = now;
 }

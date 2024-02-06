@@ -56,13 +56,6 @@ PC14|   |   |     |Next module reset
 PC15|   |   |     |
 */
 
-#ifdef ARDUINO_GENERIC_F072R8TX
-#define DETECT_PIN PA2 // 1-wire bus used to detect panels
-#define SCL_PIN PB6
-#define SDA_PIN PB7
-#define MOSI_PIN PB15 //WS2812 LED data
-#endif
-
 #if PANEL_TYPE==0
 // Generic Test Panel
 #define ADCS 8
@@ -99,9 +92,9 @@ PC15|   |   |     |
 
 #if PANEL_TYPE==11
 // Bogaudio VCO
-#define WSLEDS {3, 4, 5, 6, 2, 1, 8, 7, 0, 15, 13}
-#define ADC_PINS {PC0, PA0, PA1, PA3}
-#define SWITCH_PINS {PA9, PA11, PC10, PC12, PA10, PA12, PA15, PC11, PB1, PB0, PC4}
+#define WSLEDS 11
+#define ADCS 4
+#define SWITCHES 11
 #define BRAND "Bogaudio"
 #define PLUGIN "Bogaudio"
 #define MODEL "VCO"
