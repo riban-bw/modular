@@ -55,7 +55,7 @@ Dir | ID       | OpCode | Payload                                 | Purpose
 ----|----------|--------|-----------------------------------------|---------------------------
 B>P | LED+PID  | 0x01   | Offset [0:7] Mode [0:7]                 | Set LED type and mode
     |          |        | RGB1 [0:23] RGB2 [0:23]                 | Optional RGB colours
-P>B | ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:31] | ADC value
+P>B | ADC      | 0x02   | Value [0:15] PanelId [0:7] Offset [0:7] | ADC value
 P>B | SW       | 0x03   | Bitmap [0:31] PanelId [0:7]             | Switch state (x32)
 P>B | ENC+PID  | 0x04   | Offset [0:7] Value [0:31]               | Encoder value +/-
 

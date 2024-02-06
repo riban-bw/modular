@@ -17,6 +17,7 @@
 #include "panel_types.h" // Definition of panel types
 #include "ws2812.hpp"    // Implements WS2812 LED functionality
 #include "switches.hpp"  // Implements switch / button functionality
+#include "adcs.hpp"      // Implements ADC functionality
 
 // Global variables
 static volatile uint32_t now = 0; // Uptime in ms (49 day roll-over)
@@ -73,13 +74,6 @@ void loop()
         // digitalToggle(PC13);
       }
     }
-  }
-
-  if (runMode != RUN_MODE_RUN)
-  {
-    if (now - watchdogTs > MSG_TIMEOUT)
-      setRunMode(RUN_MODE_INIT);
-  } else {
     uint32_t swChanged = processSwitches(now);
     if (swChanged) {
       canMsg.id = CAN_MSG_SWITCH;
@@ -89,6 +83,27 @@ void loop()
       canMsg.data.high = panelInfo.id;
       Can1.write(canMsg);
     }
+    uint32_t adcChanged = processAdcs(now);
+    uint8_t i = 0;
+    while (adcChanged) {
+      if (adcChanged & 0x01) {
+        canMsg.id = CAN_MSG_ADC;
+        canMsg.dlc = 4;
+        canMsg.ide = IDStd;
+        canMsg.data.bytes[2] = panelInfo.id;
+        canMsg.data.bytes[3] = i;
+        canMsg.data.s0 = adcs[i].value;
+        Can1.write(canMsg);
+      }
+      adcChanged >>= 1;
+      ++i;
+    }
+  }
+
+  if (runMode != RUN_MODE_RUN)
+  {
+    if (now - watchdogTs > MSG_TIMEOUT)
+      setRunMode(RUN_MODE_INIT);
   }
 
   // Handle incoming CAN messages

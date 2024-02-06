@@ -44,8 +44,8 @@ void initSwitches(void)
 }
 
 /** @brief Process switches
-  @param now Uptime (ms)
-  @return Bitwise flags indicating which switch has changed value
+    @param now Uptime (ms)
+    @return Bitwise flags indicating which switches have changed value
 */
 uint32_t processSwitches(uint32_t now)
 {

@@ -173,15 +173,21 @@ void loop() {
       }
     } else {
       // Standard CAN message
+      uint8_t offset;
       switch (canMsg.id & CAN_MASK_OPCODE) {
         case CAN_MSG_SWITCH:
           panelId = canMsg.data.bytes[4];
           panels[panelId].switches = canMsg.data.low;
-          pushToQueue(panelId, canMsg.data.bytes);
+          pushToQueue(CAN_MSG_SWITCH, canMsg.data.bytes);
           break;
         case CAN_MSG_ADC:
-          //!@todo Implement ADC handler
+          panelId = canMsg.data.bytes[2];
+          offset = canMsg.data.bytes[3];
+          if ((panelId < MAX_PANELS) && (offset < 16)) {
+            panels[panelId].adcs[offset] = canMsg.data.s0;
+            pushToQueue(CAN_MSG_ADC, canMsg.data.bytes);
           break;
+        }
       }
     }
     digitalToggle(PC13);
