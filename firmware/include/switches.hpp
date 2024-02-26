@@ -13,6 +13,12 @@
 #ifndef SWITCHES_H
 #define SWITCHES_H
 
+enum SWITCH_STATES {
+  SWITCH_STATE_PRESSED = 0,
+  SWITCH_STATE_BOLD    = 1,
+  SWITCH_STATE_LONG    = 2,
+};
+
 #include "global.h" // Provides enums, structures, stdint.h
 #include "panel_types.h"
 #include <Arduino.h>
@@ -20,14 +26,19 @@
 
 // Preprocessor defines
 #define MAX_SWITCHES 32
+#define BOLD_TIME 400 // Duration that press, hold release triggers "bold press" event
+#define LONG_TIME 1500 // Duration that press and hold triggers "long press" event
 #define SWITCH_DEBOUNCE_MS 20 // Debounce time in ms
 #define SWITCH_PINS {PB10, PB11, PB12, PB13, PB14, PA8, PA8, PA10, PA11, PA12, PA15, PB3, PB4, PC13, PC14, PC15, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB6, PB7}
 
 struct SWITCH_T
 {
   uint8_t gpi;             // GPI pin
-  bool value = 0;          // Current value
+  uint8_t state = 0; // Switch state flags [pressed, bold release, long hold]
   uint32_t lastChange = 0; // Time of last value change
+  bool pressed() { return (state & 0x01) != 0;};
+  bool bold() { return (state & 0x02) != 0;};
+  bool held() { return (state & 0x04) != 0;};
 };
 
 SWITCH_T switches[SWITCHES]; // Array of switch objects
@@ -43,25 +54,38 @@ void initSwitches(void)
   }
 }
 
-/** @brief Process switches
+/** @brief Process switch
+    @param idx Switch index
     @param now Uptime (ms)
-    @return Bitwise flags indicating which switches have changed value
+    @return True if state changed
 */
-uint32_t processSwitches(uint32_t now)
+uint32_t processSwitch(uint8_t idx, uint32_t now)
 {
-  //!@todo Add stretching, long press, etc.
-  uint32_t changed = false;
-  for (uint8_t i = 0; i < SWITCHES; ++i)
-  {
-    if (now - switches[i].lastChange < SWITCH_DEBOUNCE_MS)
-      continue;
-    bool state = !digitalRead(switches[i].gpi);
-    if (state != switches[i].value)
+  bool changed = false;
+  if (now > switches[idx].lastChange + SWITCH_DEBOUNCE_MS) {
+    bool state = !digitalRead(switches[idx].gpi);
+    if (state != switches[idx].pressed())
     {
-      switches[i].value = state;
-      switches[i].lastChange = now;
-      switchValues ^= (-state ^ switchValues) & (1UL << i);
-      changed |= (1UL << i);
+      // Switch toggled
+      if (state) {
+        // Switch pressed
+        switches[idx].state = 0x01;
+      } else {
+        // Switch released
+        if (!switches[idx].held() && now > switches[idx].lastChange + BOLD_TIME) {
+          // Bold release
+          switches[idx].state = 0x02;
+        } else {
+          // Normal release
+          switches[idx].state = 0x00;
+        }
+      }
+      switches[idx].lastChange = now;
+      changed = true;
+    } else if (state && !switches[idx].held() && now > switches[idx].lastChange + LONG_TIME) {
+      // Switch is pressed longer than long hold time
+        switches[idx].state = 0x05;
+        changed = true;
     }
   }
   return changed;

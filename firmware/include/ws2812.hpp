@@ -56,6 +56,7 @@ void initLeds()
     @return Calculated colour
 */
 static inline CRGB getFade(CHSV hsv1, CHSV hsv2, uint8_t phase) {
+    //!@todo This is not working as expected giving wrong values under some conditions
     CHSV hsv = hsv2;
     int16_t tmp;
 

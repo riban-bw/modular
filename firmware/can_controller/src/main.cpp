@@ -12,78 +12,132 @@
 */
 
 #include "global.h"
-#include <STM32CAN.h>    // Provides CAN bus interface
-#include <Wire.h>        // Provides I2C interface
+#include <STM32CAN.h> // Provides CAN bus interface
+#include <Wire.h>     // Provides I2C interface
 
 #define MAX_PANELS 63
 #define MAX_MSG_QUEUE 100
 
-struct PANEL_T {
+struct PANEL_T
+{
   uint8_t type = 0;
   uint32_t version = 0;
   uint32_t uuid0 = 0;
   uint32_t uuid1 = 0;
   uint32_t uuid2 = 0;
-  uint32_t switches = 0;
+  uint8_t switches[32];
   uint16_t adcs[16];
+};
+
+struct CAN_MSG_T
+{
+  uint32_t id;
+  uint8_t len;
+  uint8_t data[8];
+};
+
+struct CAN_FIFO_T
+{
+  uint8_t front = 0;
+  uint8_t back = 0;
+  CAN_MSG_T queue[MAX_MSG_QUEUE];
+
+  bool empty()
+  {
+    return front == back;
+  }
+
+  bool full()
+  {
+    return front - back == 1;
+  }
+
+  void push(uint16_t panelId, uint8_t len, uint8_t *data)
+  {
+    if (len > 8 || full())
+      return;
+    queue[back].id = panelId;
+    queue[back].len = len;
+    memcpy(&queue[back].data, data, len);
+    if (++back >= MAX_MSG_QUEUE)
+      back = 0;
+  }
+
+  void push(CAN_MSG_T *msg)
+  {
+    if (full())
+      return;
+    memcpy(&queue[back], msg, sizeof(CAN_MSG_T));
+    if (++back >= MAX_MSG_QUEUE)
+      back = 0;
+  }
+
+  bool pop(CAN_MSG_T *msg)
+  {
+    if (empty())
+      return false;
+    if (msg)
+      memcpy(msg, &queue[front], sizeof(CAN_MSG_T));
+    if (++front >= MAX_MSG_QUEUE)
+      front = 0;
+    return true;
+  }
+
+  const CAN_MSG_T *peek()
+  {
+    if (empty())
+      return NULL;
+    return &queue[front];
+  }
 };
 
 // Global variables
 static volatile uint32_t now = 0; // Uptime in ms (49 day roll-over)
-uint32_t i2cValue = 0; // Received I2C value to read / write
-uint8_t i2cCommand[4]; // Received I2C command [panelIndex, dataType, quantity, offset]
-volatile uint8_t i2cEvent = 0; // CAN bus event type
+uint32_t i2cValue = 0;            // Received I2C value to read / write
+uint8_t i2cCommand[4];            // Received I2C command [panelIndex, dataType, quantity, offset]
+volatile uint8_t i2cEvent = 0;    // CAN bus event type
 uint8_t i2cResponseBuffer[20];
 uint32_t eventTime;
 static CAN_message_t canMsg;
 PANEL_T panels[MAX_PANELS];
-uint8_t msgQueue[MAX_MSG_QUEUE][9]; // Queue of CAN messages (first byte is panel id)
-uint8_t qFront = 0;
-uint8_t qBack = 0;
+CAN_FIFO_T rxQueue; // Queue of messages received from CAN
+CAN_FIFO_T txQueue; // Queue of messages pending send to CAN
 uint8_t nextFreePanelId = 1;
-bool detecting = false;
+uint8_t detecting = RUN_MODE_INIT;
+volatile uint32_t error = 0;
 
 // Forward declarations
 void onI2cRx(int count);
 void onI2cRequest();
 
-void pushToQueue(uint8_t panelId, uint8_t* data) {
-  if (qFront - qBack == 1)
-    return; // queue full
-  msgQueue[qBack][0] = panelId;
-  memcpy(&msgQueue[qBack][1], data, 8);
-  if (++qBack >= MAX_MSG_QUEUE)
-    qBack = 0;
-}
+// HardwareSerial Serial1(PA10, PA9);
 
-uint8_t popFromQueue(uint8_t* buffer) {
-  if (qFront == qBack)
-    return 0; // queue empty
-  memcpy(buffer, &msgQueue[qFront][1], 8);
-  uint8_t panelId = msgQueue[qFront][0];
-  if (++qFront >= MAX_MSG_QUEUE)
-    qFront = 0;
-  return panelId;
-}
-
-void setup() {
+void setup()
+{
   // Configure debug
   pinMode(PC13, OUTPUT);
   digitalWrite(PC13, HIGH);
+  Serial1.begin(9600);
+  Serial1.println("riban Modular controller");
   Wire.begin(100); // Start I2C client on address 100
   Wire.onReceive(onI2cRx);
   Wire.onRequest(onI2cRequest);
+  Can1.setRxBufferSize(16);
+  Can1.setTxBufferSize(16);
   Can1.begin(CAN_SPEED);
   canMsg.id = CAN_MSG_BROADCAST;
   canMsg.dlc = 1;
   canMsg.ide = IDExt;
   canMsg.data.bytes[0] = CAN_BROADCAST_RESET;
-  Can1.write(canMsg);
+  if (!Can1.write(canMsg))
+    Serial1.println("CAN Tx RESET failed");
 }
 
-void loop() {
+void loop()
+{
   static uint32_t lastNow = 0;
   static uint32_t nextSec = 0;
+  static uint32_t next10ms = 0;
   static uint32_t startDetectTime = 0;
 
   now = millis();
@@ -91,104 +145,154 @@ void loop() {
   {
     // 1ms actions
     lastNow = now;
-      if (now > nextSec)
+    if (now > nextSec)
+    {
+      // 1s actions
+      nextSec = now + 1000;
+      eventTime = now;
+    }
+    if (detecting == RUN_MODE_RUN)
+    {
+      // Run mode
+      if (now > next10ms)
       {
-        // 1s actions
-        nextSec = now + 1000;
-        eventTime = now;
+        next10ms = now + 10;
+        // Process incoming I2C message queue
+        const CAN_MSG_T *msg;
+        if (msg = txQueue.peek())
+        {
+          // Send CAN
+          canMsg.id = msg->id;
+          canMsg.ide = IDStd;
+          canMsg.dlc = msg->len;
+          memcpy(canMsg.data.bytes, msg->data, msg->len);
+          if (Can1.write(canMsg))
+          {
+            Serial1.printf("%08d CAN Tx I2C:", now);
+            for (int i = 0; i < canMsg.dlc; ++i)
+              Serial1.printf(" 0x%02x", canMsg.data.bytes[i]);
+            Serial1.printf("\n");
+            txQueue.pop(NULL);
+          }
+          else
+            Serial1.println("CAN Tx I2C failed");
+        }
       }
-      if (detecting && now > startDetectTime + 500) {
+    }
+    else
+    {
+      if (now > startDetectTime + 500)
+      {
         // Detection timed out so enter run mode
         canMsg.ide = IDExt;
         canMsg.id = CAN_MSG_BROADCAST;
         canMsg.data.bytes[0] = CAN_BROADCAST_RUN;
         canMsg.dlc = 1;
-        Can1.write(canMsg);
-        detecting = false;
+        if (!Can1.write(canMsg))
+          Serial1.println("CAN Tx DETECT END failed");
+        detecting = RUN_MODE_RUN;
       }
+    }
   }
 
   // Handle incoming CAN messages
-  if (Can1.read(canMsg)) {
+  if (Can1.read(canMsg))
+  {
     uint8_t panelId;
-    if (canMsg.ide) {
+    if (canMsg.ide)
+    {
       // Extended CAN message
-      switch (canMsg.id & CAN_FILTER_ID_DETECT) {
-        case CAN_MSG_DETECT_1:
-          // At least one panel has requested to start detection
-          detecting = true;
-          startDetectTime = now;
-          if (canMsg.dlc == 0) {
-            canMsg.data.low = (canMsg.id & 0x00FFFFFF);
-            panels[0].uuid0 = (canMsg.id && 0x00FFFFFF) << 8;
-            canMsg.id = CAN_MSG_DETECT_1;
-            canMsg.dlc = 4;
-            Can1.write(canMsg);
-          }
+      switch (canMsg.id & CAN_FILTER_ID_DETECT)
+      {
+      case CAN_MSG_DETECT_1:
+        // At least one panel has requested to start detection
+        if (detecting != RUN_MODE_RUN && detecting != RUN_MODE_READY) 
           break;
-        case CAN_MSG_DETECT_2:
-          if(canMsg.dlc == 0) {
-            canMsg.data.low = (canMsg.id & 0x00FFFFFF);
-            panels[0].uuid0 |= (canMsg.id & 0x00FF0000) >> 16;
-            panels[0].uuid1 = canMsg.id << 16;
-            canMsg.id = CAN_MSG_DETECT_2;
-            canMsg.dlc = 4;
-            Can1.write(canMsg);
-          }
-          break;
-        case CAN_MSG_DETECT_3:
-          if(canMsg.dlc == 0) {
-            canMsg.data.low = (canMsg.id & 0x00FFFFFF);
-            panels[0].uuid1 |= (canMsg.id & 0x00FFFF00) >> 8;
-            panels[0].uuid2 = canMsg.id << 24;
-            canMsg.id = CAN_MSG_DETECT_3;
-            canMsg.dlc = 4;
-            Can1.write(canMsg);
-          }
-          break;
-        case CAN_MSG_DETECT_4:
-          if(canMsg.dlc == 0) {
-            panels[0].uuid2 |= (canMsg.id & 0x00FFFFFF);
-            for (panelId = 1; panelId < nextFreePanelId; ++panelId) {
-              if (panels[0].uuid0 == panels[panelId].uuid0
-                && panels[0].uuid1 == panels[panelId].uuid1
-                && panels[0].uuid2 == panels[panelId].uuid2)
-                break;
-                //!@todo We should reuse free slots and remove duplicates
-            }
-            canMsg.data.low = ((canMsg.id & 0x00FFFFFF) << 8) | panelId;
-            canMsg.id = CAN_MSG_DETECT_4;
-            canMsg.dlc = 4;
-            Can1.write(canMsg);
-          }
-          break;
-        case CAN_MSG_ACK_ID:
-          if (canMsg.dlc == 8) {
-            panels[0].type = canMsg.data.low;
-            panels[0].version = canMsg.data.high;
-            panels[canMsg.id & 0xFF] = panels[0];
-            if ((canMsg.id & 0xFF) >= nextFreePanelId)
-              ++nextFreePanelId;
-          }
-      }
-    } else {
-      // Standard CAN message
-      uint8_t offset;
-      switch (canMsg.id & CAN_MASK_OPCODE) {
-        case CAN_MSG_SWITCH:
-          panelId = canMsg.data.bytes[4];
-          panels[panelId].switches = canMsg.data.low;
-          pushToQueue(CAN_MSG_SWITCH, canMsg.data.bytes);
-          break;
-        case CAN_MSG_ADC:
-          panelId = canMsg.data.bytes[2];
-          offset = canMsg.data.bytes[3];
-          if ((panelId < MAX_PANELS) && (offset < 16)) {
-            panels[panelId].adcs[offset] = canMsg.data.s0;
-            pushToQueue(CAN_MSG_ADC, canMsg.data.bytes);
-          break;
+        startDetectTime = now;
+        if (canMsg.dlc == 0)
+        {
+          canMsg.data.low = (canMsg.id & 0x00FFFFFF);
+          panels[0].uuid0 = (canMsg.id && 0x00FFFFFF) << 8;
+          canMsg.id = CAN_MSG_DETECT_1;
+          canMsg.dlc = 4;
+          if (!Can1.write(canMsg))
+            Serial1.println("CAN Tx DETECT 1 failed");
+          else
+            detecting = RUN_MODE_PENDING_1;
         }
+        break;
+      case CAN_MSG_DETECT_2:
+        if (detecting != RUN_MODE_PENDING_1)
+          break;
+        if (canMsg.dlc == 0)
+        {
+          canMsg.data.low = (canMsg.id & 0x00FFFFFF);
+          panels[0].uuid0 |= (canMsg.id & 0x00FF0000) >> 16;
+          panels[0].uuid1 = canMsg.id << 16;
+          canMsg.id = CAN_MSG_DETECT_2;
+          canMsg.dlc = 4;
+          if (!Can1.write(canMsg))
+            Serial1.println("CAN Tx DETECT 2 failed");
+          else
+            detecting = RUN_MODE_PENDING_2;
+        }
+        break;
+      case CAN_MSG_DETECT_3:
+        if (detecting != RUN_MODE_PENDING_2)
+          break;
+        if (canMsg.dlc == 0)
+        {
+          canMsg.data.low = (canMsg.id & 0x00FFFFFF);
+          panels[0].uuid1 |= (canMsg.id & 0x00FFFF00) >> 8;
+          panels[0].uuid2 = canMsg.id << 24;
+          canMsg.id = CAN_MSG_DETECT_3;
+          canMsg.dlc = 4;
+          if (!Can1.write(canMsg))
+            Serial1.println("CAN Tx DETECT 3 failed");
+          else
+            detecting = RUN_MODE_PENDING_3;
+        }
+        break;
+      case CAN_MSG_DETECT_4:
+        if (detecting != RUN_MODE_PENDING_3)
+          break;
+        if (canMsg.dlc == 0)
+        {
+          panels[0].uuid2 |= (canMsg.id & 0x00FFFFFF);
+          for (panelId = 1; panelId < nextFreePanelId; ++panelId)
+          {
+            if (panels[0].uuid0 == panels[panelId].uuid0 && panels[0].uuid1 == panels[panelId].uuid1 && panels[0].uuid2 == panels[panelId].uuid2)
+              break;
+            //!@todo We should reuse free slots and remove duplicates
+          }
+          canMsg.data.low = ((canMsg.id & 0x00FFFFFF) << 8) | panelId;
+          canMsg.id = CAN_MSG_DETECT_4;
+          canMsg.dlc = 4;
+          if (!Can1.write(canMsg))
+            Serial1.println("CAN Tx DETECT 4 failed");
+          else
+            detecting = RUN_MODE_PENDING_4;
+        }
+        break;
+      case CAN_MSG_ACK_ID:
+        if (detecting != RUN_MODE_PENDING_4)
+          break;
+        if (canMsg.dlc == 8)
+        {
+          panels[0].type = canMsg.data.low;
+          panels[0].version = canMsg.data.high;
+          panels[canMsg.id & 0xFF] = panels[0];
+          Serial1.printf("Detected panel %u: 0x%08u:%08u:%08u\n", canMsg.id & 0xFF, panels[0].uuid0, panels[0].uuid1, panels[0].uuid2);
+          if ((canMsg.id & 0xFF) >= nextFreePanelId)
+            ++nextFreePanelId;
+          detecting = RUN_MODE_READY;
+        }
+        break;
       }
+    }
+    else
+    {
+      rxQueue.push(canMsg.id, canMsg.dlc, canMsg.data.bytes);
     }
     digitalToggle(PC13);
   }
@@ -196,31 +300,41 @@ void loop() {
 
 /*  Handles I2C received messages
     First byte indicates the command:
-      0x00: Write command here to define subsequent read operations. Read to get last changed panel (0 for none)
-        0x01: Request GPI state, quant of GPIs, offset
-        0x02: Request ADC value, quant of ADC, offset
-      0x01..0x3f: Access panels 1..63 - Read to get the last requested data
+      0x00: Read last raw realtime CAN message: CAN ID[1:2] CAN Payload[3:x] (x <=10)
+      0x00: Write command to define subsequent read operations.
+        0x01, aa, bb: Request GPI state, aa: Quant of GPIs, bb: Offset of first GPI to read
+        0x02, aa, bb: Request ADC value, aa: Quant of ADC, bb: Offset of first ADC to read
+      0x01..0x3f: Read panels 1..63 info (defined by last command written to register 0)
       0xF0: Read to get quantity of panels
       0xFF: Send raw standard (11-bit header) CAN message: CAN ID[1:2] CAN Payload[3:x] (x <= 10)
 */
-void onI2cRx(int count) {
-  if (count) {
+void onI2cRx(int count)
+{
+  if (count)
+  {
     i2cCommand[0] = Wire.read();
     --count;
-  } else {
+  }
+  else
+  {
     i2cCommand[0] = 0;
   }
-  if (i2cCommand[0] == 0xFF && count > 1) {
-    // Raw CAN message to send
-    uint32_t id = Wire.read() << 8;
-    id |= Wire.read();
-    canMsg.id = id;
+  if (i2cCommand[0] == 0xFF && count > 2)
+  {
+    // Send raw CAN message - add to CAN Tx fifo
+    CAN_MSG_T msg;
+    msg.id = Wire.read() << 8;
+    msg.id |= Wire.read();
     count -= 2;
-    canMsg.dlc = count;
-    canMsg.ide = IDStd;
-    Wire.readBytes(canMsg.data.bytes, count);
-    Can1.write(canMsg);
-  } else if (count > 2) {
+    if (count < 9)
+      msg.len = count;
+    else
+      msg.len = 8;
+    Wire.readBytes(msg.data, msg.len);
+    txQueue.push(&msg);
+  }
+  else if (count > 2)
+  {
     i2cCommand[1] = Wire.read();
     i2cCommand[2] = Wire.read();
     i2cCommand[3] = Wire.read();
@@ -230,63 +344,88 @@ void onI2cRx(int count) {
     ;
 }
 
-void onI2cRequest() {
-  if (i2cCommand[0] == 0) {
+void onI2cRequest()
+{
+  if (i2cCommand[0] == 0)
+  {
     // Request for last updated data
-    if (qBack == qFront) {
+    if (rxQueue.empty())
+    {
+      // Send empty message to indicate no more data
       memset(i2cResponseBuffer, 0, 9);
       Wire.write(i2cResponseBuffer, 9);
-    } else {
-      i2cResponseBuffer[0] = popFromQueue(i2cResponseBuffer + 1);
+    }
+    else
+    {
+      const CAN_MSG_T *msg = rxQueue.peek();
+      if (msg)
+      {
+        i2cResponseBuffer[0] = msg->id & CAN_MASK_OPCODE;
+        memcpy(i2cResponseBuffer + 1, msg->data, 8);
+      }
       Wire.write(i2cResponseBuffer, 9);
+      rxQueue.pop(NULL);
     }
-  } else if (i2cCommand[0] < MAX_PANELS) {
+  }
+  else if (i2cCommand[0] < MAX_PANELS)
+  {
     // Request for panel data
-    PANEL_T * panel = &panels[i2cCommand[0]];
-    switch (i2cCommand[1]) {
-      case 0: // Panel info
-        i2cResponseBuffer[0] = panel->type;
-        i2cResponseBuffer[1] = panel->uuid0;
-        i2cResponseBuffer[2] = panel->uuid0 >> 8;
-        i2cResponseBuffer[3] = panel->uuid0 >> 16;
-        i2cResponseBuffer[4] = panel->uuid0 >> 24;
-        i2cResponseBuffer[5] = panel->uuid0;
-        i2cResponseBuffer[6] = panel->uuid0 >> 8;
-        i2cResponseBuffer[7] = panel->uuid0 >> 16;
-        i2cResponseBuffer[8] = panel->uuid0 >> 24;
-        i2cResponseBuffer[9] = panel->uuid0;
-        i2cResponseBuffer[10] = panel->uuid0 >> 8;
-        i2cResponseBuffer[11] = panel->uuid0 >> 16;
-        i2cResponseBuffer[12] = panel->uuid0 >> 24;
-        i2cResponseBuffer[13] = panel->version;
-        i2cResponseBuffer[14] = panel->version >> 8;
-        i2cResponseBuffer[15] = panel->version >> 16;
-        i2cResponseBuffer[16] = panel->version >> 24;
-        Wire.write(i2cResponseBuffer, 17);
-        break;
-      case 1: // GPI
-        i2cResponseBuffer[0] = panel->switches;
-        i2cResponseBuffer[0] = panel->switches >> 8;
-        i2cResponseBuffer[0] = panel->switches >> 16;
-        i2cResponseBuffer[0] = panel->switches >> 24;
-        Wire.write(i2cResponseBuffer, 4);
-        break;
-      case 2: // ADC
-        {
-          uint8_t i;
-          for (i = 0; i < i2cCommand[2]; ++ i) {
-            uint8_t adc = i + i2cCommand[3];
-            if (adc > 15)
-              break;
-            i2cResponseBuffer[i] = panel->adcs[adc];
-          }
-          Wire.write(i2cResponseBuffer, i);
-        }
-        break;
+    uint8_t i = i2cCommand[0];
+    PANEL_T *panel = &panels[i];
+    //    Serial1.printf("I2C request for panel %u info:\n", i);
+    Serial1.printf("  0x%08u:%08u:%08u\n", panel->uuid0, panel->uuid1, panel->uuid2);
+    // Serial1.printf("  0x%08u:%08u:%08u\n", panels[i].uuid0, panels[i].uuid1, panels[i].uuid2);
+
+    switch (i2cCommand[1])
+    {
+    case 0: // Panel info
+      i2cResponseBuffer[0] = panel->type;
+      i2cResponseBuffer[1] = panel->uuid0;
+      i2cResponseBuffer[2] = panel->uuid0 >> 8;
+      i2cResponseBuffer[3] = panel->uuid0 >> 16;
+      i2cResponseBuffer[4] = panel->uuid0 >> 24;
+      i2cResponseBuffer[5] = panel->uuid1;
+      i2cResponseBuffer[6] = panel->uuid1 >> 8;
+      i2cResponseBuffer[7] = panel->uuid1 >> 16;
+      i2cResponseBuffer[8] = panel->uuid1 >> 24;
+      i2cResponseBuffer[9] = panel->uuid2;
+      i2cResponseBuffer[10] = panel->uuid2 >> 8;
+      i2cResponseBuffer[11] = panel->uuid2 >> 16;
+      i2cResponseBuffer[12] = panel->uuid2 >> 24;
+      i2cResponseBuffer[13] = panel->version;
+      i2cResponseBuffer[14] = panel->version >> 8;
+      i2cResponseBuffer[15] = panel->version >> 16;
+      i2cResponseBuffer[16] = panel->version >> 24;
+      Wire.write(i2cResponseBuffer, 17);
+      break;
+    case 1: // GPI
+      /*
+      i2cResponseBuffer[0] = panel->switches;
+      i2cResponseBuffer[0] = panel->switches >> 8;
+      i2cResponseBuffer[0] = panel->switches >> 16;
+      i2cResponseBuffer[0] = panel->switches >> 24;
+      Wire.write(i2cResponseBuffer, 4);
+      */
+      break;
+    case 2: // ADC
+    {
+      uint8_t i;
+      for (i = 0; i < i2cCommand[2]; ++i)
+      {
+        uint8_t adc = i + i2cCommand[3];
+        if (adc > 15)
+          break;
+        i2cResponseBuffer[i] = panel->adcs[adc];
+      }
+      Wire.write(i2cResponseBuffer, i);
     }
-  } else if (i2cCommand[0] == 0xF0) {
-      i2cResponseBuffer[0] = nextFreePanelId - 1;
-      Wire.write(i2cResponseBuffer, 1);
+    break;
+    }
+  }
+  else if (i2cCommand[0] == 0xF0)
+  {
+    i2cResponseBuffer[0] = nextFreePanelId - 1;
+    Wire.write(i2cResponseBuffer, 1);
   }
   delayMicroseconds(100); // Required to avoid request sending wrong data
 }

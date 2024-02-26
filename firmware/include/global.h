@@ -19,7 +19,7 @@
 #define VERSION 2         // Software version
 #define MSG_TIMEOUT 2000  // CAN message timeout in ms
 #define MAX_RESET_WAIT 500 // Maximum time to delay before resetting self - used with random to stagger panel resets
-#define CAN_SPEED CAN_BPS_10K // CAN bus speed (using 10kbps during testing - raise to 500kbps for proper CAN interface)
+#define CAN_SPEED CAN_BPS_500K // CAN bus speed (using 5kbps during testing - raise to 500kbps for proper CAN interface)
 
 // Enumerations
 enum RUN_MODE {
@@ -46,18 +46,20 @@ struct PANEL_ID_T {
 riban modular CAN Messages
 ==========================
 
-CAN_MESSAGE_ID is 11-bit word
-Bits [10:5] Target panel id (0..63) 63=broadcast, 62=detect, 0=brain
-Bits [4..0] Opcode (0..31)
+CAN_MESSAGE_ID is 11-bit (std) or 29-bit (ext) word
+Standard (11-bit id) messages used for runtime realtime messages
+Extended (29-bit id) messages used for configuration and firmware update
 
-Panel specific messages (First bit 0, 6 bits of panel id (1..63), 4 bits of opcode)
-Dir | ID       | OpCode | Payload                                 | Purpose
-----|----------|--------|-----------------------------------------|---------------------------
-B>P | LED+PID  | 0x01   | Offset [0:7] Mode [0:7]                 | Set LED type and mode
-    |          |        | RGB1 [0:23] RGB2 [0:23]                 | Optional RGB colours
-P>B | ADC      | 0x02   | Value [0:15] PanelId [0:7] Offset [0:7] | ADC value
-P>B | SW       | 0x03   | Bitmap [0:31] PanelId [0:7]             | Switch state (x32)
-P>B | ENC+PID  | 0x04   | Offset [0:7] Value [0:31]               | Encoder value +/-
+Runtime realtime messages
+    Brain to panel (B>P) have first bit 0, 6 bits of panel id (1..63), 4 bits of opcode)
+    Panel to Brain (P>B) have first 7 bits 0, 4 bits of opcode
+Dir | ID       | OpCode | Payload                                   | Purpose
+----|----------|--------|-------------------------------------------|---------------------------
+B>P | LED      | 0x01   | Offset [0:7] Mode [0:7]                   | Set LED type and mode
+    |          |        | RGB1 [0:23] RGB2 [0:23]                   | Optional RGB colours
+P>B | ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value
+P>B | SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | Switch event types (bit flags): 1:press 2:bold, 3:long
+P>B | ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/-
 
 
 Detect messages (Extended CAN ID)
@@ -93,10 +95,10 @@ enum CAN_MESSAGE_ID {
     CAN_MSG_ACK_ID              = 0x1B000000,
 
 
-    CAN_MSG_LED                 = 0x001, // | (panelId << 5)
-    CAN_MSG_ADC                 = 0x003, // | (panelId << 5)
-    CAN_MSG_SWITCH              = 0x004, // | (panelId << 5)
-    CAN_MSG_QUADENC             = 0x005, // | (panelId << 5)
+    CAN_MSG_LED                 = 0x001,
+    CAN_MSG_ADC                 = 0x002,
+    CAN_MSG_SWITCH              = 0x003,
+    CAN_MSG_QUADENC             = 0x004
 };
 
 enum CAN_BROADCAST_CODE {

@@ -27,15 +27,20 @@ uint32_t firmwareChecksum;        //!@todo Use stronger firmware validation, e.g
 volatile uint32_t watchdogTs;     // Time that last CAN operation occured
 struct PANEL_ID_T panelInfo;
 static CAN_message_t canMsg;
+static volatile uint32_t error = 0;
 
 // Function forward declarations
 void setRunMode(uint8_t mode);
+
+HardwareSerial Serial1(PA10, PA9);
 
 void setup()
 {
   // Configure debug
   pinMode(PC13, OUTPUT);
-  digitalWrite(PC13, LOW);
+  digitalWrite(PC13, HIGH);
+  Serial1.begin(9600);
+  Serial1.println("riban Modular Generic Panel");
 
   // Populate panel info
   panelInfo.uid[0] = HAL_GetUIDw0();
@@ -48,6 +53,8 @@ void setup()
   initSwitches();
   initAdcs();
 
+  Can1.setRxBufferSize(16);
+  Can1.setTxBufferSize(16);
   Can1.begin(CAN_SPEED);
   setRunMode(RUN_MODE_INIT);
 }
@@ -57,7 +64,7 @@ void loop()
   static uint32_t lastNow = 0;
   static uint32_t nextRefresh = 0;
   static uint32_t nextSec = 0;
-  static uint32_t next10ms = 0;
+  static uint32_t nextSensorScan = 0;
   static uint8_t led = 0, mode = 1;
 
   now = millis();
@@ -73,11 +80,10 @@ void loop()
       {
         // 1s actions
         nextSec = now + 1000;
-        // digitalToggle(PC13);
       }
     }
 
-    if (now > next10ms) {
+    if (runMode == RUN_MODE_RUN && now > nextSensorScan) {
       // 10ms actions - ADC EMA filter optimised to 10ms sample rate ~ 20Hz cutoff
       uint32_t adcChanged = processAdcs(now);
       uint8_t i = 0;
@@ -86,31 +92,33 @@ void loop()
           canMsg.id = CAN_MSG_ADC;
           canMsg.dlc = 4;
           canMsg.ide = IDStd;
-          canMsg.data.bytes[2] = panelInfo.id;
-          canMsg.data.bytes[3] = i;
-          canMsg.data.s0 = adcs[i].value;
-          Can1.write(canMsg);
+          canMsg.data.bytes[0] = panelInfo.id;
+          canMsg.data.bytes[1] = i;
+          canMsg.data.s1 = adcs[i].value;
+          if(!Can1.write(canMsg))
+            Serial1.println("CAN Tx ADC failed");
         }
         adcChanged >>= 1;
         ++i;
       }
 
-      uint32_t swChanged = processSwitches(now);
-      if (swChanged) {
-        canMsg.id = CAN_MSG_SWITCH;
-        canMsg.dlc = 8;
-        canMsg.ide = IDStd;
-        canMsg.data.low = switchValues;
-        canMsg.data.high = panelInfo.id;
-        Can1.write(canMsg);
+      for (uint8_t i = 0; i < SWITCHES; ++i) {
+        if (processSwitch(i, now)) {
+          canMsg.id = CAN_MSG_SWITCH;
+          canMsg.dlc = 3;
+          canMsg.ide = IDStd;
+          canMsg.data.bytes[0] = panelInfo.id;
+          canMsg.data.bytes[1] = i;
+          canMsg.data.bytes[2] = switches[i].state;
+          if(!Can1.write(canMsg))
+            Serial1.println("CAN Tx SWITCH failed");
+        }
       }
-
-      next10ms = now + 15;
+      nextSensorScan = now + 15;
     }
   }
 
-  if (runMode != RUN_MODE_RUN)
-  {
+  if (runMode != RUN_MODE_RUN) {
     if (now - watchdogTs > MSG_TIMEOUT)
       setRunMode(RUN_MODE_INIT);
   }
@@ -118,6 +126,10 @@ void loop()
   // Handle incoming CAN messages
   if (Can1.read(canMsg))
   {
+    Serial1.printf("CAN Rx:");
+    for (int i = 0; i < canMsg.dlc; ++i)
+      Serial1.printf(" 0x%02x", canMsg.data.bytes[i]);
+    Serial1.printf("\n");
     switch (runMode) {
       case RUN_MODE_RUN:
         if (canMsg.ide == IDStd) {
@@ -132,8 +144,11 @@ void loop()
                     setLedColour2(canMsg.data.bytes[0], canMsg.data.bytes[5], canMsg.data.bytes[6], canMsg.data.bytes[7]);
                   }
                 }
+                //Serial1.printf("CAN Rx LED Mode %d:%d\n", canMsg.data.bytes[0], canMsg.data.bytes[1]);
               }
               break;
+            default:
+              digitalWrite(PC13, LOW);
           }
         } else {
           // Extended CAN messages
@@ -178,6 +193,9 @@ void loop()
             canMsg.dlc = 0;
             if (Can1.write(canMsg))
               runMode = RUN_MODE_PENDING_2;
+            else
+              Serial1.println("CAN Tx DETECT failed");
+
             watchdogTs = now;
           }
           break;
@@ -194,6 +212,8 @@ void loop()
             canMsg.dlc = 0;
             if (Can1.write(canMsg))
               runMode = RUN_MODE_PENDING_3;
+            else
+              Serial1.println("CAN Tx DETECT failed");
             watchdogTs = now;
           }
           break;
@@ -211,6 +231,8 @@ void loop()
             canMsg.dlc = 0;
             if (Can1.write(canMsg))
               runMode = RUN_MODE_PENDING_3;
+            else
+              Serial1.println("CAN Tx DETECT failed");
             watchdogTs = now;
           }
           break;
@@ -230,8 +252,10 @@ void loop()
             canMsg.data.high = panelInfo.version;
             if (Can1.write(canMsg))
               setRunMode(RUN_MODE_READY);
-            else
+            else {
+              Serial1.println("CAN Tx DETECT failed");
               setRunMode(RUN_MODE_INIT);
+            }
             watchdogTs = now;
           }
           break;
@@ -244,6 +268,7 @@ void loop()
 void setRunMode(uint8_t mode)
 {
   runMode = mode;
+  Serial1.printf("Run mode %d\n", runMode);
   switch (mode)
   {
     case RUN_MODE_RUN:
@@ -279,7 +304,9 @@ void setRunMode(uint8_t mode)
       canMsg.id = CAN_MSG_DETECT_1 | (panelInfo.uid[0] >> 8);
       canMsg.dlc = 0;
       canMsg.ide = IDExt;
-      Can1.write(canMsg);
+      if (!Can1.write(canMsg))
+        Serial1.println("CAN Tx INIT failed");
+
       runMode = RUN_MODE_PENDING_1;
       break;
     case RUN_MODE_READY:
