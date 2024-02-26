@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name "riban")(type "KiCad")(uri "/home/brian/modular/panels/pcb/10hp_generic")(options "")(descr ""))
+)
