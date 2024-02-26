@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg805"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09, custom)"
+   sodipodi:docname="bogaudio_lvcf"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview807"
+     pagecolor="#ffffff"
+     bordercolor="#111111"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.1893044"
+     inkscape:cx="293.86926"
+     inkscape:cy="478.01051"
+     inkscape:window-width="1850"
+     inkscape:window-height="1016"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer3" />
+  <defs
+     id="defs802" />
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Panel">
+    <rect
+       style="display:inline;fill:#cccccc;stroke:none;stroke-width:5.36767"
+       id="rect499"
+       width="25"
+       height="128.5"
+       x="46.346474"
+       y="71.456078" />
+  </g>
+  <g
+     inkscape:label="Cutouts"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle1176"
+       cx="65.19648"
+       cy="180.38084"
+       r="5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle259"
+       cx="58.846474"
+       cy="122.80341"
+       r="3" />
+    <ellipse
+       style="display:inline;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.922532"
+       id="path1346"
+       cx="53.846565"
+       cy="74.455986"
+       rx="1.138732"
+       ry="1.1387339" />
+    <ellipse
+       style="display:inline;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.922532"
+       id="ellipse1348"
+       cx="53.846565"
+       cy="196.95598"
+       rx="1.138732"
+       ry="1.1387339" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle2780"
+       cx="58.846474"
+       cy="106.35278"
+       r="3" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle2782"
+       cx="58.846474"
+       cy="89.90213"
+       r="3" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle2784"
+       cx="52.496468"
+       cy="180.38084"
+       r="5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle2786"
+       cx="52.496468"
+       cy="162.23357"
+       r="5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.452987"
+       id="circle2788"
+       cx="65.19648"
+       cy="162.23357"
+       r="5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.226493"
+       id="circle2790"
+       cx="53.508144"
+       cy="139.21173"
+       r="1.5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.226493"
+       id="circle2792"
+       cx="53.508144"
+       cy="149.04372"
+       r="1.5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.226493"
+       id="circle2794"
+       cx="64.519585"
+       cy="149.04372"
+       r="1.5" />
+    <circle
+       style="display:inline;fill:#000000;stroke-width:0.226493"
+       id="circle2796"
+       cx="64.519585"
+       cy="139.21173"
+       r="1.5" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer3"
+     inkscape:label="Decals"
+     style="display:none">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="53.065952"
+       y="99.666916"
+       id="text813"><tspan
+         sodipodi:role="line"
+         id="tspan2828"
+         x="53.065952"
+         y="99.666916">FREQ</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="55.819271"
+       y="116.36044"
+       id="text2802"><tspan
+         sodipodi:role="line"
+         id="tspan2838"
+         x="55.819271"
+         y="116.36044">CV</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="54.604877"
+       y="132.811"
+       id="text2806"><tspan
+         sodipodi:role="line"
+         id="tspan2836"
+         x="54.604877"
+         y="132.811">RES</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="49.469265"
+       y="171.38152"
+       id="text2810"><tspan
+         sodipodi:role="line"
+         id="tspan2864"
+         x="49.469265"
+         y="171.38152">CV</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="50.508713"
+       y="189.43291"
+       id="text2814"><tspan
+         sodipodi:role="line"
+         id="tspan2822"
+         x="50.508713"
+         y="189.43291">IN</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="60.563175"
+       y="189.37296"
+       id="text2818"><tspan
+         sodipodi:role="line"
+         id="tspan2820"
+         x="60.563175"
+         y="189.37296">OUT</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="50.917091"
+       y="145.63419"
+       id="text2842"><tspan
+         sodipodi:role="line"
+         id="tspan2844"
+         x="50.917091"
+         y="145.63419">LP</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="50.891979"
+       y="154.6299"
+       id="text2848"><tspan
+         sodipodi:role="line"
+         id="tspan2860"
+         x="50.891979"
+         y="154.6299">BP</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="61.928532"
+       y="145.63419"
+       id="text2852"><tspan
+         sodipodi:role="line"
+         id="tspan2858"
+         x="61.928532"
+         y="145.63419">HP</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="61.928532"
+       y="154.6299"
+       id="text2856"><tspan
+         sodipodi:role="line"
+         id="tspan2862"
+         x="61.928532"
+         y="154.6299">BR</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="58.664585"
+       y="171.38152"
+       id="text2868"><tspan
+         sodipodi:role="line"
+         id="tspan2870"
+         x="58.664585"
+         y="171.38152">MODE</tspan></text>
+    <path
+       style="display:inline;fill:#000000;stroke:#000000;stroke-width:0.17869"
+       d="m 81.111738,195.66086 c -24.145962,0 -23.999982,0 -23.999982,0"
+       id="path1097" />
+    <path
+       style="display:inline;fill:#000000;stroke:#000000;stroke-width:0.195397"
+       d="m 86.808695,76.221303 c -29.877559,0 -29.696929,0 -29.696929,0"
+       id="path1099" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;display:inline;fill:#000000;stroke:#000000;stroke-width:0.264583"
+       x="58.224632"
+       y="78.043533"
+       id="text1667"><tspan
+         sodipodi:role="line"
+         id="tspan2778">VCF</tspan></text>
+  </g>
+</svg>
