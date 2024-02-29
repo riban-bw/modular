@@ -29,7 +29,7 @@ enum SWITCH_STATES {
 #define BOLD_TIME 400 // Duration that press, hold release triggers "bold press" event
 #define LONG_TIME 1500 // Duration that press and hold triggers "long press" event
 #define SWITCH_DEBOUNCE_MS 20 // Debounce time in ms
-#define SWITCH_PINS {PB10, PB11, PB12, PB13, PB14, PA8, PA8, PA10, PA11, PA12, PA15, PB3, PB4, PC13, PC14, PC15, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB6, PB7}
+#define SWITCH_PINS {PB10, PB11, PB12, PB13, PB14, PA8, PA9, PA10, PA11, PA12, PA15, PB0, PB1, PB3, PB4, PC13, PC14, PC15, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB6, PB7}
 
 struct SWITCH_T
 {
