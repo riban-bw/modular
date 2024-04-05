@@ -92,9 +92,9 @@ PC15|   |   |     |
 
 #if PANEL_TYPE==11
 // Bogaudio VCO
-#define WSLEDS 11
-#define ADCS 4
-#define SWITCHES 11
+//#define WSLEDS 11
+//#define ADCS 4
+//#define SWITCHES 11
 #define BRAND "Bogaudio"
 #define PLUGIN "Bogaudio"
 #define MODEL "VCO"

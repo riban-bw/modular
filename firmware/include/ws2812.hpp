@@ -1,12 +1,12 @@
 #include "FastLED.h" // Provides WS2812 LED interface
 #ifndef WSLEDS
-#define WSLEDS 0
+#define WSLEDS 16
 #endif //WSLEDS
 #ifndef SWITCHES
-#define SWITCHES 0
+#define SWITCHES 8
 #endif //SWITCHES
 #ifndef ADCS
-#define ADCS 0
+#define ADCS 8
 #endif //ADCS
 #define LED_DATA_PIN PB15
 #define REFRESH_RATE 60
