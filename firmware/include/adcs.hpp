@@ -19,16 +19,16 @@
 #include <stdlib.h> // Provides free, malloc, size_t
 
 // Preprocessor defines
-#define MAX_ADCS 10
-#define ADC_PINS {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB0, PB1}
-#define ADC_BITS_TO_IGNORE 0
+#ifndef ADCS
+#define ADCS 8
+#endif //ADCS
+#define ADC_PINS {PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
+#define ADC_BITS_TO_IGNORE 0 // Can reduce resolution if too noisey
 #define EMA_A 0.2f // filter coeficient (0..1 higher value gives less agressive filter - 1.0 would pass all data, unfiltered)
 
 struct ADC_T {
   uint8_t gpi; // GPI pin
-  uint32_t sum = 0; // Sum of last 16 samples
   uint16_t value = 0; // Current filtered / averaged value
-  uint16_t lastValue = 0; //Last retrieved filtered value
 };
 
 struct ADC_T adcs[ADCS];

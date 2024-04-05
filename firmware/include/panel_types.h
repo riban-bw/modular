@@ -123,9 +123,9 @@ PC15|   |   |     |
 
 #if PANEL_TYPE==14
 // Dual Bogaudio ADSR
-#define WSLEDS {3, 4, 2, 5, 6, 8}
-#define ADC_PINS {PB1, PB0, PC5, PC4, PC0, PA0, PA1, PA3}
-#define SWITCH_PINS {PA9, PA11, PA10, PC10, PC12, PA15}
+//#define WSLEDS {2, 3, 1, 4, 5, 7}
+#define ADC_PINS {PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
+#define SWITCH_PINS {PB13, PB14, PA9, PA10, PB11, PB12, PA11, PA12}
 #define BRAND "Bogaudio"
 #define PLUGIN "Bogaudio"
 #define MODEL "ADSR"

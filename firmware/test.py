@@ -6,9 +6,10 @@ from math import pi, acos
 RESET = 0x7EF
 
 I2C_ADDR = 100
-led_mode = [0] * 8
+led_mode = [0] * 16
 
 bus = smbus.SMBus(1)
+sleep(1)
 
 def can_write(id, msg=[]):
     buffer = []

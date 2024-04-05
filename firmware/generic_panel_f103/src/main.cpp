@@ -140,7 +140,7 @@ void loop()
         ++i;
       }
 
-      for (uint8_t i = 0; i < SWITCHES; ++i) {
+      for (uint8_t i = 0; i < switchCount; ++i) {
         if (processSwitch(i, now)) {
           canMsg.id = CAN_MSG_SWITCH;
           canMsg.dlc = 3;
@@ -323,7 +323,7 @@ void setRunMode(uint8_t mode)
         1,
         IDExt);
       // Extinguise all LEDs - will be illuminated by config messages
-      for (uint8_t led = 0; led < WSLEDS; ++led)
+      for (uint8_t led = 0; led < ledCount; ++led)
         setLedState(led, LED_STATE_OFF);
       break;
     case RUN_MODE_INIT:
@@ -333,7 +333,7 @@ void setRunMode(uint8_t mode)
           0,
           IDExt);
       // Pulse all LEDs blue to indicate detect mode
-      for (uint8_t led = 0; led < WSLEDS; ++led)
+      for (uint8_t led = 0; led < ledCount; ++led)
       {
         setLedColour1(led, 0, 0, 200);
         setLedColour2(led, 0, 0, 20);
@@ -353,7 +353,7 @@ void setRunMode(uint8_t mode)
           0x1fffffff,
           0,
           IDExt);
-      for (uint8_t led = 0; led < WSLEDS; ++led)
+      for (uint8_t led = 0; led < ledCount; ++led)
       {
         setLedColour1(led, 0, 100, 100);
         setLedColour2(led, 0, 10, 10);
@@ -363,7 +363,7 @@ void setRunMode(uint8_t mode)
     case RUN_MODE_FIRMWARE:
       updateFirmwareOffset = 0;
       // Flash all LEDs to indicate firmware upload mode
-      for (uint8_t led = 0; led < WSLEDS; ++led)
+      for (uint8_t led = 0; led < ledCount; ++led)
       {
         setLedColour1(led, 0, 0, 200);
         setLedColour2(led, 0, 0, 20);

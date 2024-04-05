@@ -25,15 +25,17 @@ enum SWITCH_STATES {
 #include <stdlib.h> // Provides free, malloc, size_t
 
 // Preprocessor defines
-#define MAX_SWITCHES 32
-#define BOLD_TIME 400 // Duration that press, hold release triggers "bold press" event
-#define LONG_TIME 1500 // Duration that press and hold triggers "long press" event
+#define BOLD_TIME 600 // Duration that press, hold release triggers "bold press" event
+#define LONG_TIME 1600 // Duration that press and hold triggers "long press" event
 #define SWITCH_DEBOUNCE_MS 20 // Debounce time in ms
-#define SWITCH_PINS {PB10, PB11, PB12, PB13, PB14, PA8, PA9, PA10, PA11, PA12, PA15, PB0, PB1, PB3, PB4, PC13, PC14, PC15, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PB6, PB7}
+#define MAX_SWITCHES 16
+#ifndef SWITCH_PINS
+#define SWITCH_PINS {PB13, PB14, PA9, PA10, PB11, PB12, PA11, PA12, PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
+#endif //SWITCH_PINS
 
 struct SWITCH_T
 {
-  uint8_t gpi;             // GPI pin
+  uint8_t gpi; // GPI pin
   uint8_t state = 0; // Switch state flags [pressed, bold release, long hold]
   uint32_t lastChange = 0; // Time of last value change
   bool pressed() { return (state & 0x01) != 0;};
@@ -41,13 +43,15 @@ struct SWITCH_T
   bool held() { return (state & 0x04) != 0;};
 };
 
-SWITCH_T switches[SWITCHES]; // Array of switch objects
-uint32_t switchValues; // Bitwise value of switches
+//struct SWITCH_T* switches; // Pointer to array of switch objects
+struct SWITCH_T switches[MAX_SWITCHES]; // Array of switch objects
+uint8_t switchCount = 0;
 
 void initSwitches(void)
 {
   uint8_t switchPins[] = SWITCH_PINS;
-  for (uint8_t i = 0; i < SWITCHES; ++i)
+  switchCount = sizeof(switchPins);
+  for (uint8_t i = 0; i < switchCount; ++i)
   {
     switches[i].gpi = switchPins[i];
     pinMode(switches[i].gpi, INPUT_PULLUP);

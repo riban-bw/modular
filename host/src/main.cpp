@@ -10,7 +10,8 @@
 */
 
 #include <cstdio> // Provides printf
-#include <getopt.h>
+#include <getopt.h> // Provides getopt_long for command line parsing
+#include <alsa/asoundlib.h> // Provides ALSA interface
 
 const char* version_str = "0.0";
 bool g_debug = false;
@@ -51,5 +52,24 @@ int main(int argc, char** argv) {
         // Error parsing command line
         return -1;
     }
-    //!@todo Implement app
+
+    int val;
+    printf("ALSA library version: %s\n",SND_LIB_VERSION_STR);
+    snd_pcm_t *handle;
+    snd_pcm_hw_params_t *params;
+    int rc = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    if (rc < 0) {
+        fprintf(stderr, "Failed to open audio device: %s\n", snd_strerror(rc));
+        return -1;
+    }
+    
+    /*@todo
+        Start background panel detection
+        Connect audio interface
+        Start module manager (add/remove modules, update module state)
+        Start connection manager 
+        Start config manager (persistent configuration storage)
+        Start audio processing
+    */
+   return 0;
 }

@@ -1,13 +1,8 @@
 #include "FastLED.h" // Provides WS2812 LED interface
+#define MAX_WSLEDS 16
 #ifndef WSLEDS
-#define WSLEDS 16
+#define WSLEDS {2, 3, 4, 5, 1, 0, 7, 6, 15, 8, 14, 9, 13, 10, 12, 11}
 #endif //WSLEDS
-#ifndef SWITCHES
-#define SWITCHES 8
-#endif //SWITCHES
-#ifndef ADCS
-#define ADCS 8
-#endif //ADCS
 #define LED_DATA_PIN PB15
 #define REFRESH_RATE 60
 #define PULSE_RATE REFRESH_RATE / 8
@@ -37,15 +32,18 @@ struct LED
 };
 
 // Arrays to hold led config
-LED leds[WSLEDS];        // LED config indexed by LED
-CRGB ledColours[WSLEDS]; // LED colour indexed by LED
+LED leds[MAX_WSLEDS];        // LED config indexed by LED
+CRGB ledColours[MAX_WSLEDS]; // LED colour indexed by LED
+uint8_t ledCount = 0;
+uint8_t ledMap[] = WSLEDS;
 
 /*  @brief  Initiate WS2812 LEDs
  */
 void initLeds()
 {
+    ledCount = sizeof(ledMap);
     // Initialise and clear LEDs
-    FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(&ledColours[0], WSLEDS);
+    FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(&ledColours[0], MAX_WSLEDS);
     FastLED.showColor(CRGB::Black);
 }
 
@@ -87,12 +85,12 @@ static inline CRGB getFade(CHSV hsv1, CHSV hsv2, uint8_t phase) {
 */
 void setLedColour1(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (led >= WSLEDS)
+    if (led >= ledCount)
         return;
-    leds[led].rgb1 = CRGB(r, g, b);
-    leds[led].hsv1 = rgb2hsv_approximate(leds[led].rgb1);
-    leds[led].dim = leds[led].rgb1;
-    nscale8(&leds[led].dim, 1, 20);
+    leds[ledMap[led]].rgb1 = CRGB(r, g, b);
+    leds[ledMap[led]].hsv1 = rgb2hsv_approximate(leds[ledMap[led]].rgb1);
+    leds[ledMap[led]].dim = leds[ledMap[led]].rgb1;
+    nscale8(&leds[ledMap[led]].dim, 1, 20);
 }
 
 /*  @brief Set LED colour 2
@@ -103,10 +101,10 @@ void setLedColour1(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 */
 void setLedColour2(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (led >= WSLEDS)
+    if (led >= ledCount)
         return;
-    leds[led].rgb2 = CRGB(r, g, b);
-    leds[led].hsv2 = rgb2hsv_approximate(leds[led].rgb2);
+    leds[ledMap[led]].rgb2 = CRGB(r, g, b);
+    leds[ledMap[led]].hsv2 = rgb2hsv_approximate(leds[ledMap[led]].rgb2);
 }
 
 /*  @brief Set LED state
@@ -115,9 +113,9 @@ void setLedColour2(uint8_t led, uint8_t r, uint8_t g, uint8_t b)
 */
 void setLedState(uint8_t led, uint8_t state)
 {
-    if (led >= WSLEDS || state >= LED_STATE_QUANTITY)
+    if (led >= ledCount || state >= LED_STATE_QUANTITY)
         return;
-    leds[led].state = state;
+    leds[ledMap[led]].state = state;
 }
 
 /*  @brief  Process LED animations
@@ -160,10 +158,10 @@ void processLeds()
     bool phaseFastOff = phaseFast < 100 / 2;
 
     CRGB colour;
-    for (uint8_t i = 0; i < WSLEDS; ++i)
+    for (uint8_t i = 0; i < ledCount; ++i)
     {
-        LED *led = &leds[i]; // LED object
-        CRGB &ledColour = ledColours[i]; // Current WS2812 colour 
+        LED *led = &leds[ledMap[i]]; // LED object
+        CRGB &ledColour = ledColours[ledMap[i]]; // Current WS2812 colour 
         switch (led->state) {
             case LED_STATE_OFF:
                 ledColour = CRGB::Black;
