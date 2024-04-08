@@ -33,6 +33,13 @@ enum RUN_MODE {
     RUN_MODE_FIRMWARE,   // Firmware update in progress
 };
 
+enum HOST_CMD {
+    HOST_CMD_NUM_PNLS = 0x01,
+    HOST_CMD_PNL_INFO = 0x02,
+    HOST_CMD_RESET = 0xff,
+    HOST_CMD = 0xff,
+};
+
 // Structures
 struct PANEL_ID_T {
     uint32_t uid[3];   // 96-bit UID of STM32
