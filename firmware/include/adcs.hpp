@@ -19,10 +19,10 @@
 #include <stdlib.h> // Provides free, malloc, size_t
 
 // Preprocessor defines
-#ifndef ADCS
-#define ADCS 8
-#endif //ADCS
+#define MAX_ADCS 8
+#ifndef ADC_PINS
 #define ADC_PINS {PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
+#endif //ADCS_PINS
 #define ADC_BITS_TO_IGNORE 0 // Can reduce resolution if too noisey
 #define EMA_A 0.2f // filter coeficient (0..1 higher value gives less agressive filter - 1.0 would pass all data, unfiltered)
 
@@ -31,12 +31,12 @@ struct ADC_T {
   uint16_t value = 0; // Current filtered / averaged value
 };
 
-struct ADC_T adcs[ADCS];
+struct ADC_T adcs[MAX_ADCS];
 
 void initAdcs(void)
 {
   uint8_t adcPins[] = ADC_PINS;
-  for (uint8_t i = 0; i < ADCS; ++i)
+  for (uint8_t i = 0; i < MAX_ADCS; ++i)
   {
     adcs[i].gpi = adcPins[i];
     pinMode(adcs[i].gpi, INPUT);
@@ -49,7 +49,7 @@ void initAdcs(void)
 */
 uint32_t processAdcs(uint32_t now) {
   uint32_t value, changedFlags = 0;
-  for (uint16_t i = 0; i < ADCS; ++i) {
+  for (uint16_t i = 0; i < MAX_ADCS; ++i) {
     value = (EMA_A * (analogRead(adcs[i].gpi) >> ADC_BITS_TO_IGNORE)) + ((1.0f - EMA_A) * adcs[i].value);
     if (adcs[i].value != value) {
       adcs[i].value = value;

@@ -65,14 +65,9 @@ PC15|   |   |     |
 
 #if PANEL_TYPE==1
 // Brain
-#define SCL_PIN PB10
-#define SDA_PIN PB11
-#define MOSI_PIN PB15 //WS2812 LED data
-#define DETECT_PIN PC15 // 1-wire bus used to detect panels
-#define WSLEDS {0, 1, 2, 3}
-#define ADC_PINS {PA0}
-#define SWITCH_PINS {PB5, PB4, PB3, PA15}
-#define BRAND "RIBAN"
+#define ADC_PINS {PA7}
+#define SWITCH_PINS {PB13, PB14, PA9, PA10}
+#define BRAND "riban"
 #define PLUGIN "Core"
 #define MODEL "Brain"
 #endif // PANEL_TYPE 1
