@@ -1,5 +1,5 @@
 /*  riban modular - copyright riban ltd 2024
-    Copyright 2023 riban ltd <info@riban.co.uk>
+    Copyright 2023-2024 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
     riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -9,9 +9,13 @@
     Core host application
 */
 
+#include "global.h"
+#include "usart.h"
+
 #include <cstdio> // Provides printf
 #include <getopt.h> // Provides getopt_long for command line parsing
-#include <alsa/asoundlib.h> // Provides ALSA interface
+#include <unistd.h> // Provides usleep
+//#include <alsa/asoundlib.h> // Provides ALSA interface
 
 const char* version_str = "0.0";
 bool g_debug = false;
@@ -53,6 +57,10 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    USART usart("/dev/ttyS0", 1000000);
+    usart.txCmd(HOST_CMD_PNL_INFO);
+
+    /*
     int val;
     printf("ALSA library version: %s\n",SND_LIB_VERSION_STR);
     snd_pcm_t *handle;
@@ -62,7 +70,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to open audio device: %s\n", snd_strerror(rc));
         return -1;
     }
-    
+    */
     /*@todo
         Start background panel detection
         Connect audio interface
@@ -71,5 +79,18 @@ int main(int argc, char** argv) {
         Start config manager (persistent configuration storage)
         Start audio processing
     */
-   return 0;
+
+    bool running = true;
+    while(running) {
+        uint8_t rxLen = usart.rx();
+        if (rxLen > 0) {
+            printf("CAN msg with id %03x: ", usart.getRxId());
+            for (int i = 0; i < rxLen; ++i)
+                printf("0x%02x ", usart.rxData[i]);
+            printf("\n");
+            //!@todo Process rx data
+        }
+        usleep(1000); // 1ms sleep to avoid tight loop - may change when we have added audio processing
+    }
+    return 0;
 }

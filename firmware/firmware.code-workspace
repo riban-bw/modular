@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "generic_panel_f103"
+		},
+		{
+			"path": "brain"
+		},
+		{
+			"path": "host"
+		}
+	],
+	"settings": {}
+}

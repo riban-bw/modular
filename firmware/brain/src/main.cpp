@@ -314,6 +314,8 @@ void processUsart() {
   while(Serial1.available()) {
     usartRxBuffer[usartRxLen] = Serial1.read();
     if (usartRxBuffer[usartRxLen++] == 0) { // Found frame delimiter
+      if (usartRxLen < 4)
+        return; // Invalid or empty message
       // Decode COBS in usartRxBuffer (in place)
       uint8_t nextZero = usartRxBuffer[0];
       for (uint8_t i = 0; i < usartRxLen; ++i) {

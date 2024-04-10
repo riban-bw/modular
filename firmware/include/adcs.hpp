@@ -32,11 +32,13 @@ struct ADC_T {
 };
 
 struct ADC_T adcs[MAX_ADCS];
+uint8_t adcCount = 0;
 
 void initAdcs(void)
 {
   uint8_t adcPins[] = ADC_PINS;
-  for (uint8_t i = 0; i < MAX_ADCS; ++i)
+  adcCount = sizeof(adcPins);
+  for (uint8_t i = 0; i < adcCount; ++i)
   {
     adcs[i].gpi = adcPins[i];
     pinMode(adcs[i].gpi, INPUT);
@@ -49,7 +51,7 @@ void initAdcs(void)
 */
 uint32_t processAdcs(uint32_t now) {
   uint32_t value, changedFlags = 0;
-  for (uint16_t i = 0; i < MAX_ADCS; ++i) {
+  for (uint16_t i = 0; i < adcCount; ++i) {
     value = (EMA_A * (analogRead(adcs[i].gpi) >> ADC_BITS_TO_IGNORE)) + ((1.0f - EMA_A) * adcs[i].value);
     if (adcs[i].value != value) {
       adcs[i].value = value;
