@@ -19,6 +19,7 @@
 
 const char* version_str = "0.0";
 bool g_debug = false;
+const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 
 void print_version() {
     printf("riban modular v%s Copyright riban ltd 2024\n", version_str);
@@ -57,7 +58,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    USART usart("/dev/ttyS0", 1000000);
+    USART usart("/dev/ttyS0", B1152000);
     usart.txCmd(HOST_CMD_PNL_INFO);
 
     /*
@@ -81,16 +82,54 @@ int main(int argc, char** argv) {
     */
 
     bool running = true;
+    uint8_t txData[8];
+    float value;
     while(running) {
-        uint8_t rxLen = usart.rx();
+        int rxLen = usart.rx();
         if (rxLen > 0) {
-            printf("CAN msg with id %03x: ", usart.getRxId());
-            for (int i = 0; i < rxLen; ++i)
-                printf("0x%02x ", usart.rxData[i]);
-            printf("\n");
-            //!@todo Process rx data
+            switch (usart.getRxId() & 0x0f) {
+                case CAN_MSG_ADC:
+                    value = (usart.rxData[2] | (usart.rxData[3] << 8)) / 1019.0;
+                    //printf("Panel %u ADC %u: %0.03f - %u\n", usart.rxData[0], usart.rxData[1] + 1, value, int(value * 255.0));
+                    txData[0] = usart.rxData[1];
+                    txData[1] = LED_MODE_ON;
+                    txData[2] = int(255.0 * value);
+                    txData[3] = int(255.0 * value);
+                    txData[4] = int(255.0 * value);
+                    usart.txCAN(usart.rxData[0], CAN_MSG_LED, txData, 5);
+                    break;
+                case CAN_MSG_SWITCH:
+                    if (usart.rxData[2] < 6)
+                        printf("Panel %u Switch %u: %s\n", usart.rxData[0], usart.rxData[1] + 1, swState[usart.rxData[2]]);
+                    txData[0] = usart.rxData[1];
+                    switch(usart.rxData[2]) {
+                        case 0:
+                            //release
+                            txData[1] = 0;
+                            break;
+                        case 1:
+                            //press
+                            txData[1] = 1;
+                            break;
+                        case 2:
+                            //bold
+                            txData[1] = 6;
+                            break;
+                        case 3:
+                        case 5:
+                            //long
+                            txData[1] = 2;
+                            break;
+                    }
+                    usart.txCAN(usart.rxData[0], CAN_MSG_LED, txData, 2);
+                    break;
+                case CAN_MSG_QUADENC:
+                    printf("Panel %u Encoder %u: %d\n", usart.rxData[0], usart.rxData[1] + 1, usart.rxData[2]);
+                    break;
+            }
+        } else {
+            usleep(1000); // 1ms sleep to avoid tight loop - may change when we have added audio processing
         }
-        usleep(1000); // 1ms sleep to avoid tight loop - may change when we have added audio processing
     }
     return 0;
 }

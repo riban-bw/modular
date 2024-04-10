@@ -20,6 +20,7 @@
 #define MSG_TIMEOUT 2000  // CAN message timeout in ms
 #define MAX_RESET_WAIT 500 // Maximum time to delay before resetting self - used with random to stagger panel resets
 #define CAN_SPEED CAN_BPS_500K // CAN bus speed (using 5kbps during testing - raise to 500kbps for proper CAN interface)
+#define USART_BAUD 9600 // USART baud between RPi & Brain
 
 // Enumerations
 enum RUN_MODE {
@@ -38,6 +39,16 @@ enum HOST_CMD {
     HOST_CMD_PNL_INFO = 0x02,
     HOST_CMD_RESET = 0xff,
     HOST_CMD = 0xff,
+};
+
+enum LED_MODE {
+    LED_MODE_OFF        = 0,
+    LED_MODE_ON         = 1,
+    LED_MODE_ON_2       = 2,
+    LED_MODE_FLASH      = 3,
+    LED_MODE_FLASH_FAST = 4,
+    LED_MODE_PULSE      = 5,
+    LED_MODE_PULSE_FAST = 6
 };
 
 // Structures

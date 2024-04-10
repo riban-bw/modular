@@ -21,11 +21,11 @@ class USART {
         *   @param pnlId Panel id
         *   @param opcode Command
         *   @param data CAN payload
-        *   @param len Qunatity of bytes in data (payload)
+        *   @param len Quantity of bytes in data (payload)
         */
         void txCAN(uint8_t pnlId, uint8_t opcode, uint8_t* data, uint8_t len);
 
-        /**  @brief     Send command to Brain
+        /**  @brief Send command to Brain
         *    @param cmd Command
         */
         void txCmd(uint8_t cmd);
@@ -42,7 +42,8 @@ class USART {
         */
         uint8_t getRxId();
 
-        const uint8_t* rxData; // Pointer to last received CAN message data payload 
+        /*  Pointer to last received CAN message data payload */
+        const uint8_t* rxData;
 
     private:
         /*  Convert buffer into COBS encoding and send to serial USART port
@@ -50,7 +51,7 @@ class USART {
         void tx(uint8_t* data, uint8_t len);
 
         int fd; // Serial port file desciptor
-        uint8_t rxBuffer[12]; // Buffer to recieve serial data
+        uint8_t rxBuffer[13]; // Buffer to recieve serial data
         uint8_t rxBufferPtr = 0; // Position in receive buffer for next data
 };
 #endif //USART

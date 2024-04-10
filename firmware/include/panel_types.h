@@ -65,8 +65,8 @@ PC15|   |   |     |
 
 #if PANEL_TYPE==1
 // Brain
-#define ADC_PINS {PA7}
-#define SWITCH_PINS {PB13, PB14, PA9, PA10}
+#define ADC_PINS {}
+#define SWITCH_PINS {}
 #define BRAND "riban"
 #define PLUGIN "Core"
 #define MODEL "Brain"

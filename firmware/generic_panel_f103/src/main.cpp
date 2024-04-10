@@ -144,7 +144,7 @@ void loop()
             ; // Error
         }
       }
-      nextSensorScan = now + 15;
+      nextSensorScan = now + 1;
     }
   }
 

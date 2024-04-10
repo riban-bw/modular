@@ -98,7 +98,7 @@ void setup()
   canMsg.ide = IDExt;
   canMsg.data.bytes[0] = CAN_BROADCAST_RESET;
 
-  Serial1.begin(1000000); // USART1 used for comms to host
+  Serial1.begin(1152000); // USART1 used for comms to host
   uint8_t data[] = {HOST_CMD, HOST_CMD_RESET, 0};
   usartTx(data, 2); // Send reset to host
   if (!Can1.write(canMsg))
@@ -139,7 +139,7 @@ void loop()
         next10ms = now + 10;
       }
 
-      // Process sensors
+      // Process local (Brain) sensors
       if (now > nextSensorScan) {
         uint32_t adcChanged = processAdcs(now);
         uint8_t i = 0;
@@ -311,11 +311,12 @@ void loop()
 
 /** @brief  Process incoming USART COBS encoded messages, dispatching to CAN as required */
 void processUsart() {
+  int rxCount = 0;
   while(Serial1.available()) {
     usartRxBuffer[usartRxLen] = Serial1.read();
     if (usartRxBuffer[usartRxLen++] == 0) { // Found frame delimiter
-      if (usartRxLen < 4)
-        return; // Invalid or empty message
+      if (usartRxLen < 6)
+        break; // Invalid or empty message
       // Decode COBS in usartRxBuffer (in place)
       uint8_t nextZero = usartRxBuffer[0];
       for (uint8_t i = 0; i < usartRxLen; ++i) {
@@ -324,6 +325,7 @@ void processUsart() {
           usartRxBuffer[i] = 0;
         }
       }
+      // Check checksum
       uint8_t checksum = 0;
       for (uint8_t i = 1; i < usartRxLen - 1; ++i)
         checksum += usartRxBuffer[i];
@@ -364,8 +366,8 @@ void processUsart() {
       } else {
         uint16_t canId = (usartRxBuffer[1] << 8) | usartRxBuffer[2];
         uint8_t pnlId = (canId >> 4) & 0b111111;
-        if (pnlId == 1) {
-          //!@todo Implement RPi->Brain (unCANny) control
+        if (pnlId == 0) {
+          // RPi->Brain (unCANny) control
           switch (canId & CAN_MASK_OPCODE) {
             case CAN_MSG_LED:
               if (usartRxLen > 4) {
@@ -398,7 +400,7 @@ void processUsart() {
 }
 
 void usartTx(uint8_t* data, uint8_t len) {
-  // buffer must be len+1 to accomodate checksum
+  // Data buffer must be len + 1 to accommodate checksum
   data[len] = 0;
   for (uint8_t i = 0; i < len; ++i) {
     data[len] -= data[i];

@@ -88,7 +88,7 @@ uint32_t processSwitch(uint8_t idx, uint32_t now)
       changed = true;
     } else if (state && !switches[idx].held() && now > switches[idx].lastChange + LONG_TIME) {
       // Switch is pressed longer than long hold time
-        switches[idx].state = 0x05;
+        switches[idx].state = 0x03;
         changed = true;
     }
   }

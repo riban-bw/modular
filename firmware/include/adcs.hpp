@@ -24,7 +24,7 @@
 #define ADC_PINS {PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
 #endif //ADCS_PINS
 #define ADC_BITS_TO_IGNORE 0 // Can reduce resolution if too noisey
-#define EMA_A 0.2f // filter coeficient (0..1 higher value gives less agressive filter - 1.0 would pass all data, unfiltered)
+#define EMA_A 0.4f // filter coeficient (0..1 higher value gives less agressive filter - 1.0 would pass all data, unfiltered)
 
 struct ADC_T {
   uint8_t gpi; // GPI pin
