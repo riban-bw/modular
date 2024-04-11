@@ -43,7 +43,7 @@ Panel to Brain (B←P) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
 
 CAN payload may have varying length (0..8 bytes) depending on message type.
 
-Brain always listens for panel messages and may request values with appropriate commands. This is asynchrounous.
+Brain always listens for panel messages and may request values with appropriate commands. This is asynchronous.
 
 |B↔P| ID       | OpCode | Payload                                   | Purpose|
 |---|----------|--------|-------------------------------------------|---------------------------|
@@ -56,6 +56,8 @@ Brain always listens for panel messages and may request values with appropriate 
 |B→P| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
 
 ##### LED Modes
+|Value|Mode|
+|---|---|
 |0x00|Off|
 |0x01|On|
 |0x02|Flash|
