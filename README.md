@@ -37,9 +37,9 @@ Extended CAN format (29-bit id) is  used for configuration and firmware update.
 
 #### CAN runtime realtime messages
 
-Brain to panel (→) CAN ID: bit [0] = 0, bits [1:7] = panel id (1..63), bits [8:11] = opcode.
+Brain to panel (B→P) CAN ID: bit [0] = 0, bits [1:7] = panel id (1..63), bits [8:11] = opcode.
 
-Panel to Brain (←) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
+Panel to Brain (B←P) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
 
 CAN payload may have varying length (0..8 bytes) depending on message type.
 
@@ -47,13 +47,13 @@ Brain always listens for panel messages and may request values with appropriate 
 
 |B↔P| ID       | OpCode | Payload                                   | Purpose|
 |---|----------|--------|-------------------------------------------|---------------------------|
-|→| LED      | 0x01   | Offset [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
-|←| ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value|
-|←| SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
-|←| ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
-|←| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
-|←| ALIVE    | 0x0E   |                                           | Sent peridoically if no other data sent to support watchdog |
-|→| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
+|B→P| LED      | 0x01   | Offset [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
+|B←P| ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value|
+|B←P| SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
+|B←P| ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
+|B←P| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
+|B←P| ALIVE    | 0x0E   |                                           | Sent peridoically if no other data sent to support watchdog |
+|B→P| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
 
 ##### LED Modes
 |0x00|Off|
@@ -75,15 +75,15 @@ Panels advertise themselves with a CAN message which the Brain detects and start
 
 |B⬌P| ID        | ID                | Payload                    | Purpose |
 |----|-----------|-------------------|----------------------------|---------------------------|
-|←| DETECT_1  | 0x1F<UUID[0:23]>  |                            | Notify brain that panel is added to bus but not initialised |
-|→| DETECT_1  | 0x1F000000        | UUID[0:23]                 | Brain acknowledges lowest UUID (or first) panels (configured panels should go to READY mode) |
-|←| DETECT_2  | 0x1E<UUID[24:47]  |                            | Panel requests detect stage 2 |
-|→| DETECT_2  | 0x1E000000        | UUID[24:47]                | Brain acknowledges lowest UUID (or first) panels |
-|←| DETECT_3  | 0x1D<UUID[48:71]  |                            | Panel requests detect stage 3 |
-|→| DETECT_3  | 0x1D000000        | UUID[48:71]                | Brain acknowledges lowest UUID (or first) panels |
-|←| DETECT_4  | 0x1C<UUID[71:95]  |                            | Panel requests detect stage 4 |
-|→| DETECT_4  | 0x1C000000        | UUID[72:95] PanelID[0:7]   | Brain acknowledges UUID of only remaining panel |
-|←| ACK_ID    | 0x1B0000<PanelId> | Type [0:31] Version [0:31] | Panel acknowledges ID and informs Brain of its version & type |
+|B←P| DETECT_1  | 0x1F<UUID[0:23]>  |                            | Notify brain that panel is added to bus but not initialised |
+|B→P| DETECT_1  | 0x1F000000        | UUID[0:23]                 | Brain acknowledges lowest UUID (or first) panels (configured panels should go to READY mode) |
+|B←P| DETECT_2  | 0x1E<UUID[24:47]> |                            | Panel requests detect stage 2 |
+|B→P| DETECT_2  | 0x1E000000        | UUID[24:47]                | Brain acknowledges lowest UUID (or first) panels |
+|B←P| DETECT_3  | 0x1D<UUID[48:71]> |                            | Panel requests detect stage 3 |
+|B→P| DETECT_3  | 0x1D000000        | UUID[48:71]                | Brain acknowledges lowest UUID (or first) panels |
+|B←P| DETECT_4  | 0x1C<UUID[71:95]> |                            | Panel requests detect stage 4 |
+|B→P| DETECT_4  | 0x1C000000        | UUID[72:95] PanelID[0:7]   | Brain acknowledges UUID of only remaining panel |
+|B←P| ACK_ID    | 0x1B0000<PanelId> | Type [0:31] Version [0:31] | Panel acknowledges ID and informs Brain of its version & type |
 
 #### Broadcast messages and firmware update
 
@@ -92,12 +92,12 @@ The CAN ID 0x000 is used to broadcast messages to all panels. This is the highes
 Broadcast messages
 |Dir | ID        | ID         | Payload                           | Purpose
 |----|-----------|------------|-----------------------------------|---------------------------------------------------------
-|→| BROADCAST | 0x00000000 | OPCODE[0:7]                       | Broadcast from brain payload contains opcode (see below) |
-|→| BROADCAST | 0x00000000 | 0x01 UUID[0:23]                   | Start detection - all panels should join detection without software reset |
-|→| BROADCAST | 0x00000000 | 0x02 PanelType [0:23] Ver [0:31]  | Start firmware update |
-|→| BROADCAST | 0x00000000 | 0x03 Checksum [0:31]              | End firmware update |
-|→| FIRMWARE  | 0x01000000 | Firmware Block [0:63]             | Firmware update data block |
-|→| BROADCAST | 0x00000000 | 0xFF                              | Full reset - all panels should perform software reset |
+|B→P| BROADCAST | 0x00000000 | OPCODE[0:7]                       | Broadcast from brain payload contains opcode (see below) |
+|B→P| BROADCAST | 0x00000000 | 0x01 UUID[0:23]                   | Start detection - all panels should join detection without software reset |
+|B→P| BROADCAST | 0x00000000 | 0x02 PanelType [0:23] Ver [0:31]  | Start firmware update |
+|B→P| BROADCAST | 0x00000000 | 0x03 Checksum [0:31]              | End firmware update |
+|B→P| FIRMWARE  | 0x01000000 | Firmware Block [0:63]             | Firmware update data block |
+|B→P| BROADCAST | 0x00000000 | 0xFF                              | Full reset - all panels should perform software reset |
 
 Firmware is started with the broadcast message (CAN ID=0x000) with opcode 0x02. The panel type and firmware version are sent in this message. Any panel of this type with an older firmware will join the firmware update. Subsequent firmware update messages use the CAN ID 0x400 (msb set) with 8 bytes of firmware data. Panels configure a CAN filter to listen to this address during firmware update only. Upon completion of firmware update the Brain sends broadcast message with opcode 0x03 and a 32-bit checksum of the firmware data. The Brain ends its firmware update. Panels validate the checksum then apply the new firmware, restart and advertise as new panels.
 
