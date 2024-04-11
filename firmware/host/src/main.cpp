@@ -84,8 +84,9 @@ int main(int argc, char** argv) {
     bool running = true;
     uint8_t txData[8];
     float value;
+    int rxLen;
     while(running) {
-        int rxLen = usart.rx();
+        rxLen = usart.rx();
         if (rxLen > 0) {
             switch (usart.getRxId() & 0x0f) {
                 case CAN_MSG_ADC:

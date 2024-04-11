@@ -19,7 +19,6 @@
 #include <errno.h> // Error integer and strerror() function
 #include <termios.h> // Contains POSIX terminal control definitions
 #include <unistd.h> // write(), read(), close()
-#include	<sys/ioctl.h>
 
 
 USART::USART(const char* dev, speed_t baud) {
@@ -126,12 +125,10 @@ void USART::txCmd(uint8_t cmd) {
 }
 
 int USART::rx() {
-  int bytes;
-  ioctl(fd, FIONREAD, &bytes); // This gets the quantity of pending rx bytes
+  //int bytes;
+  //ioctl(fd, FIONREAD, &bytes); // This gets the quantity of pending rx bytes
   int rxCount = 0;
-  while (bytes) {
-    if (read(fd, rxBuffer + rxBufferPtr, 1) != 1)
-      break;
+  while (read(fd, rxBuffer + rxBufferPtr, 1) == 1) {
     if(rxBuffer[rxBufferPtr++] == 0) {
       // Found frame delimiter - decode COBS
       if (rxBufferPtr < 6)
@@ -157,10 +154,9 @@ int USART::rx() {
       rxBufferPtr = 0;
       break;
     }
-    ioctl(fd, FIONREAD, &bytes); // This gets the quantity of pending rx bytes
+    if (rxBufferPtr > MAX_USART_RX)
+      rxBufferPtr = 0; // Blunt handling of max message length
   }
-  if (rxBufferPtr > 12)
-    rxBufferPtr = 0;
   return rxCount;
 }
 

@@ -13,6 +13,8 @@
 #include <cstdint> // Provides fixed sized integer types
 #include <termios.h> // Provides POSIX terminal control definitions
 
+#define MAX_USART_RX 12
+
 class USART {
     public:
         USART(const char* dev, speed_t baud);
@@ -51,7 +53,7 @@ class USART {
         void tx(uint8_t* data, uint8_t len);
 
         int fd; // Serial port file desciptor
-        uint8_t rxBuffer[13]; // Buffer to recieve serial data
+        uint8_t rxBuffer[MAX_USART_RX + 1]; // Buffer to recieve serial data
         uint8_t rxBufferPtr = 0; // Position in receive buffer for next data
 };
 #endif //USART
