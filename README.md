@@ -66,6 +66,8 @@ Brain always listens for panel messages and may request values with appropriate 
 |0x05|Fast pulse|
 
 ##### Switch States
+|Value|State|
+|---|---|
 |0x00|Release|Sent when a button is released less than 0.5s after it was pressed (short press) or after a long press has triggered|
 |0x01|Press|Always sent when a button is pressed|
 |0x02|Bold|Sent when a button is released more than 0.5s after it was pressed but a long press has not triggered|
