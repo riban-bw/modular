@@ -3,9 +3,11 @@
 
 ## Overview
 
-Riban modular is a virtual modular sythesiser with physical control panel. There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs etc. that mimic and control the virtual modules. A Raspberry Pi 4 forms the core providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system. Riban modular supports many VCV Rack and Cardinal modules.
+Riban modular is a virtual modular synthesiser with physical control panels that fit the Eurorack format. There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs, etc. that mimic and control the virtual modules. A Raspberry Pi 4 forms the core providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system. Riban modular supports many VCV Rack and Cardinal modules.
 
-Each panel is based on a STM32F103C8 with a common firmware that supports various quantities and types of controls and indicators. Each panel has a type number that identifies what type of virtual module it represents.
+The system consists of a _Brain_ and panels. The Brain consists of a Raspberry Pi 4, STM32F103 microcontroller, CAN connector, audio interface and associated connectors, buttons, pots, etc. Modules consist of STM32F103 microcontroller, CAN connector and buttons, pots, etc.
+
+Each panel is based on a STM32F103C8 microcontroller with a common firmware that supports various quantities and types of controls and indicators. Each panel has a type number that identifies what type of virtual module it represents.
 
 Connect each module to a ribbon cable connector then power up the system. The core will communicate via CAN to detect which panels are installed, assign each panel an id then add a correspoding virtual module to its model.
 
@@ -21,33 +23,37 @@ Adjusting a knob, switch, etc. will adjust the associated parameter, e.g. VCO fr
 
 ## CAN Protocol
 
-Communication between the core system and module panels uses CAN two wire serial bus. Detection of panels uses CAN extended frame format (to allow fewer frames during detection) whilst normal operation uses standad frame format (to allow shorter frames for realtime data). Each panel starts by advertising its 96-bit hardware UID (STM32 serial number). The _Brain_ module detects new panels and negotiates a _panel id_ for each. CAN uses a lowest-id-wins mechanism for bus arbitration which allows the Brain to negotiate each panel partaking in the detection process, assigning id to the lowest which then leaves the detection process and joins the pool of configured panels. The Brain iterates over all panels currently advertising their participation in the detection process.
+Communication between the Brain and panels uses CAN two wire serial bus. CAN uses differential balanced cabling to provide robust, high speed communication over long distance. Detection of panels uses CAN extended frame format (to allow fewer frames during detection) whilst normal operation uses standad frame format (to allow shorter frames for realtime data). Each panel starts by advertising its 96-bit hardware UID (STM32 serial number). The Brain module detects new panels and negotiates a _panel id_ (1..63) for each. CAN uses a lowest-id-wins mechanism for bus arbitration which allows the Brain to negotiate each panel partaking in the detection process. The panel with the lowest UUID is assigned the next available panel id which then leaves the detection process and joins the pool of configured panels. The Brain iterates over all panels currently advertising their participation in the detection process.
 
-Subsequent communication between the core and each module is via CAN messages initiated by panels for sensor changes (switches, knobs, etc.) or the Brain for indications (LEDs, etc.). The message type is encoded in the CAN id. Each panel uses CAN filters to only listen for messages from the Brain. Similarly the Brain listens for messages from panels. All CAN traffic occurs between STM32F103 based devices.
+Subsequent communication between the Brain and each panel is via CAN messages initiated by panels for sensor changes (switches, knobs, etc.) or the Brain for indications (LEDs, etc.). The message type is encoded in the CAN id. Each panel uses CAN filters to only listen for messages from the Brain. Similarly the Brain listens for messages from panels. All CAN traffic occurs between STM32F103 based devices.
 
 #### CAN Message Protocol
 
-CAN_MESSAGE_ID is 11-bit (std) or 29-bit (ext) word
-Standard (11-bit id) messages used for runtime realtime messages
-Extended (29-bit id) messages used for configuration and firmware update
+CAN message id is 11-bit (std) or 29-bit (ext) word.
+
+Standard CAN format (11-bit id) is used for runtime realtime messages.
+
+Extended CAN format (29-bit id) is  used for configuration and firmware update.
 
 #### CAN runtime realtime messages
 
-Brain to panel (B>P) CAN ID: bit [0] = 0, bits [1:7] = panel id (1..63), bits [8:11] = opcode.
-Panel to Brain (P>B) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
+Brain to panel (⮕) CAN ID: bit [0] = 0, bits [1:7] = panel id (1..63), bits [8:11] = opcode.
+
+Panel to Brain (⬅) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
+
 CAN payload may have varying length (0..8 bytes) depending on message type.
+
 Brain always listens for panel messages and may request values with appropriate commands. This is asynchrounous.
 
-|Dir | ID       | OpCode | Payload                                   | Purpose|
-|----|----------|--------|-------------------------------------------|---------------------------|
-|B>P | LED      | 0x01   | Offset [0:7] Mode [0:7]                   | Set LED type and mode |
-|    |          |        | RGB1 [0:23] RGB2 [0:23]                   | RGB colours (both optional) |
-|P>B | ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value|
-|P>B | SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
-|P>B | ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
-|P>B | PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
-|P>B | ALIVE    | 0x0E   |                                           | Sent peridoically if no other data sent to support watchdog |
-|B>P | RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
+|B⬌P| ID       | OpCode | Payload                                   | Purpose|
+|---|----------|--------|-------------------------------------------|---------------------------|
+|⮕| LED      | 0x01   | Offset [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
+|⬅| ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value|
+|⬅| SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
+|⬅| ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
+|⬅| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
+|⬅| ALIVE    | 0x0E   |                                           | Sent peridoically if no other data sent to support watchdog |
+|⮕| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
 
 ##### LED Modes
 |0x00|Off|
@@ -67,17 +73,17 @@ Brain always listens for panel messages and may request values with appropriate 
 
 Panels advertise themselves with a CAN message which the Brain detects and starts a negotation. Detection messages use extended CAN id which is 29-bits long (compared with standard frames used for realtime messages which are 11-bits). Each panel advertises itself by encoding its 96-bit UUID in the CAN ID of 4 consecutive messages. Each message is acknowledged by the Brain, indicating which panel UUID are accepted. Only panels that match that segment of the UUID continue with the negotiation. Eventually only one panel remains and is assigned a panel ID. Finally the panel indicates it has accepted the panel, sending its type and version. This allows the Brain to build a table of panel UUID, panel ID and panel type so that the core can create the appropriate virtual modules. It also allows the Brain to know whether a panel is running old firmware, allowing firmware update. The table is used to ensure that existing panels that restart, e.g. after a firmware update get the same panel ID.
 
-|Dir | ID        | ID                | Payload                    | Purpose |
+|B⬌P| ID        | ID                | Payload                    | Purpose |
 |----|-----------|-------------------|----------------------------|---------------------------|
-|P>B | DETECT_1  | 0x1F<UUID[0:23]>  |                            | Notify brain that panel is added to bus but not initialised |
-|B>P | DETECT_1  | 0x1F000000        | UUID[0:23]                 | Brain acknowledges lowest UUID (or first) panels (configured panels should go to READY mode) |
-|P>B | DETECT_2  | 0x1E<UUID[24:47]  |                            | Panel requests detect stage 2 |
-|>P | DETECT_2  | 0x1E000000        | UUID[24:47]                | Brain acknowledges lowest UUID (or first) panels |
-|>B | DETECT_3  | 0x1D<UUID[48:71]  |                            | Panel requests detect stage 3 |
-|B>P | DETECT_3  | 0x1D000000        | UUID[48:71]                | Brain acknowledges lowest UUID (or first) panels |
-|P>B | DETECT_4  | 0x1C<UUID[71:95]  |                            | Panel requests detect stage 4 |
-|B>P | DETECT_4  | 0x1C000000        | UUID[72:95] PanelID[0:7]   | Brain acknowledges UUID of only remaining panel |
-|P>B | ACK_ID    | 0x1B0000<PanelId> | Type [0:31] Version [0:31] | Panel acknowledges ID and informs Brain of its version & type |
+|⬅| DETECT_1  | 0x1F<UUID[0:23]>  |                            | Notify brain that panel is added to bus but not initialised |
+|⮕| DETECT_1  | 0x1F000000        | UUID[0:23]                 | Brain acknowledges lowest UUID (or first) panels (configured panels should go to READY mode) |
+|⬅| DETECT_2  | 0x1E<UUID[24:47]  |                            | Panel requests detect stage 2 |
+|⮕| DETECT_2  | 0x1E000000        | UUID[24:47]                | Brain acknowledges lowest UUID (or first) panels |
+|⬅| DETECT_3  | 0x1D<UUID[48:71]  |                            | Panel requests detect stage 3 |
+|⮕| DETECT_3  | 0x1D000000        | UUID[48:71]                | Brain acknowledges lowest UUID (or first) panels |
+|⬅| DETECT_4  | 0x1C<UUID[71:95]  |                            | Panel requests detect stage 4 |
+|⮕| DETECT_4  | 0x1C000000        | UUID[72:95] PanelID[0:7]   | Brain acknowledges UUID of only remaining panel |
+|⬅| ACK_ID    | 0x1B0000<PanelId> | Type [0:31] Version [0:31] | Panel acknowledges ID and informs Brain of its version & type |
 
 #### Broadcast messages and firmware update
 
@@ -86,12 +92,12 @@ The CAN ID 0x000 is used to broadcast messages to all panels. This is the highes
 Broadcast messages
 |Dir | ID        | ID         | Payload                           | Purpose
 |----|-----------|------------|-----------------------------------|---------------------------------------------------------
-|B>P | BROADCAST | 0x00000000 | OPCODE[0:7]                       | Broadcast from brain payload contains opcode (see below) |
-|B>P | BROADCAST | 0x00000000 | 0x01 UUID[0:23]                   | Start detection - all panels should join detection without software reset |
-|B>P | BROADCAST | 0x00000000 | 0x02 PanelType [0:23] Ver [0:31]  | Start firmware update |
-|B>P | BROADCAST | 0x00000000 | 0x03 Checksum [0:31]              | End firmware update |
-|B>P | FIRMWARE  | 0x01000000 | Firmware Block [0:63]             | Firmware update data block |
-|B>P | BROADCAST | 0x00000000 | 0xFF                              | Full reset - all panels should perform software reset |
+|⮕| BROADCAST | 0x00000000 | OPCODE[0:7]                       | Broadcast from brain payload contains opcode (see below) |
+|⮕| BROADCAST | 0x00000000 | 0x01 UUID[0:23]                   | Start detection - all panels should join detection without software reset |
+|⮕| BROADCAST | 0x00000000 | 0x02 PanelType [0:23] Ver [0:31]  | Start firmware update |
+|⮕| BROADCAST | 0x00000000 | 0x03 Checksum [0:31]              | End firmware update |
+|⮕| FIRMWARE  | 0x01000000 | Firmware Block [0:63]             | Firmware update data block |
+|⮕| BROADCAST | 0x00000000 | 0xFF                              | Full reset - all panels should perform software reset |
 
 Firmware is started with the broadcast message (CAN ID=0x000) with opcode 0x02. The panel type and firmware version are sent in this message. Any panel of this type with an older firmware will join the firmware update. Subsequent firmware update messages use the CAN ID 0x400 (msb set) with 8 bytes of firmware data. Panels configure a CAN filter to listen to this address during firmware update only. Upon completion of firmware update the Brain sends broadcast message with opcode 0x03 and a 32-bit checksum of the firmware data. The Brain ends its firmware update. Panels validate the checksum then apply the new firmware, restart and advertise as new panels.
 
