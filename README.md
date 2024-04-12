@@ -52,18 +52,19 @@ Brain always listens for panel messages and may request values with appropriate 
 |B←P| SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
 |B←P| ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
 |B←P| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
-|B←P| ALIVE    | 0x0E   |                                           | Sent peridoically if no other data sent to support watchdog |
+|B←P| ALIVE    | 0x0E   |                                           | Sent periodically if no other data sent to support watchdog |
 |B→P| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
 
 ##### LED Modes
 |Value|Mode|
 |---|---|
 |0x00|Off|
-|0x01|On|
-|0x02|Flash|
-|0x03|Fast flash|
-|0x04|Pulse|
-|0x05|Fast pulse|
+|0x01|Colour 1 on|
+|0x02|Colour 2 on|
+|0x03|Flash colour 1 / colour 2|
+|0x04|Fast flash colour 1 / colour 2|
+|0x05|Pulse colour 1 / colour 2|
+|0x06|Fast pulse colour 1 / colour 2|
 
 ##### Switch States
 |Value|State|
@@ -107,7 +108,7 @@ Firmware is started with the broadcast message (CAN ID=0x000) with opcode 0x02. 
 
 #### Watchdog
 
-Each panel periodically sends an ALIVE message if no other message has been sent in the previous 2s. If the Brain has not received any message from a panel for longer than 2s it assumes the panel has been removed and removes its entry from the panel table. This triggers removal of the corresponding virtual module.
+Each panel periodically sends an ALIVE message if no other message has been sent in the previous 1.5s. If the Brain has not received any message from a panel for longer than 2s it assumes the panel has been removed  from the bus and removes its entry from the panel table. This triggers removal of the corresponding virtual module.
 
 ## Configuration
 
