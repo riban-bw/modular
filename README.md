@@ -47,10 +47,10 @@ Brain always listens for panel messages and may request values with appropriate 
 
 |B↔P| ID       | OpCode | Payload                                   | Purpose|
 |---|----------|--------|-------------------------------------------|---------------------------|
-|B→P| LED      | 0x01   | Offset [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
-|B←P| ADC      | 0x02   | PanelId [0:7] Offset [0:7] Value [0:15]   | ADC value|
-|B←P| SW       | 0x03   | PanelId [0:7] Offset[0:7] EventType [0:7] | See below for event types |
-|B←P| ENC      | 0x04   | PanelId [0:7] Offset [0:7] Value [0:31]   | Encoder value +/- |
+|B→P| LED      | 0x01   | Index [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
+|B←P| ADC      | 0x02   | PanelId [0:7] Index [0:7] Value [0:15]   | ADC value|
+|B←P| SW       | 0x03   | PanelId [0:7] Index[0:7] EventType [0:7] | See below for event types |
+|B←P| ENC      | 0x04   | PanelId [0:7] Index [0:7] Value [0:31]   | Encoder value +/- |
 |B←P| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
 |B←P| ALIVE    | 0x0E   |                                           | Sent periodically if no other data sent to support watchdog |
 |B→P| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
