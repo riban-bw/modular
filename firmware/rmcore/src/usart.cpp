@@ -22,21 +22,21 @@
 
 
 USART::USART(const char* dev, speed_t baud) {
-    rxData = rxBuffer + 3;
+    rxData = mRxBuffer + 3;
     // Configure serial port - much info from https://blog.mbedded.ninja/programming/operating-systems/linux/linux-serial-ports-using-c-cpp
-    fd = open(dev, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
-    if (fd < 0) {
+    mFd = open(dev, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+    if (mFd < 0) {
         fprintf(stderr, "Error %i opening serial port %s: %s\n", errno, dev, strerror(errno));
     }
 
     struct termios options;
-    tcgetattr(fd, &options);
+    tcgetattr(mFd, &options);
     options.c_cflag = baud | CS8 | CLOCAL | CREAD;
     options.c_iflag = IGNPAR;
     options.c_oflag = 0;
     options.c_lflag = 0;
-    tcflush(fd, TCIFLUSH);
-    tcsetattr(fd, TCSANOW, &options);
+    tcflush(mFd, TCIFLUSH);
+    tcsetattr(mFd, TCSANOW, &options);
 
     return;
 
@@ -49,7 +49,7 @@ USART::USART(const char* dev, speed_t baud) {
     // NOTE: This is important! POSIX states that the struct passed to tcsetattr()
     // must have been initialized with a call to tcgetattr() overwise behaviour
     // is undefined
-    if(tcgetattr(fd, &tty) != 0) {
+    if(tcgetattr(mFd, &tty) != 0) {
         fprintf(stderr, "Error %i from tcgetattr: %s\n", errno, strerror(errno));
     }
 
@@ -75,9 +75,19 @@ USART::USART(const char* dev, speed_t baud) {
     cfsetispeed(&tty, baud);
     cfsetospeed(&tty, baud);
     // Apply config
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+    if (tcsetattr(mFd, TCSANOW, &tty) != 0) {
         printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
     }
+}
+
+USART::~USART() {
+  if (mFd >= 0)
+    close(mFd);
+  mFd = -1;
+}
+
+bool USART::isOpen() {
+  return (mFd >= 0);
 }
 
 void USART::tx(uint8_t* data, uint8_t len) {
@@ -101,7 +111,7 @@ void USART::tx(uint8_t* data, uint8_t len) {
   buffer[zPtr] = len + 2 - zPtr;
   buffer[len + 2] = 0;
   // Send message to USART
-  write(fd, buffer, len + 3);
+  write(mFd, buffer, len + 3);
   /*
   fprintf(stderr, "Writing to USART:");
   for (int i = 0; i < len + 3; ++ i)
@@ -128,38 +138,84 @@ int USART::rx() {
   //int bytes;
   //ioctl(fd, FIONREAD, &bytes); // This gets the quantity of pending rx bytes
   int rxCount = 0;
-  while (read(fd, rxBuffer + rxBufferPtr, 1) == 1) {
-    if(rxBuffer[rxBufferPtr++] == 0) {
+  while (read(mFd, mRxBuffer + mRxBufferPtr, 1) == 1) {
+    if(mRxBuffer[mRxBufferPtr++] == 0) {
       // Found frame delimiter - decode COBS
-      if (rxBufferPtr < 6)
+      if (mRxBufferPtr < 6)
         break; // Invalid or empty message
       // Decode COBS in place
-      uint8_t nextZero = rxBuffer[0];
-      for (uint8_t i = 0; i < rxBufferPtr; ++i) {
+      uint8_t nextZero = mRxBuffer[0];
+      for (uint8_t i = 0; i < mRxBufferPtr; ++i) {
         if (i == nextZero) {
-          nextZero = i + rxBuffer[i];
-          rxBuffer[i] = 0;
+          nextZero = i + mRxBuffer[i];
+          mRxBuffer[i] = 0;
         }
       }
       // Check checksum
       uint8_t checksum = 0;
-      for (uint8_t i = 1; i < rxBufferPtr - 1; ++i)
-        checksum += rxBuffer[i];
+      for (uint8_t i = 1; i < mRxBufferPtr - 1; ++i)
+        checksum += mRxBuffer[i];
       if (checksum) {
-        rxBufferPtr = 0;
+        mRxBufferPtr = 0;
         fprintf(stderr, "USART Rx checksum error\n");
         return -1;
       }
-      rxCount = rxBufferPtr - 5;
-      rxBufferPtr = 0;
+      rxCount = mRxBufferPtr - 5;
+      mRxBufferPtr = 0;
       break;
     }
-    if (rxBufferPtr > MAX_USART_RX)
-      rxBufferPtr = 0; // Blunt handling of max message length
+    if (mRxBufferPtr > MAX_USART_RX)
+      mRxBufferPtr = 0; // Blunt handling of max message length
   }
   return rxCount;
 }
 
+void USART::process()
+{
+    int count = rx();
+    if (count < 6)
+      return;
+    switch (mRxBuffer[1])
+    {
+    case 2:
+        printf("Panel %d ADC %d %d\n", mRxBuffer[2], mRxBuffer[3] + 1, mRxBuffer[4] + mRxBuffer[5] << 8);
+        break;
+    case 3:
+        printf("Panel %d Switch %d %d\n", mRxBuffer[2], mRxBuffer[3] + 1, mRxBuffer[4]);
+        break;
+    }
+}
+
 uint8_t USART::getRxId() {
-  return (rxBuffer[1] << 8) | rxBuffer[2];
+  return (mRxBuffer[1] << 8) | mRxBuffer[2];
+}
+
+void USART::setLedMode(uint8_t pnlId, uint8_t led, uint8_t mode)
+{
+    if (mode > 7)
+        return;
+    uint8_t data[] = {led, mode};
+    txCAN(pnlId, 1, data, 2);
+}
+
+void USART::setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1)
+{
+    uint8_t mode = 1; //!@todo Need to allow setting colour without changing mode
+    uint8_t data[] = {led, mode, r1, g1, b1};
+    txCAN(pnlId, 1, data, 5);
+}
+
+void USART::setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2) {
+    uint8_t mode = 1; //!@todo Need to allow setting colour without changing mode
+    uint8_t data[] = {led, mode, r1, g1, b1, r2, g2, b2};
+    txCAN(pnlId, 1, data, 8);
+}
+
+void USART::testLeds(uint8_t pnlCount) {
+    for (uint8_t mode = 0; mode < 8; ++mode) {
+        for (uint8_t i = 0; i < pnlCount; ++i) {
+            setLedMode(1, i, mode);
+        }
+        usleep(2000000);
+    }
 }

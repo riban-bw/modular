@@ -11,18 +11,37 @@
 
 #include "global.h"
 #include "usart.h"
+#include "version.h"
 
 #include <cstdio> // Provides printf
 #include <getopt.h> // Provides getopt_long for command line parsing
 #include <unistd.h> // Provides usleep
-//#include <alsa/asoundlib.h> // Provides ALSA interface
+#include <alsa/asoundlib.h> // Provides ALSA interface
 
 const char* version_str = "0.0";
 bool g_debug = false;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 
+/*  TODO
+    Initialise display
+    Initialise audio: check for audio interfaces (may be USB) and mute outputs 
+    Obtain list of panels
+    Initialise each panel: Get info, check firmware version, show status via panel LEDs
+    Instantiate modules based on connected hardware panels
+    Reload last state including internal modules, binary (button) states, routing, etc.
+    Start audio processing thread
+    Unmute outputs
+    Show info on display, e.g. firmware updates available, current patch name, etc.
+    Start program loop:
+        Check CAN message queue
+        Add / remove panels / modules
+        Adjust signal routing
+        Adjust parameter values
+        Periodic / event driven persistent state save
+*/
+
 void print_version() {
-    printf("riban modular v%s Copyright riban ltd 2024\n", version_str);
+    printf("%s %s (%s) Copyright riban ltd 2023-%s\n", PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_YEAR);
 }
 
 void print_help() {
@@ -41,12 +60,12 @@ bool parse_cmdline(int argc, char** argv) {
         {0, 0, 0, 0}
     };
     int opt, option_index;
-    while ((opt = getopt_long (argc, argv, "hvd", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long (argc, argv, "hvd?", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'd': g_debug = true; break;
-            case 'h': print_help(); break;
-            case 'v': print_version(); break;
-            case '?': return true;
+            case '?':
+            case 'h': print_help(); return true;
+            case 'v': print_version(); return true;
         }
     }
     return false;
@@ -57,8 +76,12 @@ int main(int argc, char** argv) {
         // Error parsing command line
         return -1;
     }
+    printf("Starting riban modular core...\n");
 
     USART usart("/dev/ttyS0", B1152000);
+    if (!usart.isOpen()) {
+        return -1;
+    }
     usart.txCmd(HOST_CMD_PNL_INFO);
 
     /*
@@ -85,6 +108,8 @@ int main(int argc, char** argv) {
     uint8_t txData[8];
     float value;
     int rxLen;
+
+    // Main program loop
     while(running) {
         rxLen = usart.rx();
         if (rxLen > 0) {
@@ -134,3 +159,11 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
+/*
+#include <math.h> // provides M_PI, acos
+float getEmaCutoff(uint32_t fs, float a)
+{
+    return fs / (2 * M_PI) * acos(1 - (a / (2 * (1 - a))));
+}
+*/

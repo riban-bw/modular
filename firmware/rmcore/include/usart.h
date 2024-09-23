@@ -6,7 +6,7 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Serial interface from RPi to Brain
+    Serial interface from RPi to Brain including CAN interface.
 */
 
 #ifndef USART
@@ -17,7 +17,18 @@
 
 class USART {
     public:
+        /**
+         * @brief Instantiate an instance of a USART interface
+         * @param dev Serial port device name
+         * @param baud Baud rate
+        */
         USART(const char* dev, speed_t baud);
+        ~USART();
+
+        /** @param Check if USART port is open
+        *   @returns true if port open
+        */
+        bool isOpen();
 
         /** @brief Send a message to a panel via CAN
         *   @param pnlId Panel id
@@ -38,11 +49,35 @@ class USART {
         */
         int rx();
 
+        /** @brief Process incoming CAN messages
+        */
+        void process();
+
         /** @brief  Get CAN id of last received message
         *   @return CAN id
         *   @note   Call after rx() returns positive value and use getRxData() to retrieve message payload
         */
         uint8_t getRxId();
+
+        /** @brief Set mode of a panel's LED
+         *  @param pnlId Panel id
+         *  @param led LED index
+         *  @param mode LED mode
+         *  @returns True on success
+         */
+        void setLedMode(uint8_t pnlId, uint8_t led, uint8_t mode);
+
+        /** @brief Set colour of a panel's LED
+         *  @param pnlId Panel id
+         *  @param led LED index
+         *  @param r Red intensity
+         *  @param g Green intensity
+         *  @param b Blue intensity
+         *  @returns True on success
+         */
+        void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r, uint8_t g, uint8_t b);
+        void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2);
+        void testLeds(uint8_t pnlCount);
 
         /*  Pointer to last received CAN message data payload */
         const uint8_t* rxData;
@@ -52,8 +87,8 @@ class USART {
             Data buffer must be one byte longer than data */
         void tx(uint8_t* data, uint8_t len);
 
-        int fd; // Serial port file desciptor
-        uint8_t rxBuffer[MAX_USART_RX + 1]; // Buffer to recieve serial data
-        uint8_t rxBufferPtr = 0; // Position in receive buffer for next data
+        int mFd = -1; // Serial port file desciptor
+        uint8_t mRxBuffer[MAX_USART_RX + 1]; // Buffer to receive serial data
+        uint8_t mRxBufferPtr = 0; // Position in receive buffer for next data
 };
 #endif //USART
