@@ -1,55 +1,20 @@
+/*  riban modular
+    Copyright 2023-2025 riban ltd <info@riban.co.uk>
+
+    This file is part of riban modular.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+
+    Wavetable based oscillator class implementation.
+*/
+
 #include "oscillator.h"
-#include <cmath> // Provides sin, etc.
-#include <ctime> // Provides std::time
-#include <random> // Provides random number generator, e.g. for noise
+#include "wavetable.h"
 
-Oscillator::Oscillator() {
-    buildWavetables();
-}
-
-void Oscillator::buildWavetables() {
-    double step;
-    uint32_t i, j;
-    double wavetableSize = static_cast<double>(WAVETABLE_SIZE);
-
-    // Sine
-    step = 2.0 / wavetableSize;
-    for (i = 0; i < WAVETABLE_SIZE; ++i) {
-        m_wavetable[WAVEFORM_SIN][i] = std::sin(step * i * PI);
-    }
-
-    // Triangle
-    step = 4.0 / wavetableSize;
-    for (i = 0; i < WAVETABLE_SIZE / 4; ++i) {
-        m_wavetable[WAVEFORM_TRI][i] = i * step;
-    }
-    for (j = 0; j < WAVETABLE_SIZE / 2; ++j) {
-        m_wavetable[WAVEFORM_TRI][i + j] = 1.0 - j * step;
-    }
-    i += j;
-    for (j = 0; j < WAVETABLE_SIZE / 4; ++j) {
-        m_wavetable[WAVEFORM_TRI][i + j] = j * step - 1.0;
-    }
-
-    // Sawtooth
-    step = 2.0 / wavetableSize;
-    for (i = 0; i < WAVETABLE_SIZE; ++i) {
-        m_wavetable[WAVEFORM_SAW][i] = i * step - 1.0;
-    }
-
-    // Square
-    for (i = 0; i < WAVETABLE_SIZE / 2; ++i) {
-        m_wavetable[WAVEFORM_SQU][i] = 0.0;
-    }
-    for (; i < WAVETABLE_SIZE; ++i) {
-        m_wavetable[WAVEFORM_SQU][i] = 1.0;
-    }
-
-    // Noise
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    for (uint32_t i = 0; i < WAVETABLE_SIZE; ++i) {
-        m_wavetable[WAVEFORM_NOISE][i] = 2.0f * static_cast<float>(std::rand()) / RAND_MAX - 1.0f;
-    }
+Oscillator::Oscillator(uint32_t samplerate) {
+    m_wavetableSize = sizeof(WAVETABLE[0]) / sizeof(float);
+    m_samplerate = samplerate;
 }
 
 double Oscillator::populateBuffer(float* buffer, uint32_t frames, uint32_t waveform, double pos, double freq, double amp) {
@@ -57,13 +22,30 @@ double Oscillator::populateBuffer(float* buffer, uint32_t frames, uint32_t wavef
 
     if (waveform > 4)
         waveform = 0;
-    while (pos >= WAVETABLE_SIZE)
-        pos -= WAVETABLE_SIZE;
+    while (pos >= m_wavetableSize)
+        pos -= m_wavetableSize;
     for (uint32_t i = 0; i < frames; ++i) {
-        buffer[i] = m_wavetable[waveform][(uint32_t)pos] * amp;
+        buffer[i] = WAVETABLE[waveform][(uint32_t)pos] * amp;
         pos += step;
-        if (pos >= WAVETABLE_SIZE)
-            pos -= WAVETABLE_SIZE;
+        if (pos >= m_wavetableSize)
+            pos -= m_wavetableSize;
+    }
+    return pos;
+}
+
+double Oscillator::square(float* buffer, uint32_t frames, double pos, double freq, double width, double amp) {
+    double step = freq / m_samplerate;
+
+    while (pos >= 1.0)
+        pos -= 1.0;
+    for (uint32_t i = 0; i < frames; ++i) {
+        if (pos < width)
+            buffer[i] = -amp;
+        else
+            buffer[i] = amp;
+        pos += step;
+        if (pos > 1.0)
+            pos -= 1.0;
     }
     return pos;
 }

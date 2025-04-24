@@ -5,6 +5,9 @@ string(TIMESTAMP THIS_YEAR "%Y")
 set (PROJECT_BUILD_DATE ${TODAY})
 set (PROJECT_BUILD_YEAR ${THIS_YEAR})
 configure_file (version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/version.h @ONLY)
+
 add_executable(rmcore src/main.cpp src/usart.cpp src/oscillator.cpp)
 target_include_directories(rmcore PUBLIC ./include ../include)
 target_link_libraries(rmcore asound)
+
+add_executable(buildWavetable src/buildWavetable.cpp)

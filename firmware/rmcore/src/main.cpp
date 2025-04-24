@@ -1,12 +1,12 @@
-/*  riban modular - copyright riban ltd 2024
-    Copyright 2023-2024 riban ltd <info@riban.co.uk>
+/*  riban modular
+    Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
     riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Core host application
+    Core host application.
 */
 
 #include "global.h"
@@ -40,7 +40,7 @@ snd_pcm_uframes_t g_frames; // Quantity of frames per period
 bool g_running = true; // False to stop processing
 uint32_t g_now = 0; // Monotonic counter of elapsed frames
 uint8_t g_waveform = -1;
-Oscillator g_oscillator;
+Oscillator g_oscillator(SAMPLERATE);
 
 /*  TODO
     Initialise display
@@ -127,108 +127,16 @@ bool parseCmdline(int argc, char** argv) {
     return false;
 }
 
-void sine(float* buffer, uint32_t frames, double freq, double amp) {
-    // Populate buffer with a period of sine waveform
-
-    static double wavePos = 0.0;
-
-    if (freq < 0.01)
-        return;
-    double step = freq / SAMPLERATE;
-    for (uint32_t i = 0; i < frames; ++i) {
-        float sample = std::sin(wavePos * 2.0 * PI);
-        buffer[i] = sample * amp;
-        wavePos += step; // Normalised position in waveform
-        if (wavePos > 1.0)
-            wavePos -= 1.0;
-    }
-}
-
-void triangle(float* buffer, uint32_t frames, double freq, double amp) {
-    // Populate buffer with a period of triangle waveform
-
-    static double sample = -1.0f;
-    static int8_t dir = 1;
-
-    if (freq < 0.01)
-        return;
-    double step = dir * 2.0 * freq / SAMPLERATE;
-    for (uint32_t i = 0; i < frames; ++i) {
-        sample += step;
-        if (sample > 1.0f) {
-            sample = 2.0f - sample;
-            step = -step;
-            dir = -1;
-        } else if (sample < -1.0) {
-            sample = -2.0 - sample;
-            step = -step;
-            dir = 1;
-        }
-        buffer[i] = sample * amp;
-    }
-}
-
-void saw(float* buffer, uint32_t frames, double freq, double amp) {
-    // Populate buffer with a period of sawtooth waveform
-
-    static float sample = -1.0f;
-
-    if (freq < 0.01)
-        return;
-
-    float step = freq / SAMPLERATE / 2;
-    for (uint32_t i = 0; i < frames; ++i) {
-        sample += step;
-        if (sample > 1.0f)
-            sample = -2.0f + sample;
-        buffer[i] = sample * amp;
-    }
-}
-
-void square(float* buffer, uint32_t frames, double freq, double width, double amp) {
-    // Populate buffer with a period of sawtooth waveform
-
-    static float sample = -1.0f;
-    static double waveformPos = 0;
-
-    if (freq < 0.01)
-        return;
-
-    if (width < 0.1)
-        width = 0.1;
-    else if (width > 0.9)
-        width = 0.9;
-    double step = freq / SAMPLERATE / 2;
-    for (uint32_t i = 0; i < frames; ++i) {
-        waveformPos += step;
-        if (waveformPos > 1.0) {
-            sample = -1.0f;
-            waveformPos -= 1.0f;
-        } else if (waveformPos > width) {
-            sample = 1.0f;
-        }
-        buffer[i] = sample * amp;
-    }
-}
-
-void noise(float* buffer, uint32_t frames, double amp) {
-    // Populate buffer with a period of white noise
-    for (uint32_t i = 0; i < frames; ++i) {
-        float sample = static_cast<float>(std::rand()) / RAND_MAX; // [0.0, 1.0]
-        sample = sample * 2.0f - 1.0f; // Convert to [-1.0, 1.0]
-        buffer[i] = sample * amp;
-    }
-}
-
 void processAudio() {
     //!@todo Process each plugin
 
-    static double pwm = 0.0;
-    static double pwmStep = 0.001;
     static uint32_t freq = 100;
     static float buffer1[FRAMES];
     static float buffer2[FRAMES];
-    static double wavetablePos = 0;
+    static double pos = 0;
+    static double pos1 = 0;
+    static double pos2 = 0;
+    static double pwm = 0.5;
 
     switch (g_waveform) {
         case 0:
@@ -236,42 +144,29 @@ void processAudio() {
         case 2:
         case 3:
         case 4:
-            wavetablePos = g_oscillator.populateBuffer(g_aoutBuffer, g_frames, g_waveform, wavetablePos, freq, 0.5);
+            pos = g_oscillator.populateBuffer(g_aoutBuffer, g_frames, g_waveform, pos, freq, 0.5);
             break;
         case 5:
-            sine(g_aoutBuffer, g_frames, freq, 0.8);
+            // Sharktooth: 20% sawtooth, 80% triangle
+            pos = g_oscillator.populateBuffer(g_aoutBuffer, g_frames, 1, pos, freq, 0.6);
+            pos1 = g_oscillator.populateBuffer(buffer1, g_frames, 2, pos1, freq, 0.2);
+            for (uint32_t i = 0; i < g_frames; ++i)
+                g_aoutBuffer[i] += buffer1[i];
             break;
         case 6:
-            triangle(g_aoutBuffer, g_frames, freq, 0.8);
+            // Square with PWM
+            pos = g_oscillator.square(g_aoutBuffer, g_frames, pos, freq, pwm, 0.5);
+            if (pwm < 0.9)
+                pwm += 0.01;
+            else
+                pwm = 0.1;
             break;
         case 7:
-            saw(g_aoutBuffer, g_frames, freq, 0.8);
-            break;
-        case 8:
-            square(g_aoutBuffer, g_frames, freq, pwm, 0.8);
-            pwm += pwmStep;
-            if (pwm < 0.1) {
-                pwmStep = -pwmStep;
-                pwm = 0.1;
-            } else if (pwm > 0.9) {
-                pwmStep = -pwmStep;
-                pwm = 0.9;
-            }
-            break;
-        case 9:
-            noise(g_aoutBuffer, g_frames, 0.8);
-            break;
-        case 10:
-            saw(buffer1, g_frames, freq, 0.2);
-            triangle(buffer2, g_frames, freq, 0.6);
+            // Blade: 2 sawtooth, 1 octave separation
+            pos = g_oscillator.populateBuffer(g_aoutBuffer, g_frames, 2, pos, freq, 0.4);
+            pos1 = g_oscillator.populateBuffer(buffer1, g_frames, 2, pos1, freq*2, 0.4);
             for (uint32_t i = 0; i < g_frames; ++i)
-                g_aoutBuffer[i] = buffer1[i] + buffer2[i];
-            break;
-        case 11:
-            sine(buffer1, g_frames, freq, 0.6);
-            square(buffer2, g_frames, freq, 0.2, 0.5);
-            for (uint32_t i = 0; i < g_frames; ++i)
-                g_aoutBuffer[i] = buffer1[i] + buffer2[i];
+                g_aoutBuffer[i] += buffer1[i];
             break;
     }
 
