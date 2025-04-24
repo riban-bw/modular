@@ -11,16 +11,36 @@
 
 #include "global.h"
 #include "usart.h"
+#include "oscillator.h"
 #include "version.h"
 
 #include <cstdio> // Provides printf
 #include <getopt.h> // Provides getopt_long for command line parsing
 #include <unistd.h> // Provides usleep
 #include <alsa/asoundlib.h> // Provides ALSA interface
+#include <thread> // Provides threading
+#include <cmath> // Provides sin, etc.
 
-const char* version_str = "0.0";
-bool g_debug = false;
+#define PCM_DEVICE "default"
+#define SAMPLERATE 48000
+#define FRAMES 256
+
+enum VERBOSE {
+    VERBOSE_SILENT  = 0,
+    VERBOSE_ERROR   = 1,
+    VERBOSE_INFO    = 2,
+    VERBOSE_DEBUG   = 3
+};
+
+uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
+snd_pcm_t *g_pcmPlayback = nullptr; // Pointer to PCM playback handle
+float* g_aoutBuffer; // Sample buffer for audio input
+snd_pcm_uframes_t g_frames; // Quantity of frames per period
+bool g_running = true; // False to stop processing
+uint32_t g_now = 0; // Monotonic counter of elapsed frames
+uint8_t g_waveform = -1;
+Oscillator g_oscillator;
 
 /*  TODO
     Initialise display
@@ -40,29 +60,65 @@ const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
         Periodic / event driven persistent state save
 */
 
+void debug(const char *format, ...) {
+    if (g_verbose >= VERBOSE_DEBUG) {
+      va_list args;
+      va_start(args, format);
+      vfprintf(stderr, format, args);
+      va_end(args);
+    }
+  }
+  
+  void info(const char *format, ...) {
+    if (g_verbose >= VERBOSE_INFO) {
+      va_list args;
+      va_start(args, format);
+      vfprintf(stdout, format, args);
+      va_end(args);
+    }
+  }
+  
+  void error(const char *format, ...) {
+    if (g_verbose >= VERBOSE_ERROR) {
+      va_list args;
+      va_start(args, format);
+      fprintf(stderr, "ERROR: ");
+      vfprintf(stderr, format, args);
+      va_end(args);
+    }
+  }
 void print_version() {
-    printf("%s %s (%s) Copyright riban ltd 2023-%s\n", PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_YEAR);
+    info("%s %s (%s) Copyright riban ltd 2023-%s\n", PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_YEAR);
 }
 
 void print_help() {
     print_version();
-    printf("Usage: rmcore <options>\n");
-    printf("\tv --version\tShow version\n");
-    printf("\td --debug\tEnable debug output\n");
-    printf("\th --help\tShow this help\n");
+    info("Usage: rmcore <options>\n");
+    info("\t-v --version\tShow version\n");
+    info("\t-V --verbose\tSet verbose level (0:silent, 1:error, 2:info, 3:debug\n");
+    info("\t-h --help\tShow this help\n");
+    info("\t-w --waveform\tPlay a waveform (0:sin 1:tri 2:saw 3:square 4:noise)\n");
 }
 
-bool parse_cmdline(int argc, char** argv) {
+bool parseCmdline(int argc, char** argv) {
     static struct option long_options[] = {
-        {"debug", no_argument, 0, 'd'},
+        {"verbose", no_argument, 0, 'V'},
         {"version", no_argument, 0, 'v'},
+        {"waveform", no_argument, 0, 'w'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
     int opt, option_index;
-    while ((opt = getopt_long (argc, argv, "hvd?", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long (argc, argv, "hvV:w:?", long_options, &option_index)) != -1) {
         switch (opt) {
-            case 'd': g_debug = true; break;
+            case 'V': 
+                if (optarg)
+                    g_verbose = atoi(optarg);
+                break;
+            case 'w':
+                if (optarg)
+                    g_waveform = atoi(optarg);
+                break;
             case '?':
             case 'h': print_help(); return true;
             case 'v': print_version(); return true;
@@ -71,30 +127,220 @@ bool parse_cmdline(int argc, char** argv) {
     return false;
 }
 
+void sine(float* buffer, uint32_t frames, double freq, double amp) {
+    // Populate buffer with a period of sine waveform
+
+    static double wavePos = 0.0;
+
+    if (freq < 0.01)
+        return;
+    double step = freq / SAMPLERATE;
+    for (uint32_t i = 0; i < frames; ++i) {
+        float sample = std::sin(wavePos * 2.0 * PI);
+        buffer[i] = sample * amp;
+        wavePos += step; // Normalised position in waveform
+        if (wavePos > 1.0)
+            wavePos -= 1.0;
+    }
+}
+
+void triangle(float* buffer, uint32_t frames, double freq, double amp) {
+    // Populate buffer with a period of triangle waveform
+
+    static double sample = -1.0f;
+    static int8_t dir = 1;
+
+    if (freq < 0.01)
+        return;
+    double step = dir * 2.0 * freq / SAMPLERATE;
+    for (uint32_t i = 0; i < frames; ++i) {
+        sample += step;
+        if (sample > 1.0f) {
+            sample = 2.0f - sample;
+            step = -step;
+            dir = -1;
+        } else if (sample < -1.0) {
+            sample = -2.0 - sample;
+            step = -step;
+            dir = 1;
+        }
+        buffer[i] = sample * amp;
+    }
+}
+
+void saw(float* buffer, uint32_t frames, double freq, double amp) {
+    // Populate buffer with a period of sawtooth waveform
+
+    static float sample = -1.0f;
+
+    if (freq < 0.01)
+        return;
+
+    float step = freq / SAMPLERATE / 2;
+    for (uint32_t i = 0; i < frames; ++i) {
+        sample += step;
+        if (sample > 1.0f)
+            sample = -2.0f + sample;
+        buffer[i] = sample * amp;
+    }
+}
+
+void square(float* buffer, uint32_t frames, double freq, double width, double amp) {
+    // Populate buffer with a period of sawtooth waveform
+
+    static float sample = -1.0f;
+    static double waveformPos = 0;
+
+    if (freq < 0.01)
+        return;
+
+    if (width < 0.1)
+        width = 0.1;
+    else if (width > 0.9)
+        width = 0.9;
+    double step = freq / SAMPLERATE / 2;
+    for (uint32_t i = 0; i < frames; ++i) {
+        waveformPos += step;
+        if (waveformPos > 1.0) {
+            sample = -1.0f;
+            waveformPos -= 1.0f;
+        } else if (waveformPos > width) {
+            sample = 1.0f;
+        }
+        buffer[i] = sample * amp;
+    }
+}
+
+void noise(float* buffer, uint32_t frames, double amp) {
+    // Populate buffer with a period of white noise
+    for (uint32_t i = 0; i < frames; ++i) {
+        float sample = static_cast<float>(std::rand()) / RAND_MAX; // [0.0, 1.0]
+        sample = sample * 2.0f - 1.0f; // Convert to [-1.0, 1.0]
+        buffer[i] = sample * amp;
+    }
+}
+
+void processAudio() {
+    //!@todo Process each plugin
+
+    static double pwm = 0.0;
+    static double pwmStep = 0.001;
+    static uint32_t freq = 100;
+    static float buffer1[FRAMES];
+    static float buffer2[FRAMES];
+    static double wavetablePos = 0;
+
+    switch (g_waveform) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+            wavetablePos = g_oscillator.populateBuffer(g_aoutBuffer, g_frames, g_waveform, wavetablePos, freq, 0.5);
+            break;
+        case 5:
+            sine(g_aoutBuffer, g_frames, freq, 0.8);
+            break;
+        case 6:
+            triangle(g_aoutBuffer, g_frames, freq, 0.8);
+            break;
+        case 7:
+            saw(g_aoutBuffer, g_frames, freq, 0.8);
+            break;
+        case 8:
+            square(g_aoutBuffer, g_frames, freq, pwm, 0.8);
+            pwm += pwmStep;
+            if (pwm < 0.1) {
+                pwmStep = -pwmStep;
+                pwm = 0.1;
+            } else if (pwm > 0.9) {
+                pwmStep = -pwmStep;
+                pwm = 0.9;
+            }
+            break;
+        case 9:
+            noise(g_aoutBuffer, g_frames, 0.8);
+            break;
+        case 10:
+            saw(buffer1, g_frames, freq, 0.2);
+            triangle(buffer2, g_frames, freq, 0.6);
+            for (uint32_t i = 0; i < g_frames; ++i)
+                g_aoutBuffer[i] = buffer1[i] + buffer2[i];
+            break;
+        case 11:
+            sine(buffer1, g_frames, freq, 0.6);
+            square(buffer2, g_frames, freq, 0.2, 0.5);
+            for (uint32_t i = 0; i < g_frames; ++i)
+                g_aoutBuffer[i] = buffer1[i] + buffer2[i];
+            break;
+    }
+
+    if (freq < 10000)
+        freq += 1;
+    else
+        freq = 100;
+    if (freq % 500 == 0)
+        fprintf(stderr, "%u Hz\n", freq);
+
+    //std::this_thread::sleep_for(std::chrono::milliseconds(1));
+}
+
+void audioThread() {
+    // Thread to handle PCM audio output
+
+    info("ALSA library version: %s\n",SND_LIB_VERSION_STR);
+    snd_pcm_t *handle;
+    snd_pcm_hw_params_t *params;
+    snd_pcm_sframes_t available;
+    int rc = snd_pcm_open(&g_pcmPlayback, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
+    if (rc < 0) {
+        error("Failed to open audio device: %s\n", snd_strerror(rc));
+        g_running = false;
+    } else {
+        // Allocate hardware parameter objects
+        snd_pcm_hw_params_alloca(&params);
+        // Set playback hardware parameters
+        snd_pcm_hw_params_any(g_pcmPlayback, params);
+        snd_pcm_hw_params_set_access(g_pcmPlayback, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+        snd_pcm_hw_params_set_format(g_pcmPlayback, params, SND_PCM_FORMAT_FLOAT_LE);
+        snd_pcm_hw_params_set_channels(g_pcmPlayback, params, 1);
+        snd_pcm_hw_params_set_rate(g_pcmPlayback, params, SAMPLERATE, 0);
+        snd_pcm_hw_params_set_period_size(g_pcmPlayback, params, FRAMES, 0);
+        snd_pcm_hw_params(g_pcmPlayback, params);
+        // Allocate buffer
+        g_frames = FRAMES;
+        snd_pcm_hw_params_get_period_size(params, &g_frames, 0);
+        g_aoutBuffer = (float *) malloc(g_frames * sizeof(float));
+
+        while(g_running) {
+            if (snd_pcm_wait(g_pcmPlayback, 1000) > 0) {
+                processAudio();
+                int pcm = snd_pcm_writei(g_pcmPlayback, g_aoutBuffer, g_frames);
+                if (pcm == -EPIPE) {
+                    error("Underrun occurred\n");
+                    snd_pcm_prepare(g_pcmPlayback);
+                } else if (pcm < 0) {
+                    error("writing to PCM device: %s\n", snd_strerror(pcm));
+                }
+            }
+        }
+
+        free(g_aoutBuffer);
+        snd_pcm_drain(g_pcmPlayback);
+        snd_pcm_close(g_pcmPlayback);
+    }
+}
+
 int main(int argc, char** argv) {
-    if(parse_cmdline(argc, argv)) {
+    if(parseCmdline(argc, argv)) {
         // Error parsing command line
         return -1;
     }
-    printf("Starting riban modular core...\n");
+    info("Starting riban modular core...\n");
 
-    USART usart("/dev/ttyS0", B1152000);
-    if (!usart.isOpen()) {
-        return -1;
-    }
-    usart.txCmd(HOST_CMD_PNL_INFO);
+    // Start audio thread
+    std::thread aThread(audioThread);
 
-    /*
-    int val;
-    printf("ALSA library version: %s\n",SND_LIB_VERSION_STR);
-    snd_pcm_t *handle;
-    snd_pcm_hw_params_t *params;
-    int rc = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
-    if (rc < 0) {
-        fprintf(stderr, "Failed to open audio device: %s\n", snd_strerror(rc));
-        return -1;
-    }
-    */
     /*@todo
         Start background panel detection
         Connect audio interface
@@ -104,13 +350,17 @@ int main(int argc, char** argv) {
         Start audio processing
     */
 
-    bool running = true;
     uint8_t txData[8];
-    float value;
+    double value;
     int rxLen;
+    USART usart("/dev/ttyS0", B1152000);
+    if (!usart.isOpen()) {
+//        return -1;
+    }
+    usart.txCmd(HOST_CMD_PNL_INFO);
 
     // Main program loop
-    while(running) {
+    while(g_running) {
         rxLen = usart.rx();
         if (rxLen > 0) {
             switch (usart.getRxId() & 0x0f) {
@@ -126,7 +376,7 @@ int main(int argc, char** argv) {
                     break;
                 case CAN_MSG_SWITCH:
                     if (usart.rxData[2] < 6)
-                        printf("Panel %u Switch %u: %s\n", usart.rxData[0], usart.rxData[1] + 1, swState[usart.rxData[2]]);
+                        info("Panel %u Switch %u: %s\n", usart.rxData[0], usart.rxData[1] + 1, swState[usart.rxData[2]]);
                     txData[0] = usart.rxData[1];
                     switch(usart.rxData[2]) {
                         case 0:
@@ -150,20 +400,15 @@ int main(int argc, char** argv) {
                     usart.txCAN(usart.rxData[0], CAN_MSG_LED, txData, 2);
                     break;
                 case CAN_MSG_QUADENC:
-                    printf("Panel %u Encoder %u: %d\n", usart.rxData[0], usart.rxData[1] + 1, usart.rxData[2]);
+                    info("Panel %u Encoder %u: %d\n", usart.rxData[0], usart.rxData[1] + 1, usart.rxData[2]);
                     break;
             }
         } else {
-            usleep(1000); // 1ms sleep to avoid tight loop - may change when we have added audio processing
+            usleep(1000); // 1ms sleep to avoid tight loop
         }
     }
+
+    // Wait for playback to complete
+    aThread.join();
     return 0;
 }
-
-/*
-#include <math.h> // provides M_PI, acos
-float getEmaCutoff(uint32_t fs, float a)
-{
-    return fs / (2 * M_PI) * acos(1 - (a / (2 * (1 - a))));
-}
-*/
