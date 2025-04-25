@@ -16,16 +16,20 @@ ModuleManager& ModuleManager::get() {
     return manager;
 }
 
-void ModuleManager::registerType(const std::string& type, Creator creator, uint32_t inputs, uint32_t outputs, uint32_t params) {
-    m_creators[type] = {std::move(creator), inputs, outputs, params};
+void ModuleManager::registerModule(const ModuleInfo& info, Creator creator) {
+    m_creators[info.type] = {std::move(creator), info};
 }
 
 uint32_t ModuleManager::addModule(const std::string& type) {
     auto it = m_creators.find(type);
     if (it == m_creators.end())
         return -1;
-    auto& [creator, inputs, outputs, params] = it->second;
+    auto& [creator, info] = it->second;
     m_modules[m_nextId] = creator();
-    m_modules[m_nextId]->_init(type, m_nextId, inputs, outputs, params);
+    m_modules[m_nextId]->_init(m_nextId, info);
     return m_nextId++;
+}
+
+void ModuleManager::setParam(uint32_t module, uint32_t param, float value) {
+    m_modules[module]->setParam(param, value);
 }

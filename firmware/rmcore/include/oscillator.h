@@ -30,20 +30,22 @@ enum WAVEFORM {
     WAVEFORM_NOISE  = 4,
 };
 
+const ModuleInfo& moduleInfo {
+    "osc",                                          // id
+    "Oscillator",                                   // name
+    {"frequency", "pwm"},                           // inputs
+    {"out"},                                        // outputs
+    {"frequency", "waveform", "pwm", "amplitude"}   // params
+};
+
 class Oscillator : public Node {
 
     public:
-        /*  @brief  Instantiate an instance of the module
+        /*  @brief  Initalise the module
         */
         void init();
 
-        /*  @brief  Populate a buffer with square waveform audio data
-            @param  buffer Pointer to buffer to populate
-            @param  frames Quantity of frames in buffer
-        */
-        void square(jack_default_audio_sample_t* buffer, jack_nframes_t frames);
-
-        /*  @brief  Process DSP
+        /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period
         */
         int process(jack_nframes_t frames);
@@ -51,4 +53,5 @@ class Oscillator : public Node {
     private:
         uint32_t m_wavetableSize; // Quantity of floats in each wavetable
         double m_waveformPos = 0.0; // Position within waveform
+        double m_waveformStep = 0.0; // Step to iterate through waveform at desired frequence
 };

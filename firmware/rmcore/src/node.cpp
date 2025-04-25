@@ -14,8 +14,8 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
-void Node::_init(std::string type, uint32_t id, uint32_t inputs, uint32_t outputs, uint32_t params) {
-    m_type = type;
+void Node::_init(uint32_t id, ModuleInfo info) {
+    m_type = info.type;
     m_id = id;
 
     // Register with Jack server
@@ -25,24 +25,22 @@ void Node::_init(std::string type, uint32_t id, uint32_t inputs, uint32_t output
     jack_options_t options = JackNoStartServer;
     jack_port_t* port;
 
-    sprintf(nameBuffer, "%s_%u", m_type.c_str(), m_id);
+    sprintf(nameBuffer, "%s %u", info.name.c_str(), m_id);
     m_jackClient = jack_client_open(nameBuffer, options, &status, serverName);
     if (!m_jackClient) {
         fprintf(stderr, "Failed to open JACK client\n");
     }
-    for (uint32_t i = 0; i < inputs; ++i) {
-        sprintf(nameBuffer, "input_%d", i + 1);
-        port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+    for (uint32_t i = 0; i < info.inputs.size(); ++i) {
+        port = jack_port_register(m_jackClient, info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
         if (port)
             m_input.push_back(port);
     }
-    for (uint32_t i = 0; i < outputs; ++i) {
-        sprintf(nameBuffer, "output_%d", i + 1);
-        port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    for (uint32_t i = 0; i < info.outputs.size(); ++i) {
+        port = jack_port_register(m_jackClient, info.outputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
         if (port)
             m_output.push_back(port);
     }
-    for (uint32_t i = 0; i < params; ++i) {
+    for (uint32_t i = 0; i < info.params.size(); ++i) {
         m_param.push_back(0.0f);
     }
     init(); // Call derived class initalisaton

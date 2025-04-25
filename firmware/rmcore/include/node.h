@@ -17,22 +17,25 @@
 #include <jack/jack.h>
 #include <string>
 
+struct ModuleInfo {
+    std::string type; //!@todo This be the module UID?
+    std::string name;
+    std::vector<std::string> inputs;
+    std::vector<std::string> outputs;
+    std::vector<std::string> params;
+};
+
 class Node {
     public:
         virtual ~Node() = default;
 
         /** @brief  Initialise a node object
-            @param  type Module type
             @param  id Module id
-            @param  inputs Quantity of inputs
-            @param  outputs Quantity of outputs
-            @param  params Quantity of control parameters
+            @param  info Module info structure
         */
-        void _init(std::string type, uint32_t id, uint32_t inputs, uint32_t outputs, uint32_t params);
+        void _init(uint32_t id, ModuleInfo info);
 
         virtual void init() {};
-
-        void showInfo() { fprintf(stderr, "Type: %s id: %u\n", m_type.c_str(), m_id); };
 
         /** @brief  Process a period of data
         */

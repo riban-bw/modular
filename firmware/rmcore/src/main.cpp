@@ -131,6 +131,9 @@ int main(int argc, char** argv) {
         uint32_t id = moduleManager.addModule("osc");
         info("Added Oscillator with id %d\n", id);
     }
+    moduleManager.setParam(0, 0, 0.5);
+    moduleManager.setParam(0, 1, 1.0);
+    moduleManager.setParam(0, 3, 2.0);
 
     /*@todo
         Start background panel detection

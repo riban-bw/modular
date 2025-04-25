@@ -13,10 +13,10 @@
 
 #include "global.h"
 #include "node.h"
-#include <map>
-#include <functional>
-#include <memory>
-#include <string>
+#include <map> // Provides std::map
+#include <functional> // Provides std::function
+#include <memory> // Provides std::unique_ptr
+#include <string> // Provides std::string
 
 class ModuleManager {
     public:
@@ -27,11 +27,11 @@ class ModuleManager {
         */
         static ModuleManager& get();
 
-        /** @brief  Register a module (class derived from Node)
-            @param  id Class id
+        /** @brief  Register a module type (class derived from Node)
+            @param  type Module type
             @param  creator Class to register
         */
-        void registerType(const std::string& type, Creator creator, uint32_t inputs, uint32_t outputs, uint32_t params);
+        void registerModule(const ModuleInfo& info, Creator creator);
 
         /** @brief  Add a module to the graph
             @param  type Module type
@@ -45,10 +45,17 @@ class ModuleManager {
         */
         bool removeModule(uint32_t type);
 
+        /** @brief  Set value of a module parameter 
+            @param  module  Index of module
+            @param  param   Index of parameter
+            @param  value   Normalised value
+        */
+        void setParam(uint32_t module, uint32_t param, float value);
+
     private:
         struct NodeConfig {
             Creator creator;
-            uint32_t inputs, outputs, params;
+            ModuleInfo info;
         };
 
         std::map<std::string, NodeConfig> m_creators; // Map of classes derived from Node, indexed by type
@@ -59,9 +66,9 @@ class ModuleManager {
 // Register derived class with its type string
 template <typename T>
 struct RegisterModule {
-    RegisterModule(const std::string& type, uint32_t inputs, uint32_t outputs, uint32_t params) {
-        ModuleManager::get().registerType(type, []() {
+    RegisterModule(const ModuleInfo& info) {
+        ModuleManager::get().registerModule(info, []() {
             return std::make_unique<T>();
-        }, inputs, outputs, params);
+        });
     }
 };
