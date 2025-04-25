@@ -9,6 +9,8 @@
     USART class header providing serial interface from RPi to Brain including CAN interface.
 */
 
+#pragma once
+
 #ifndef USART
 #include <cstdint> // Provides fixed sized integer types
 #include <termios.h> // Provides POSIX terminal control definitions

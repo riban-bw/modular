@@ -21,6 +21,8 @@
 #define MAX_RESET_WAIT 500 // Maximum time to delay before resetting self - used with random to stagger panel resets
 #define CAN_SPEED CAN_BPS_500K // CAN bus speed (using 5kbps during testing - raise to 500kbps for proper CAN interface)
 #define USART_BAUD 9600 // USART baud between RPi & Brain
+#define SAMPLERATE 48000
+#define FRAMES 256
 
 // Enumerations
 enum RUN_MODE {
@@ -140,4 +142,9 @@ enum CAN_FILTER_MASK {
 
 #define CAN_MASK_PANEL_ID 0b11111
 
+// Modules
+enum MODULE_TYPE {
+    MODULE_AUDIO_OUT,
+    MODULE_OSC
+};
 #endif  // GLOBAL_H

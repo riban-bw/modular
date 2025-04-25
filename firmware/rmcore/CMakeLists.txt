@@ -6,8 +6,14 @@ set (PROJECT_BUILD_DATE ${TODAY})
 set (PROJECT_BUILD_YEAR ${THIS_YEAR})
 configure_file (version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/version.h @ONLY)
 
-add_executable(rmcore src/main.cpp src/usart.cpp src/oscillator.cpp)
+add_executable(rmcore
+    src/main.cpp
+    src/usart.cpp
+    src/node.cpp
+    src/oscillator.cpp
+    src/moduleManager.cpp
+    )
 target_include_directories(rmcore PUBLIC ./include ../include)
-target_link_libraries(rmcore asound)
+target_link_libraries(rmcore jack)
 
 add_executable(buildWavetable src/buildWavetable.cpp)

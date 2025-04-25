@@ -11,41 +11,51 @@
 
 #include "oscillator.h"
 #include "wavetable.h"
+#include "global.h"
+#include "moduleManager.h"
+#include <stdio.h>
 
-Oscillator::Oscillator(uint32_t samplerate) {
+void Oscillator::init() {
     m_wavetableSize = sizeof(WAVETABLE[0]) / sizeof(float);
-    m_samplerate = samplerate;
+    setParam(OSC_PARAM_FREQ, 900);
+    setParam(OSC_PARAM_WAVEFORM, WAVEFORM_SIN);
+    setParam(OSC_PARAM_PWM, 0.5);
+    setParam(OSC_PARAM_AMP, 1.0);
 }
 
-double Oscillator::populateBuffer(float* buffer, uint32_t frames, uint32_t waveform, double pos, double freq, double amp) {
-    double step = freq / WAVETABLE_FREQ;
+void Oscillator::square(jack_default_audio_sample_t* buffer, jack_nframes_t frames) {
+    double step = m_param[OSC_PARAM_FREQ] / SAMPLERATE;
 
-    if (waveform > 4)
-        waveform = 0;
-    while (pos >= m_wavetableSize)
-        pos -= m_wavetableSize;
-    for (uint32_t i = 0; i < frames; ++i) {
-        buffer[i] = WAVETABLE[waveform][(uint32_t)pos] * amp;
-        pos += step;
-        if (pos >= m_wavetableSize)
-            pos -= m_wavetableSize;
-    }
-    return pos;
-}
-
-double Oscillator::square(float* buffer, uint32_t frames, double pos, double freq, double width, double amp) {
-    double step = freq / m_samplerate;
-
-    while (pos >= 1.0)
-        pos -= 1.0;
-    for (uint32_t i = 0; i < frames; ++i) {
-        if (pos < width)
-            buffer[i] = -amp;
+    while (m_waveformPos >= 1.0)
+    m_waveformPos -= 1.0;
+    for (jack_nframes_t i = 0; i < frames; ++i) {
+        if (m_waveformPos < m_param[OSC_PARAM_PWM])
+            buffer[i] = -m_param[OSC_PARAM_AMP];
         else
-            buffer[i] = amp;
-        pos += step;
-        if (pos > 1.0)
-            pos -= 1.0;
+            buffer[i] = m_param[OSC_PARAM_AMP];
+            m_waveformPos += step;
+        if (m_waveformPos > 1.0)
+        m_waveformPos -= 1.0;
     }
-    return pos;
 }
+
+int Oscillator::process(jack_nframes_t frames) {
+    double step = m_param[OSC_PARAM_FREQ] / WAVETABLE_FREQ;
+    jack_default_audio_sample_t * buffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[0], frames);
+
+    if (m_param[OSC_PARAM_WAVEFORM] == WAVEFORM_SQU) {
+        square(buffer, frames);
+    } else {
+        while (m_waveformPos >= m_wavetableSize)
+        m_waveformPos -= m_wavetableSize;
+        for (jack_nframes_t i = 0; i < frames; ++i) {
+            buffer[i] = WAVETABLE[(uint32_t)m_param[OSC_PARAM_WAVEFORM]][(uint32_t)m_waveformPos] * m_param[OSC_PARAM_AMP];
+            m_waveformPos += step;
+            if (m_waveformPos >= m_wavetableSize)
+            m_waveformPos -= m_wavetableSize;
+        }
+    }
+    return 0;
+}
+
+static RegisterModule<Oscillator> reg_osc("osc", 0, 1, 5);
