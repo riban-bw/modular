@@ -64,4 +64,10 @@ int Oscillator::process(jack_nframes_t frames) {
 }
 
 // Register this module as an available plugin
-static RegisterModule<Oscillator> reg_osc(moduleInfo);
+static RegisterModule<Oscillator> reg_osc(ModuleInfo({
+    "osc",                                          // id
+    "Oscillator",                                   // name
+    {"frequency", "pwm"},                           // inputs
+    {"out"},                                        // outputs
+    {"frequency", "waveform", "pwm", "amplitude"}   // params
+}));

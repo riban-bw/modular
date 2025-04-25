@@ -135,6 +135,8 @@ int main(int argc, char** argv) {
     moduleManager.setParam(0, 1, 1.0);
     moduleManager.setParam(0, 3, 2.0);
 
+    moduleManager.addModule("amp");
+
     /*@todo
         Start background panel detection
         Connect audio interface

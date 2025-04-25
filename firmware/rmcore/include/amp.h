@@ -6,7 +6,7 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Wavetable based oscillator class header.
+    Amplifier class header.
 */
 
 #pragma once
@@ -14,22 +14,9 @@
 #include "node.h"
 #include <jack/jack.h>
 
-enum OSC_PARAM {
-    OSC_PARAM_FREQ      = 0,
-    OSC_PARAM_WAVEFORM  = 1,
-    OSC_PARAM_PWM       = 2,
-    OSC_PARAM_AMP       = 3
-};
+#define NUM_AMP 4
 
-enum WAVEFORM {
-    WAVEFORM_SIN    = 0,
-    WAVEFORM_TRI    = 1,
-    WAVEFORM_SAW    = 2,
-    WAVEFORM_SQU    = 3,
-    WAVEFORM_NOISE  = 4,
-};
-
-class Oscillator : public Node {
+class Amplifier : public Node {
 
     public:
         /*  @brief  Initalise the module
@@ -42,7 +29,5 @@ class Oscillator : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        uint32_t m_wavetableSize; // Quantity of floats in each wavetable
-        double m_waveformPos = 0.0; // Position within waveform
-        double m_waveformStep = 0.0; // Step to iterate through waveform at desired frequence
+        double m_gain[NUM_AMP]; // Amplification
 };
