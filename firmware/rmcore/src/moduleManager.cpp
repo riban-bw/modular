@@ -26,7 +26,9 @@ uint32_t ModuleManager::addModule(const std::string& type) {
         return -1;
     auto& [creator, info] = it->second;
     m_modules[m_nextId] = creator();
-    m_modules[m_nextId]->_init(m_nextId, info);
+    m_modules[m_nextId]->_init(m_nextId);
+    fprintf(stderr, "Added module '%s' (%s) with id %u. %u inputs %u outputs %u params\n",
+        type.c_str(), info.name.c_str(), m_nextId, info.inputs.size(), info.outputs.size(), info.params.size());
     return m_nextId++;
 }
 

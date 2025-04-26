@@ -58,7 +58,8 @@ class ModuleManager {
             ModuleInfo info;
         };
 
-        std::map<std::string, NodeConfig> m_creators; // Map of classes derived from Node, indexed by type
+        std::map<std::string, std::pair<Creator, ModuleInfo>> m_creators;
+        //std::map<std::string, NodeConfig> m_creators; // Map of classes derived from Node, indexed by type
         std::map<uint32_t, std::unique_ptr<Node>> m_modules; // Map of module pointers, indexed by id
         uint32_t m_nextId = 0; // Next available node id
 };
@@ -67,8 +68,8 @@ class ModuleManager {
 template <typename T>
 struct RegisterModule {
     RegisterModule(const ModuleInfo& info) {
-        ModuleManager::get().registerModule(info, []() {
-            return std::make_unique<T>();
+        ModuleManager::get().registerModule(info, [info]() {
+            return std::make_unique<T>(info);
         });
     }
 };

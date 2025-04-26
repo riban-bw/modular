@@ -19,6 +19,8 @@
 class Amplifier : public Node {
 
     public:
+        using Node::Node;  // Inherit Node's constructor
+
         /*  @brief  Initalise the module
         */
         void init();

@@ -14,8 +14,7 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
-void Node::_init(uint32_t id, ModuleInfo info) {
-    m_type = info.type;
+void Node::_init(uint32_t id) {
     m_id = id;
 
     // Register with Jack server
@@ -25,28 +24,36 @@ void Node::_init(uint32_t id, ModuleInfo info) {
     jack_options_t options = JackNoStartServer;
     jack_port_t* port;
 
-    sprintf(nameBuffer, "%s %u", info.name.c_str(), m_id);
+    sprintf(nameBuffer, "%s %u", m_info.name.c_str(), m_id);
     m_jackClient = jack_client_open(nameBuffer, options, &status, serverName);
     if (!m_jackClient) {
         fprintf(stderr, "Failed to open JACK client\n");
     }
-    for (uint32_t i = 0; i < info.inputs.size(); ++i) {
-        port = jack_port_register(m_jackClient, info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+    for (uint32_t i = 0; i < m_info.inputs.size(); ++i) {
+        port = jack_port_register(m_jackClient, m_info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
         if (port)
             m_input.push_back(port);
     }
-    for (uint32_t i = 0; i < info.outputs.size(); ++i) {
-        port = jack_port_register(m_jackClient, info.outputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    for (uint32_t i = 0; i < m_info.outputs.size(); ++i) {
+        port = jack_port_register(m_jackClient, m_info.outputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
         if (port)
             m_output.push_back(port);
     }
-    for (uint32_t i = 0; i < info.params.size(); ++i) {
+    for (uint32_t i = 0; i < m_info.params.size(); ++i) {
         m_param.push_back(0.0f);
     }
     init(); // Call derived class initalisaton
     jack_set_process_callback(m_jackClient, processStatic, this);
     jack_activate(m_jackClient);
 }
+int jack_initialize(jack_client_t *client, const char *load_init) {
+    return 0;
+}
+
+void Node::jack_finish (void *arg) {
+
+}
+
 
 uint32_t Node::getNumInputs() {
     return m_input.size();
