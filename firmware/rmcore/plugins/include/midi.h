@@ -6,7 +6,7 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Wavetable based oscillator class header.
+    MIDI input class header.
 */
 
 #pragma once
@@ -14,22 +14,9 @@
 #include "node.h"
 #include <jack/jack.h>
 
-enum OSC_PARAM {
-    OSC_PARAM_FREQ      = 0,
-    OSC_PARAM_WAVEFORM  = 1,
-    OSC_PARAM_PWM       = 2,
-    OSC_PARAM_AMP       = 3
-};
+#define MAX_POLY 8
 
-enum WAVEFORM {
-    WAVEFORM_SIN    = 0,
-    WAVEFORM_TRI    = 1,
-    WAVEFORM_SAW    = 2,
-    WAVEFORM_SQU    = 3,
-    WAVEFORM_NOISE  = 4,
-};
-
-class Oscillator : public Node {
+class Midi : public Node {
 
     public:
         using Node::Node;  // Inherit Node's constructor
@@ -44,7 +31,8 @@ class Oscillator : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        uint32_t m_wavetableSize; // Quantity of floats in each wavetable
-        double m_waveformPos = 0.0; // Position within waveform
-        double m_waveformStep = 0.0; // Step to iterate through waveform at desired frequency
+        uint8_t m_note[MAX_POLY]; // Array of currently playing MIDI notes
+        float m_cv[MAX_POLY]; // Array of CVs per note
+        bool m_gate[MAX_POLY]; // Array of gates per note
+        float m_velocity[MAX_POLY]; // Array of velocitys per note
 };

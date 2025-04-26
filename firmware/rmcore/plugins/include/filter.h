@@ -6,7 +6,7 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Wavetable based oscillator class header.
+    Filter class header.
 */
 
 #pragma once
@@ -14,29 +14,25 @@
 #include "node.h"
 #include <jack/jack.h>
 
-enum OSC_PARAM {
-    OSC_PARAM_FREQ      = 0,
-    OSC_PARAM_WAVEFORM  = 1,
-    OSC_PARAM_PWM       = 2,
-    OSC_PARAM_AMP       = 3
+#define NUM_FILTER 1
+
+enum FILTER_PARAM {
+    FILTER_FREQ     = 0,
+    FILTER_RES      = 1,
+    FLTER_FREQ_CV   = 2,
+    FLTER_RES_CV    = 3
 };
 
-enum WAVEFORM {
-    WAVEFORM_SIN    = 0,
-    WAVEFORM_TRI    = 1,
-    WAVEFORM_SAW    = 2,
-    WAVEFORM_SQU    = 3,
-    WAVEFORM_NOISE  = 4,
-};
-
-class Oscillator : public Node {
+class Filter : public Node {
 
     public:
-        using Node::Node;  // Inherit Node's constructor
+    using Node::Node;  // Inherit Node's constructor
 
         /*  @brief  Initalise the module
         */
         void init();
+
+        bool setParam(uint32_t param, float val);
 
         /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period
@@ -44,7 +40,12 @@ class Oscillator : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        uint32_t m_wavetableSize; // Quantity of floats in each wavetable
-        double m_waveformPos = 0.0; // Position within waveform
-        double m_waveformStep = 0.0; // Step to iterate through waveform at desired frequency
+        void calculateCoefficients();
+
+        double m_gain[NUM_FILTER]; // Amplification
+        // Coefficients
+        float a0, a1, a2, b1, b2; 
+        // History
+        float x1 = 0.0f, x2 = 0.0f;
+        float y1 = 0.0f, y2 = 0.0f;
 };

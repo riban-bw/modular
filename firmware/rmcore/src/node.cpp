@@ -42,18 +42,15 @@ void Node::_init(uint32_t id) {
     for (uint32_t i = 0; i < m_info.params.size(); ++i) {
         m_param.push_back(0.0f);
     }
+    if (m_info.midi) {
+        port = jack_port_register(m_jackClient, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
+        if (port)
+            m_midiIn = port;
+    }
     init(); // Call derived class initalisaton
     jack_set_process_callback(m_jackClient, processStatic, this);
     jack_activate(m_jackClient);
 }
-int jack_initialize(jack_client_t *client, const char *load_init) {
-    return 0;
-}
-
-void Node::jack_finish (void *arg) {
-
-}
-
 
 uint32_t Node::getNumInputs() {
     return m_input.size();
@@ -70,8 +67,9 @@ float Node::getParam(uint32_t param) {
 }
 
 bool Node::setParam(uint32_t param, float val) {
-    if (param > m_param.size())
+    if (param >= m_param.size())
         return false;
     m_param[param] = val;
     return true;
 }
+

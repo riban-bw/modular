@@ -14,12 +14,13 @@
 #include "global.h"
 #include "moduleManager.h"
 #include <stdio.h>
+#include <cmath>
 
 #define CV_ALPHA 0.01
 
 void Oscillator::init() {
     m_wavetableSize = sizeof(WAVETABLE[0]) / sizeof(float);
-    setParam(OSC_PARAM_FREQ, 900);
+    setParam(OSC_PARAM_FREQ, 0.0);
     setParam(OSC_PARAM_WAVEFORM, WAVEFORM_SIN);
     setParam(OSC_PARAM_PWM, 0.5);
     setParam(OSC_PARAM_AMP, 1.0);
@@ -33,7 +34,8 @@ int Oscillator::process(jack_nframes_t frames) {
         while (m_waveformPos >= 1.0)
             m_waveformPos -= 1.0;
         for (jack_nframes_t i = 0; i < frames; ++i) {
-            double targetStep = m_param[OSC_PARAM_FREQ] / SAMPLERATE + finBuffer[i];
+            double cvFreq = 440.0 * std::pow(2.0f, finBuffer[i]);
+            double targetStep = cvFreq / SAMPLERATE;
             m_waveformStep += CV_ALPHA * (targetStep - m_waveformStep);
             if (targetStep < 0.001)
                 targetStep = 0.001;
@@ -50,7 +52,8 @@ int Oscillator::process(jack_nframes_t frames) {
         while (m_waveformPos >= m_wavetableSize)
             m_waveformPos -= m_wavetableSize;
         for (jack_nframes_t i = 0; i < frames; ++i) {
-            double targetStep = m_param[OSC_PARAM_FREQ] / WAVETABLE_FREQ + finBuffer[i];
+            double cvFreq = 16.3516 * std::pow(2.0f, finBuffer[i]);
+            double targetStep = cvFreq / WAVETABLE_FREQ;
             if (targetStep < 0.001)
                 targetStep = 0.001;
             m_waveformStep += CV_ALPHA * (targetStep - m_waveformStep);

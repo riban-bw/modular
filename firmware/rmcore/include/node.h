@@ -23,6 +23,7 @@ struct ModuleInfo {
     std::vector<std::string> inputs;
     std::vector<std::string> outputs;
     std::vector<std::string> params;
+    bool midi = false;
 };
 
 class Node {
@@ -39,19 +40,6 @@ class Node {
         /** @brief  Initialise a node object
         */
         void _init(uint32_t id);
-
-        /** @brief  Initialise internal jack client
-            @param  client Pointer to jack client structure
-            @param  load_init Character string passed to load operation
-            @retval int 0 on success
-            @note   Called by jack_internal_client_load()
-        */
-        int jack_initialize(jack_client_t *client, const char *load_init);
-
-        /** @brief  End internal jack client
-            @param  arg Same as passed to process
-        */
-        void jack_finish (void *arg);
         
         virtual void init() {};
 
@@ -89,6 +77,7 @@ class Node {
         std::vector<jack_port_t*> m_input; // Vector of input ports
         std::vector<jack_port_t*> m_output; // Vector of output ports
         std::vector<float> m_param; // Vector of parameter values
+        jack_port_t* m_midiIn = nullptr; // MIDI input port
 
     private:
 };

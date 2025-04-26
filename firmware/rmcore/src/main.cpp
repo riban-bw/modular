@@ -32,7 +32,6 @@ enum VERBOSE {
 uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
-uint32_t g_waveform = -1;
 
 /*  TODO
     Initialise display
@@ -89,14 +88,12 @@ void print_help() {
     info("\t-v --version\tShow version\n");
     info("\t-V --verbose\tSet verbose level (0:silent, 1:error, 2:info, 3:debug\n");
     info("\t-h --help\tShow this help\n");
-    info("\t-w --waveform\tPlay a waveform (0:sin 1:tri 2:saw 3:square 4:noise)\n");
 }
 
 bool parseCmdline(int argc, char** argv) {
     static struct option long_options[] = {
         {"verbose", no_argument, 0, 'V'},
         {"version", no_argument, 0, 'v'},
-        {"waveform", no_argument, 0, 'w'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -106,10 +103,6 @@ bool parseCmdline(int argc, char** argv) {
             case 'V': 
                 if (optarg)
                     g_verbose = atoi(optarg);
-                break;
-            case 'w':
-                if (optarg)
-                    g_waveform = atoi(optarg);
                 break;
             case '?':
             case 'h': print_help(); return true;
@@ -127,15 +120,17 @@ int main(int argc, char** argv) {
     info("Starting riban modular core...\n");
 
     ModuleManager& moduleManager = ModuleManager::get();
-    for (int i = 0; i < 2; ++i)
-        uint32_t id = moduleManager.addModule("osc");
-    moduleManager.setParam(0, 0, 0.5);
-    moduleManager.setParam(0, 1, 1.0);
-    moduleManager.setParam(0, 3, 2.0);
-
+    moduleManager.addModule("midi");
+    moduleManager.addModule("osc");
+    /*
+    uint32_t id = moduleManager.addModule("osc");
+    moduleManager.setParam(id, 0, 0.5);
+    moduleManager.setParam(id, 1, 1.0);
+    moduleManager.setParam(id, 3, 2.0);
     moduleManager.addModule("amp");
     moduleManager.addModule("env");
     moduleManager.addModule("filter");
+    */
 
     /*@todo
         Start background panel detection
