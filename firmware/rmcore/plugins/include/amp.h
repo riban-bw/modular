@@ -14,7 +14,14 @@
 #include "node.h"
 #include <jack/jack.h>
 
-#define NUM_AMP 4
+#define AMP_PORT_INPUT 0
+#define AMP_PORT_CV 1
+#define AMP_PORT_OUTPUT 0
+
+enum AMP_PARAM {
+    AMP_PARAM_GAIN   = 0
+};
+
 
 class Amplifier : public Node {
 
@@ -31,5 +38,5 @@ class Amplifier : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        double m_gain[NUM_AMP]; // Amplification
+        double m_gain[MAX_POLY]; // Amplification
 };

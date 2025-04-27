@@ -23,6 +23,7 @@
 #define USART_BAUD 9600 // USART baud between RPi & Brain
 #define SAMPLERATE 48000
 #define FRAMES 256
+#define MAX_POLY 16 // Maximum quantity of concurrent notes
 
 // Enumerations
 enum RUN_MODE {

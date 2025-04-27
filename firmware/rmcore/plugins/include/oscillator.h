@@ -14,6 +14,10 @@
 #include "node.h"
 #include <jack/jack.h>
 
+#define OSC_PORT_OUT    0
+#define OSC_PORT_CV     0
+#define OSC_PORT_PWM    0
+
 enum OSC_PARAM {
     OSC_PARAM_FREQ      = 0,
     OSC_PARAM_WAVEFORM  = 1,
@@ -45,6 +49,6 @@ class Oscillator : public Node {
 
     private:
         uint32_t m_wavetableSize; // Quantity of floats in each wavetable
-        double m_waveformPos = 0.0; // Position within waveform
-        double m_waveformStep = 0.0; // Step to iterate through waveform at desired frequency
+        double m_waveformPos[MAX_POLY]; // Position within waveform
+        double m_waveformStep[MAX_POLY]; // Step to iterate through waveform at desired frequency
 };

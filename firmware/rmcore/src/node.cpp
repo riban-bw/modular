@@ -14,6 +14,8 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
+extern uint8_t g_poly;
+
 void Node::_init(uint32_t id) {
     m_id = id;
 
@@ -34,10 +36,26 @@ void Node::_init(uint32_t id) {
         if (port)
             m_input.push_back(port);
     }
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        for (uint32_t i = 0; i < m_info.polyInputs.size(); ++i) {
+            sprintf(nameBuffer, "%s[%u]", m_info.polyInputs[i].c_str(), poly);
+            port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+            if (port)
+                m_polyInput[poly].push_back(port);
+        }
+    }
     for (uint32_t i = 0; i < m_info.outputs.size(); ++i) {
         port = jack_port_register(m_jackClient, m_info.outputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
         if (port)
             m_output.push_back(port);
+    }
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        for (uint32_t i = 0; i < m_info.polyOutputs.size(); ++i) {
+            sprintf(nameBuffer, "%s[%u]", m_info.polyOutputs[i].c_str(), poly);
+            port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+            if (port)
+                m_polyOutput[poly].push_back(port);
+        }
     }
     for (uint32_t i = 0; i < m_info.params.size(); ++i) {
         m_param.push_back(0.0f);
@@ -70,6 +88,7 @@ bool Node::setParam(uint32_t param, float val) {
     if (param >= m_param.size())
         return false;
     m_param[param] = val;
+    fprintf(stderr, "Node: Set parameter %u to %f\n", param, val);
     return true;
 }
 

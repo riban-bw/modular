@@ -15,25 +15,21 @@
 
 #define CV_ALPHA 0.01
 
+extern uint8_t g_poly;
+
 void Amplifier::init() {
-    for (uint8_t i = 0; i < NUM_AMP; ++ i)
-        setParam(i, 1.0);
+    setParam(AMP_PARAM_GAIN, 1.0);
 }
 
 int Amplifier::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * ainBuffer[NUM_AMP];
-    jack_default_audio_sample_t * cvBuffer[NUM_AMP];
-    jack_default_audio_sample_t * aoutBuffer[NUM_AMP];
-    for (uint8_t i = 0; i < NUM_AMP; ++i) {
-        ainBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[i * 2], frames);
-        cvBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[i * 2 + 1], frames);
-        aoutBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[i], frames);
-    }
-    for (jack_nframes_t i = 0; i < frames; ++i) {
-        for (uint8_t j = 0; j < NUM_AMP; ++j) {
-            double targetGain = m_param[j] + cvBuffer[j][i];
-            m_gain[j] += CV_ALPHA * (targetGain - m_gain[j]);
-            aoutBuffer[j][i] = m_gain[j] * ainBuffer[j][i];
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][AMP_PORT_INPUT], frames);
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][AMP_PORT_CV], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][AMP_PORT_OUTPUT], frames);
+        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            double targetGain = m_param[AMP_PARAM_GAIN] + cvBuffer[frame];
+            m_gain[poly] += CV_ALPHA * (targetGain - m_gain[poly]);
+            outBuffer[frame] = m_gain[poly] * inBuffer[frame];
         }
     }
 
@@ -41,19 +37,14 @@ int Amplifier::process(jack_nframes_t frames) {
 }
 
 // Register this module as an available plugin
-
-ModuleInfo createAmplifierModuleInfo() {
-    ModuleInfo info;
-    info.type = "amp";
-    info.name = "Amplifier";
-    for (int i = 1; i <= NUM_AMP; ++i) {
-        info.inputs.push_back("input" + std::to_string(i));
-        info.inputs.push_back("cv" + std::to_string(i));
-        info.outputs.push_back("output" + std::to_string(i));
-        info.params.push_back("gain" + std::to_string(i));
-    }
-    return info;
-}
-
-static RegisterModule<Amplifier> reg_amp(createAmplifierModuleInfo());
+static RegisterModule<Amplifier> reg_amp(ModuleInfo({
+    "amp",// id
+    "Amplifier", // name
+    {}, // inputs
+    {"input", "cv"}, // poly inputs
+    {}, // outputs
+    {"output"}, // poly outputs
+    {"gain"}, // params
+    false // MIDI
+}));
 

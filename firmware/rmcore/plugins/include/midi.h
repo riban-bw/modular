@@ -14,7 +14,18 @@
 #include "node.h"
 #include <jack/jack.h>
 
-#define MAX_POLY 8
+enum MIDI_PORT {
+    MIDI_PORT_CV        = 0,
+    MIDI_PORT_GATE      = 1,
+    MIDI_PORT_VEL       = 2,
+};
+
+enum MIDI_PARAM {
+    MIDI_PARAM_PORTAMENTO   = 0,
+    MIDI_PARAM_LEGATO       = 1,
+    MIDI_PARAM_CHANNEL      = 2,
+    MIDI_PARAM_POLYPHONY    = 3
+};
 
 class Midi : public Node {
 
@@ -30,9 +41,15 @@ class Midi : public Node {
         */
         int process(jack_nframes_t frames);
 
+        bool setParam(uint32_t param, float val);
+
     private:
         uint8_t m_note[MAX_POLY]; // Array of currently playing MIDI notes
-        float m_cv[MAX_POLY]; // Array of CVs per note
+        float m_cv[MAX_POLY]; // Array of current CVs per note
+        float m_targetCv[MAX_POLY]; // Array of target CVs per note
         bool m_gate[MAX_POLY]; // Array of gates per note
         float m_velocity[MAX_POLY]; // Array of velocitys per note
+        uint64_t m_heldNotesLow = 0; // Bit flags indicating MIDI notes pressed (0..63)
+        uint64_t m_heldNotesHigh = 0; // Bit flags indicating MIDI notes pressed (64..127)
+        float m_portamento = 1.0; // Rate of change of CV
 };

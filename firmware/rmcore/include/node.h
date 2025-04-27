@@ -21,7 +21,9 @@ struct ModuleInfo {
     std::string type; //!@todo This be the module UID?
     std::string name;
     std::vector<std::string> inputs;
+    std::vector<std::string> polyInputs;
     std::vector<std::string> outputs;
+    std::vector<std::string> polyOutputs;
     std::vector<std::string> params;
     bool midi = false;
 };
@@ -75,7 +77,9 @@ class Node {
         struct ModuleInfo m_info; // Node info
         jack_client_t* m_jackClient;
         std::vector<jack_port_t*> m_input; // Vector of input ports
+        std::vector<jack_port_t*> m_polyInput[MAX_POLY]; // Array of vector of polyphonic input ports
         std::vector<jack_port_t*> m_output; // Vector of output ports
+        std::vector<jack_port_t*> m_polyOutput[MAX_POLY]; // Array of vector of polyphonic output ports
         std::vector<float> m_param; // Vector of parameter values
         jack_port_t* m_midiIn = nullptr; // MIDI input port
 

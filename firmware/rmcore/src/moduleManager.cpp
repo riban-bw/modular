@@ -27,11 +27,12 @@ uint32_t ModuleManager::addModule(const std::string& type) {
     auto& [creator, info] = it->second;
     m_modules[m_nextId] = creator();
     m_modules[m_nextId]->_init(m_nextId);
-    fprintf(stderr, "Added module '%s' (%s) with id %u. %u inputs %u outputs %u params\n",
-        type.c_str(), info.name.c_str(), m_nextId, info.inputs.size(), info.outputs.size(), info.params.size());
+    fprintf(stderr, "Added module '%s' (%s) with id %u. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
+        type.c_str(), info.name.c_str(), m_nextId, info.inputs.size(), info.polyInputs.size(), info.outputs.size(), info.polyOutputs.size(), info.params.size());
     return m_nextId++;
 }
 
 void ModuleManager::setParam(uint32_t module, uint32_t param, float value) {
+    fprintf(stderr, "MM: Set parameter %u to %f for module %d\n", param, value, module);
     m_modules[module]->setParam(param, value);
 }

@@ -16,6 +16,8 @@
 #include <jack/midiport.h> // provides JACK MIDI interface
 #include <cmath>
 
+extern uint8_t g_poly;
+
 void Midi::init() {
     for (uint8_t i = 0; i < MAX_POLY; ++i) {
         m_note[i] = 0xff;
@@ -23,6 +25,25 @@ void Midi::init() {
         m_velocity[i] = 0.0;
         m_gate[i] = false;
     }
+    setParam(MIDI_PARAM_PORTAMENTO, 0.0);
+    setParam(MIDI_PARAM_LEGATO, 0.0);
+    setParam(MIDI_PARAM_CHANNEL, 0.0);
+}
+
+bool Midi::setParam(uint32_t param, float val) {
+    Node::setParam(param, val);
+    switch (param) {
+        case MIDI_PARAM_PORTAMENTO:
+            m_portamento = 1.0 - val; //!@todo Fix portamento time
+            break;
+        case MIDI_PARAM_POLYPHONY:
+            if ((uint8_t)val < MAX_POLY)
+                g_poly = (uint8_t)val;
+            //!@todo Reconfigure all polyphonic modules
+            break;
+    }
+    fprintf(stderr, "Midi: Set parameter %u to %f\n", param, val);
+    return true;
 }
 
 int Midi::process(jack_nframes_t frames) {
@@ -31,8 +52,9 @@ int Midi::process(jack_nframes_t frames) {
     jack_midi_event_t midiEvent;
     jack_nframes_t count = jack_midi_get_event_count(midiBuffer);
     uint8_t chan, cmd, note, val, freeNote=0xff;
-    for (jack_nframes_t i = 0; i < count; i++) {
-        jack_midi_event_get(&midiEvent, midiBuffer, i);
+    uint64_t noteMask;
+    for (jack_nframes_t frame = 0; frame < count; frame++) {
+        jack_midi_event_get(&midiEvent, midiBuffer, frame);
         chan = midiEvent.buffer[0] & 0x0F;
         cmd = midiEvent.buffer[0] & 0xF0;
         switch (cmd) {
@@ -41,47 +63,69 @@ int Midi::process(jack_nframes_t frames) {
                 val = midiEvent.buffer[2];
                 if (val) {
                     note = midiEvent.buffer[1];
-                    for (uint8_t n = 0; n < MAX_POLY; ++n) {
-                        if (m_note[n] == note) {
+                    if (note < 64) {
+                        noteMask = 1U << note;
+                        if (noteMask & m_heldNotesLow)
+                            continue; // Note already held
+                        m_heldNotesLow |= noteMask;
+                    } else {
+                        noteMask = 1U << (note - 64);
+                        if (noteMask & m_heldNotesHigh)
+                            continue; // Note already held
+                        m_heldNotesHigh |= noteMask;
+                    }
+                    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+                        if (m_note[poly] == note) {
                             freeNote = 0xff;
                             break;
                         }
-                        else if (m_note[n] == 0xff) {
-                            freeNote = n;
+                        else if (m_note[poly] == 0xff) {
+                            freeNote = poly;
                             break;
                         }
                     }
                     if (freeNote == 0xff)
-                        break; //!@todo Implement note stealing, portamento, etc.
+                        freeNote = 0; //!@todo Improve note steal
                     m_note[freeNote] = note;
                     m_velocity[freeNote] = val / 127.0f;
                     m_gate[freeNote] = true;
-                    m_cv[freeNote] = note / 12.0f;
+                    m_targetCv[freeNote] = (note - 60) / 12.0f;
                     break;
                 }
                 // fall through if val==0 for note off 
             case 0x80:
                 // Note off
                 note = midiEvent.buffer[1];
-                for (uint8_t n = 0; n < MAX_POLY; ++n) {
-                    if (note == m_note[n]) {
-                        m_note[n] = -1;
-                        m_gate[n] = false;
+                if (note < 64) {
+                    noteMask = 1U << note;
+                    if (!(noteMask & m_heldNotesLow))
+                        continue; // Note note held
+                    m_heldNotesLow &= ~noteMask;
+                } else {
+                    noteMask = 1U << (note - 64);
+                    if (!(noteMask & m_heldNotesHigh))
+                        continue; // Note note held
+                    m_heldNotesHigh &= ~noteMask;
+                }
+                for (uint8_t poly = 0; poly < g_poly; ++poly) {
+                    if (note == m_note[poly]) {
+                        m_note[poly] = -1;
+                        m_gate[poly] = false;
                         break;
                     }
                 }
                 break;
         }
     }
-    for (uint8_t i = 0; i < MAX_POLY; ++i) {
-        jack_default_audio_sample_t * cvBuffer= (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[i * 3], frames);
-        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[i * 3 + 1], frames);
-        jack_default_audio_sample_t * velBuffer= (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[i * 3 + 2], frames);
-        float gate = m_gate[i] ? 1.0 : 0.0;
-        for (jack_nframes_t j = 0; j < frames; ++j) {
-            cvBuffer[j] = m_cv[i];
-            gateBuffer[j] = gate;
-            velBuffer[j] = m_velocity[i];
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_CV], frames);
+        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_GATE], frames);
+        jack_default_audio_sample_t * velBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_VEL], frames);
+        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            m_cv[poly] += m_portamento * (m_targetCv[poly] - m_cv[poly]);
+            cvBuffer[frame] = m_cv[poly];
+            gateBuffer[frame] = m_gate[poly] ? 1.0f : 0.0f;
+            velBuffer[frame] = m_velocity[poly];
         }
     }
     return 0;
@@ -91,11 +135,10 @@ ModuleInfo createMidiModuleInfo() {
     ModuleInfo info;
     info.type = "midi";
     info.name = "MIDI Input";
-    for (int i = 1; i <= MAX_POLY; ++i) {
-        info.outputs.push_back("cv" + std::to_string(i));
-        info.outputs.push_back("gate" + std::to_string(i));
-        info.outputs.push_back("vel" + std::to_string(i));
-    }
+    info.polyOutputs.push_back("cv");
+    info.polyOutputs.push_back("gate");
+    info.polyOutputs.push_back("vel");
+    info.params = {"portamento", "legato", "channel"};
     info.midi = true;
     return info;
 }
