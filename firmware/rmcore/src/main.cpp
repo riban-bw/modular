@@ -253,6 +253,8 @@ int main(int argc, char** argv) {
     moduleManager.setParam(id, 1, 0); // Set VCO waveform
     moduleManager.addModule("amp");
     moduleManager.addModule("env");
+    uint32_t noise = moduleManager.addModule("noise");
+    moduleManager.setParam(noise, 0, 0.1);
     /*
     moduleManager.addModule("filter");
     */

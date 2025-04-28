@@ -6,34 +6,20 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Wavetable based oscillator class header.
+    Wavetable based noise generator class header.
 */
 
 #pragma once
 
 #include "node.h"
 
-#define OSC_PORT_OUT        0
-#define OSC_PORT_CV         0
-#define OSC_PORT_PWM        0
-#define OSC_PORT_WAVEFORM   1
+#define NOISE_PORT_OUT  0
 
-enum OSC_PARAM {
-    OSC_PARAM_FREQ      = 0,
-    OSC_PARAM_WAVEFORM  = 1,
-    OSC_PARAM_PWM       = 2,
-    OSC_PARAM_AMP       = 3
+enum NOISE_PARAM {
+    NOISE_PARAM_AMP = 0
 };
 
-enum WAVEFORM {
-    WAVEFORM_SIN    = 0,
-    WAVEFORM_TRI    = 1,
-    WAVEFORM_SAW    = 2,
-    WAVEFORM_SQU    = 3,
-    WAVEFORM_NOISE  = 4,
-};
-
-class Oscillator : public Node {
+class Noise : public Node {
 
     public:
         using Node::Node;  // Inherit Node's constructor
@@ -48,7 +34,4 @@ class Oscillator : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        uint32_t m_wavetableSize; // Quantity of floats in each wavetable
-        double m_waveformPos[MAX_POLY]; // Position within waveform
-        double m_waveformStep[MAX_POLY]; // Step to iterate through waveform at desired frequency
 };
