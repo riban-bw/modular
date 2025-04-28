@@ -173,7 +173,7 @@ int Midi::process(jack_nframes_t frames) {
 }
 
 // Register this module as an available plugin
-static RegisterModule<Midi> rereg_midig_osc(ModuleInfo({
+static RegisterModule<Midi> reg_midi(ModuleInfo({
     //id
     "midi",
     //name

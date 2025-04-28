@@ -162,7 +162,6 @@ void saveJackConnectionsToFile(const std::string& filename) {
             outFile << portName << "," << connected_ports[j] << std::endl;
         }
     }
-    std::cout << "Got here" << std::endl;
 
     // Close the file after writing
     outFile.close();
@@ -255,9 +254,7 @@ int main(int argc, char** argv) {
     moduleManager.addModule("env");
     uint32_t noise = moduleManager.addModule("noise");
     moduleManager.setParam(noise, 0, 0.1);
-    /*
     moduleManager.addModule("filter");
-    */
 
     restoreJackConnectionsFromFile("last_state.rmstate");
 

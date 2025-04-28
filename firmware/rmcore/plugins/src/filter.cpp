@@ -17,65 +17,52 @@
 #define CV_ALPHA 0.01
 
 void Filter::init() {
-    for (uint8_t i = 0; i < NUM_FILTER; ++ i) {
-        setParam(i * 4, 8000.0);
-        setParam(i * 4 + 1, 0.7);
-    }
-    calculateCoefficients();
+    x1 = x2 = y1 = y2 = 0.0f;
+    setParam(FILTER_FREQ, 8000.0f);
+    setParam(FILTER_RES, 0.7f);
+    updateCoefficients();
 }
 
 bool Filter::setParam(uint32_t param, float val) {
     if (Node::setParam(param, val)) {
-        if (param % 3 < 2)
-            calculateCoefficients();
+        updateCoefficients();
         return true;
     }
     return false;
 }
 
-void Filter::calculateCoefficients() {
-    float omega = 2.0f * M_PI * m_param[FILTER_FREQ] / m_samplerate;
-    float sin_omega = sin(omega);
-    float cos_omega = cos(omega);
+void Filter::updateCoefficients() {
+    float omega = 2.0f * M_PI * m_freq / m_samplerate;
+    float sin_omega = sinf(omega);
+    float cos_omega = cosf(omega);
+    float alpha = sin_omega / (2.0f * m_res);
 
-    float alpha = sin_omega / (2.0f * m_param[FILTER_RES]);
-
-    float b0 = (1.0f - cos_omega) / 2.0f;
-    float b1_ = 1.0f - cos_omega;
-    float b2 = (1.0f - cos_omega) / 2.0f;
-    float a0_ = 1.0f + alpha;
-    float a1_ = -2.0f * cos_omega;
-    float a2_ = 1.0f - alpha;
-
-    // normalize
-    a0 = b0 / a0_;
-    a1 = b1_ / a0_;
-    a2 = b2 / a0_;
-    b1 = a1_ / a0_;
-    b2 = a2_ / a0_;
+    float a0 = 1.0f + alpha;
+    b0 = ((1.0f - cos_omega) / 2.0f) / a0;
+    b1 = ((1.0f - cos_omega)) / a0;
+    b2 = b0;
+    a1 = (-2.0f * cos_omega) / a0;
+    a2 = (1.0f - alpha) / a0;
 }
 
 int Filter::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * inBuffer[NUM_FILTER];
-    jack_default_audio_sample_t * fcvBuffer[NUM_FILTER];
-    jack_default_audio_sample_t * rcvBuffer[NUM_FILTER];
-    jack_default_audio_sample_t * outBuffer[NUM_FILTER];
-    for (uint8_t i = 0; i < NUM_FILTER; ++i) {
-        inBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[i * 3], frames);
-        fcvBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[i * 3 + 1], frames);
-        rcvBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[i * 3 + 2], frames);
-        outBuffer[i] = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[i], frames);
+    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_FREQ], frames);
+    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_RES], frames);
+    if (m_freq != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_res) {
+        m_freq = std::clamp(freqBuffer[0] * 8000.0f, 20.0f , m_samplerate * 0.49f);
+        m_res = std::max(0.001f, resBuffer[0] * 10.0f);
+        updateCoefficients();
     }
-    for (jack_nframes_t i = 0; i < frames; ++i) {
-        for (uint8_t j = 0; j < NUM_FILTER; ++j) {
-            //!@todo implement filter DSP
-            outBuffer[j][i] = a0 * inBuffer[j][i] + a1 * x1 + a2 * x2
-            - b1 * y1 - b2 * y2;
-            // shift history
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][FILTER_PORT_INPUT], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][FILTER_PORT_OUTPUT], frames);
+        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            outBuffer[frame] = b0 * inBuffer[frame] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            // Shift the buffer
             x2 = x1;
-            x1 = inBuffer[j][i];
+            x1 = inBuffer[frame];
             y2 = y1;
-            y1 = outBuffer[j][i];
+            y1 = outBuffer[frame];
         }
     }
 
@@ -83,23 +70,34 @@ int Filter::process(jack_nframes_t frames) {
 }
 
 // Register this module as an available plugin
-
-ModuleInfo createFilterModuleInfo() {
-    ModuleInfo info;
-    info.type = "filter";
-    info.name = "Filter";
-    for (int i = 1; i <= NUM_FILTER; ++i) {
-        info.inputs.push_back("input" + std::to_string(i));
-        info.inputs.push_back("freq cv" + std::to_string(i));
-        info.inputs.push_back("res cv" + std::to_string(i));
-        info.outputs.push_back("output" + std::to_string(i));
-        info.params.push_back("freq" + std::to_string(i));
-        info.params.push_back("res" + std::to_string(i));
-        info.params.push_back("freq cv" + std::to_string(i));
-        info.params.push_back("res cv" + std::to_string(i));
-    }
-    return info;
-}
-
-static RegisterModule<Filter> reg_filt(createFilterModuleInfo());
-
+static RegisterModule<Filter> reg_filter(ModuleInfo({
+    //id
+    "filter",
+    //name
+    "Filter",
+    //inputs
+    {
+        "freq cv",
+        "res cv"
+    },
+    //polyphonic inputs
+    {
+        "input"
+    },
+    //outputs
+    {
+    },
+    //polyphonic outputs
+    {
+        "output"
+    },
+    //parameters
+    {
+        "freq",
+        "res",
+        "freq cv",
+        "res cv"
+    },
+    //MIDI
+    false // MIDI input disabled
+}));

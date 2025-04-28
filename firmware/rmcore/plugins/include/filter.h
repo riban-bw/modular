@@ -12,9 +12,11 @@
 #pragma once
 
 #include "node.h"
-#include <jack/jack.h>
 
-#define NUM_FILTER 1
+#define FILTER_PORT_INPUT  0
+#define FILTER_PORT_FREQ   0
+#define FILTER_PORT_RES    1
+#define FILTER_PORT_OUTPUT 0
 
 enum FILTER_PARAM {
     FILTER_FREQ     = 0,
@@ -40,12 +42,12 @@ class Filter : public Node {
         int process(jack_nframes_t frames);
 
     private:
-        void calculateCoefficients();
+        void updateCoefficients();
 
-        double m_gain[NUM_FILTER]; // Amplification
-        // Coefficients
-        float a0, a1, a2, b1, b2; 
-        // History
-        float x1 = 0.0f, x2 = 0.0f;
-        float y1 = 0.0f, y2 = 0.0f;
+        float m_freq = 8000.0f;
+        float m_res = 0.7f;
+        // Filter coefficients
+        float a1, a2, b0, b1, b2; 
+        // Delay buffers
+        float x1, x2, y1, y2;
 };
