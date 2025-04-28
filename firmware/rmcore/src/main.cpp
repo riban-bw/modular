@@ -38,6 +38,7 @@ const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
 jack_client_t* g_jackClient;
+uint32_t g_xruns = 0;
 
 /*  TODO
     Initialise display
@@ -114,10 +115,14 @@ bool parseCmdline(int argc, char** argv) {
                 break;
             case 'p': {
                 uint8_t poly = atoi(optarg);
-                if (poly > 0 && poly < MAX_POLY)
+                if (poly < 1) {
+                    g_poly = 1;
+                    info("Minimum polyphony is 1\n");
+                } else if (poly > MAX_POLY) {
+                    g_poly = MAX_POLY;
+                    info("Maximum polyphony is %u\n", MAX_POLY);
+                } else
                     g_poly = poly;
-                else
-                    error("Polyphony must be between 1..%u\n", MAX_POLY);
                 break;
             }
             case '?':
@@ -185,11 +190,9 @@ void restoreJackConnectionsFromFile(const std::string& filename) {
             jack_port_t* destination = jack_port_by_name(g_jackClient, destinationPort.c_str());
 
             // Check if the ports are valid
-            std::cout << "Attempting connection " << sourcePort << ".." << destinationPort << std::endl;
             if (source && destination) {
                 // Reconnect the ports
                 jack_connect(g_jackClient, sourcePort.c_str(), destinationPort.c_str());
-                std::cout << "Reconnected " << sourcePort << " -> " << destinationPort << std::endl;
             } else {
                 std::cerr << "Invalid port names: " << sourcePort << " or " << destinationPort << std::endl;
             }
@@ -205,6 +208,11 @@ void signalHandler(int signal) {
         saveJackConnectionsToFile("last_state.rmstate");
         std::exit(0);
     }
+}
+
+int handleJackXrun(void *arg) {
+    info("xrun %u\n", ++g_xruns);
+    return 0;
 }
 
 void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
@@ -230,8 +238,8 @@ int main(int argc, char** argv) {
     }
 
     jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
+    jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
     jack_activate(g_jackClient);
-
 
     uint32_t id;
 

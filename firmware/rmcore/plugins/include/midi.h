@@ -59,6 +59,7 @@ class Midi : public Node {
         std::vector<POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
         float m_portamento = 1.0; // Rate of change of CV
         float m_cc[NUM_MIDI_CC]; // CC values;
+        uint8_t m_ccBase = 21; // CC number of first CC input
         double m_pitchbend = 0.0; // Normalised pitch bend
         double m_pitchbendRange = 2; // Semitone range for pitch bend
 };

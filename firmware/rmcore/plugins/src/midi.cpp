@@ -142,9 +142,9 @@ int Midi::process(jack_nframes_t frames) {
                 break;
             case 0xb0:
                 // CC
-                if (midiEvent.buffer[1] < 1 || midiEvent.buffer[1] > NUM_MIDI_CC)
+                if (midiEvent.buffer[1] < m_ccBase || midiEvent.buffer[1] > m_ccBase + NUM_MIDI_CC)
                     continue;
-                m_cc[midiEvent.buffer[1] - 1] = (float)midiEvent.buffer[2] / 127;
+                m_cc[midiEvent.buffer[1] - m_ccBase] = (float)midiEvent.buffer[2] / 127;
                 break;
             case 0xe0:
                 // Pitch bend

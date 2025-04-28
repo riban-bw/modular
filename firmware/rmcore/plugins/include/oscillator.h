@@ -17,6 +17,7 @@
 #define OSC_PORT_OUT        0
 #define OSC_PORT_CV         0
 #define OSC_PORT_PWM        0
+#define OSC_PORT_WAVEFORM   1
 
 enum OSC_PARAM {
     OSC_PARAM_FREQ      = 0,

@@ -32,6 +32,7 @@ void Oscillator::init() {
 
 int Oscillator::process(jack_nframes_t frames) {
     jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[OSC_PORT_PWM], frames);
+    jack_default_audio_sample_t * waveformBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[OSC_PORT_WAVEFORM], frames);
     for(uint8_t poly = 0; poly < g_poly; ++poly) {
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][OSC_PORT_OUT], frames);
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][OSC_PORT_CV], frames);
@@ -45,12 +46,17 @@ int Oscillator::process(jack_nframes_t frames) {
                 targetStep = 0.001;
             m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);
 
-            double waveform = m_param[OSC_PARAM_WAVEFORM];
+            double waveform = m_param[OSC_PARAM_WAVEFORM] + waveformBuffer[frame] * 3;
             uint8_t baseWaveform = waveform;
             double waveform1 = double(baseWaveform + 1) - waveform;
-            double waveform2 = waveform - baseWaveform;
+            double waveform2 = waveform - double(baseWaveform);
             if (baseWaveform == WAVEFORM_SQU) {
-                if (m_waveformPos[poly] > m_wavetableSize / 2)
+                float pwm = pwmBuffer[frame];
+                if (pwm < 0.05)
+                    pwm = 0.05;
+                    if (pwm > 0.95)
+                    pwm = 0.95;
+                if (m_waveformPos[poly] > pwm * m_wavetableSize)
                     outBuffer[frame] = m_param[OSC_PARAM_AMP] * waveform1;
                 else
                     outBuffer[frame] = -m_param[OSC_PARAM_AMP] * waveform1;
@@ -58,7 +64,12 @@ int Oscillator::process(jack_nframes_t frames) {
                 outBuffer[frame] = waveform1 * WAVETABLE[baseWaveform][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
             }
             if (baseWaveform + 1 == WAVEFORM_SQU) {
-                if (m_waveformPos[poly] > m_wavetableSize / 2)
+                float pwm = pwmBuffer[frame];
+                if (pwm < 0.05)
+                    pwm = 0.05;
+                    if (pwm > 0.95)
+                    pwm = 0.95;
+                if (m_waveformPos[poly] > pwm * m_wavetableSize)
                     outBuffer[frame] += m_param[OSC_PARAM_AMP] * waveform2;
                 else
                     outBuffer[frame] += -m_param[OSC_PARAM_AMP] * waveform2;
@@ -82,7 +93,8 @@ static RegisterModule<Oscillator> reg_osc(ModuleInfo({
     "Oscillator",
     //inputs
     {
-        "pwm" // Pulse width (0..1) square wave only
+        "pwm", // Pulse width (0..1) square wave only
+        "waveform" // Normalised waveform selector / morph (0..3)
     },
     //polyphonic inputs
     {

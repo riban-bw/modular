@@ -14,9 +14,9 @@
 #include "node.h"
 #include <jack/jack.h>
 
-#define ENV_PORT_GATE  0
-#define ENV_PORT_GAIN  1
-#define ENV_PORT_OUT   0
+#define ENV_PORT_GATE   0
+#define ENV_PORT_GAIN   1
+#define ENV_PORT_OUT    0
 
 enum ENV_PARAM {
     ENV_PARAM_ATTACK     = 0,

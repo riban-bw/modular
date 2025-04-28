@@ -35,7 +35,7 @@ bool Envelope::setParam(uint32_t param, float val) {
             m_attackStep = 1.0  / (m_samplerate * val);
             break;
         case ENV_PARAM_DECAY:
-            m_attackStep = 1.0 / (m_samplerate * val);
+            m_decayStep = 1.0 / (m_samplerate * val);
             break;
         case ENV_PARAM_SUSTAIN:
             m_sustain = val;
