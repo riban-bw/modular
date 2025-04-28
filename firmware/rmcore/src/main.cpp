@@ -32,7 +32,7 @@ enum VERBOSE {
 uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
-uint8_t g_poly = 8; // Current polyphony
+uint8_t g_poly = 1; // Current polyphony
 
 /*  TODO
     Initialise display
@@ -132,17 +132,16 @@ int main(int argc, char** argv) {
     uint32_t id;
 
     ModuleManager& moduleManager = ModuleManager::get();
-    id = moduleManager.addModule("midi");
-    //moduleManager.setParam(id, 0, 1.0);
+    moduleManager.addModule("midi");
     id = moduleManager.addModule("osc");
-    moduleManager.setParam(id, 1, 3);
+    moduleManager.setParam(id, 0, -9.0); // Set LFO frequency
+    moduleManager.setParam(id, 1, 0); // Set LFO waveform
+    moduleManager.setParam(id, 3, 2); // Set LFO depth
     id = moduleManager.addModule("osc");
-    moduleManager.setParam(id, 0, -8.0);
-    moduleManager.setParam(id, 3, 0.2);
-    moduleManager.setParam(id, 1, 1);
+    moduleManager.setParam(id, 1, 0); // Set VCO waveform
     moduleManager.addModule("amp");
-    /*
     moduleManager.addModule("env");
+    /*
     moduleManager.addModule("filter");
     */
 
@@ -164,6 +163,20 @@ int main(int argc, char** argv) {
     }
     usart.txCmd(HOST_CMD_PNL_INFO);
 
+    double d = 0.0;
+    double dD = 0.01;
+    while(g_running) {
+        moduleManager.setParam(id, 1, d);
+        d+= dD;
+        if (d >=4.0) {
+            d = 4.0;
+            dD = -0.01;
+        } else if (d <= 0.0) {
+            d = 0.0;
+            dD = 0.01;
+        }
+        usleep(10000);
+    }
     // Main program loop
     while(g_running) {
         rxLen = usart.rx();

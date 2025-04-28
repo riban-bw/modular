@@ -33,6 +33,5 @@ uint32_t ModuleManager::addModule(const std::string& type) {
 }
 
 void ModuleManager::setParam(uint32_t module, uint32_t param, float value) {
-    fprintf(stderr, "MM: Set parameter %u to %f for module %d\n", param, value, module);
     m_modules[module]->setParam(param, value);
 }

@@ -27,6 +27,15 @@ enum MIDI_PARAM {
     MIDI_PARAM_POLYPHONY    = 3
 };
 
+struct POLY_OUTPUT {
+    uint8_t output = 0; // Poly output
+    uint8_t note = 0xff; // MIDI note
+    float cv = 0.0;
+    float targetCv = 0.0;
+    float velocity = 0.0;
+    float gate = 0.0;
+};
+
 class Midi : public Node {
 
     public:
@@ -44,12 +53,7 @@ class Midi : public Node {
         bool setParam(uint32_t param, float val);
 
     private:
-        uint8_t m_note[MAX_POLY]; // Array of currently playing MIDI notes
-        float m_cv[MAX_POLY]; // Array of current CVs per note
-        float m_targetCv[MAX_POLY]; // Array of target CVs per note
-        bool m_gate[MAX_POLY]; // Array of gates per note
-        float m_velocity[MAX_POLY]; // Array of velocitys per note
-        uint64_t m_heldNotesLow = 0; // Bit flags indicating MIDI notes pressed (0..63)
-        uint64_t m_heldNotesHigh = 0; // Bit flags indicating MIDI notes pressed (64..127)
+        POLY_OUTPUT m_outputValue[MAX_POLY]; // Array of output values
+        std::vector<POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
         float m_portamento = 1.0; // Rate of change of CV
 };

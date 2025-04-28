@@ -14,9 +14,9 @@
 #include "node.h"
 #include <jack/jack.h>
 
-#define OSC_PORT_OUT    0
-#define OSC_PORT_CV     0
-#define OSC_PORT_PWM    0
+#define OSC_PORT_OUT        0
+#define OSC_PORT_CV         0
+#define OSC_PORT_PWM        0
 
 enum OSC_PARAM {
     OSC_PARAM_FREQ      = 0,

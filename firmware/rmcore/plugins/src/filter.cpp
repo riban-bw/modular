@@ -34,7 +34,7 @@ bool Filter::setParam(uint32_t param, float val) {
 }
 
 void Filter::calculateCoefficients() {
-    float omega = 2.0f * M_PI * m_param[FILTER_FREQ] / SAMPLERATE;
+    float omega = 2.0f * M_PI * m_param[FILTER_FREQ] / m_samplerate;
     float sin_omega = sin(omega);
     float cos_omega = cos(omega);
 

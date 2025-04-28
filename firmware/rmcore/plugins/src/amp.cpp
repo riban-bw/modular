@@ -15,8 +15,6 @@
 
 #define CV_ALPHA 0.01
 
-extern uint8_t g_poly;
-
 void Amplifier::init() {
     setParam(AMP_PARAM_GAIN, 1.0);
 }
@@ -27,7 +25,7 @@ int Amplifier::process(jack_nframes_t frames) {
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][AMP_PORT_CV], frames);
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][AMP_PORT_OUTPUT], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            double targetGain = m_param[AMP_PARAM_GAIN] + cvBuffer[frame];
+            double targetGain = m_param[AMP_PARAM_GAIN] * cvBuffer[frame];
             m_gain[poly] += CV_ALPHA * (targetGain - m_gain[poly]);
             outBuffer[frame] = m_gain[poly] * inBuffer[frame];
         }

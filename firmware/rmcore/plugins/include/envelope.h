@@ -14,7 +14,24 @@
 #include "node.h"
 #include <jack/jack.h>
 
-#define NUM_ENV 2
+#define ENV_PORT_GATE  0
+#define ENV_PORT_GAIN  1
+#define ENV_PORT_OUT   0
+
+enum ENV_PARAM {
+    ENV_PARAM_ATTACK     = 0,
+    ENV_PARAM_DECAY      = 1,
+    ENV_PARAM_SUSTAIN    = 2,
+    ENV_PARAM_RELEASE    = 3
+};
+
+enum ENV_PHASE {
+    ENV_PHASE_IDLE      = 0,
+    ENV_PHASE_ATTACK    = 1,
+    ENV_PHASE_DECAY     = 2,
+    ENV_PHASE_SUSTAIN   = 3,
+    ENV_PHASE_RELEASE   = 4
+};
 
 class Envelope : public Node {
 
@@ -25,11 +42,19 @@ class Envelope : public Node {
         */
         void init();
 
+        bool setParam(uint32_t param, float val);
+
         /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period
         */
         int process(jack_nframes_t frames);
 
     private:
+        uint8_t m_phase[MAX_POLY]; // Current envelope phase (0:attack, 1:decay: 2:release)
+        double m_value[MAX_POLY]; // Current value of envelope
+        double m_attackStep; // Step change for each frame during attack phase
+        double m_decayStep; // Step change for each frame during attack phase
+        double m_sustain; // Sustain level
+        double m_releaseStep; // Step change for each frame during attack phase
 
 };

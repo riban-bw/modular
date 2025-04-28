@@ -14,7 +14,6 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
-extern uint8_t g_poly;
 
 void Node::_init(uint32_t id) {
     m_id = id;
@@ -66,6 +65,7 @@ void Node::_init(uint32_t id) {
             m_midiIn = port;
     }
     init(); // Call derived class initalisaton
+    jack_set_sample_rate_callback(m_jackClient, samplerateStatic, this);
     jack_set_process_callback(m_jackClient, processStatic, this);
     jack_activate(m_jackClient);
 }
@@ -88,7 +88,12 @@ bool Node::setParam(uint32_t param, float val) {
     if (param >= m_param.size())
         return false;
     m_param[param] = val;
-    fprintf(stderr, "Node: Set parameter %u to %f\n", param, val);
     return true;
 }
 
+int Node::samplerateChange(jack_nframes_t samplerate) {
+    if (samplerate ==0)
+        return -1;
+    m_samplerate = samplerate;
+    return 0;
+}

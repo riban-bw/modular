@@ -17,6 +17,8 @@
 #include <jack/jack.h>
 #include <string>
 
+extern uint8_t g_poly;
+
 struct ModuleInfo {
     std::string type; //!@todo This be the module UID?
     std::string name;
@@ -72,6 +74,8 @@ class Node {
         */
         bool setParam(uint32_t param, float val);
 
+        int samplerateChange(jack_nframes_t samplerate);
+
     protected:
         uint32_t m_id; // UID of the instance of this module node
         struct ModuleInfo m_info; // Node info
@@ -82,8 +86,14 @@ class Node {
         std::vector<jack_port_t*> m_polyOutput[MAX_POLY]; // Array of vector of polyphonic output ports
         std::vector<float> m_param; // Vector of parameter values
         jack_port_t* m_midiIn = nullptr; // MIDI input port
+        jack_nframes_t m_samplerate = SAMPLERATE; // jack samplerate
 
     private:
+};
+
+static int samplerateStatic(jack_nframes_t frames, void* arg) {
+    Node* self = static_cast<Node*>(arg);
+    return self->samplerateChange(frames);
 };
 
 static int processStatic(jack_nframes_t frames, void* arg) {

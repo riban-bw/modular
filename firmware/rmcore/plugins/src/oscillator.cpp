@@ -18,8 +18,6 @@
 
 #define CV_ALPHA 0.01
 
-extern uint8_t g_poly;
-
 void Oscillator::init() {
     m_wavetableSize = sizeof(WAVETABLE[0]) / sizeof(float);
     for (uint8_t poly = 0; poly < g_poly; ++poly) {
@@ -37,38 +35,40 @@ int Oscillator::process(jack_nframes_t frames) {
     for(uint8_t poly = 0; poly < g_poly; ++poly) {
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][OSC_PORT_OUT], frames);
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][OSC_PORT_CV], frames);
-        if (m_param[OSC_PARAM_WAVEFORM] == WAVEFORM_SQU) {
-            while (m_waveformPos[poly] >= 1.0)
-                m_waveformPos[poly] -= 1.0;
-            for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-                double freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[OSC_PARAM_FREQ]));
-                double targetStep = freq / SAMPLERATE;
-                m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);
-                if (targetStep < 0.001)
-                    targetStep = 0.001;
-                if (m_waveformPos[poly] < m_param[OSC_PARAM_PWM] + pwmBuffer[frame])
-                    outBuffer[frame] = -m_param[OSC_PARAM_AMP];
+        
+        while (m_waveformPos[poly] >= m_wavetableSize)
+            m_waveformPos[poly] -= m_wavetableSize;
+        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            double freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[OSC_PARAM_FREQ]));
+            double targetStep = freq / WAVETABLE_FREQ;
+            if (targetStep < 0.001)
+                targetStep = 0.001;
+            m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);
+
+            double waveform = m_param[OSC_PARAM_WAVEFORM];
+            uint8_t baseWaveform = waveform;
+            double waveform1 = double(baseWaveform + 1) - waveform;
+            double waveform2 = waveform - baseWaveform;
+            if (baseWaveform == WAVEFORM_SQU) {
+                if (m_waveformPos[poly] > m_wavetableSize / 2)
+                    outBuffer[frame] = m_param[OSC_PARAM_AMP] * waveform1;
                 else
-                    outBuffer[frame] = m_param[OSC_PARAM_AMP];
-                    m_waveformPos[poly] += m_waveformStep[poly];
-                if (m_waveformPos[poly] > 1.0)
-                m_waveformPos[poly] -= 1.0;
+                    outBuffer[frame] = -m_param[OSC_PARAM_AMP] * waveform1;
+            } else {
+                outBuffer[frame] = waveform1 * WAVETABLE[baseWaveform][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
             }
-        } else {
-            // Reset pos
-            while (m_waveformPos[poly] >= m_wavetableSize)
+            if (baseWaveform + 1 == WAVEFORM_SQU) {
+                if (m_waveformPos[poly] > m_wavetableSize / 2)
+                    outBuffer[frame] += m_param[OSC_PARAM_AMP] * waveform2;
+                else
+                    outBuffer[frame] += -m_param[OSC_PARAM_AMP] * waveform2;
+            } else {
+                outBuffer[frame] += waveform2 * WAVETABLE[baseWaveform + 1][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
+            }
+            m_waveformPos[poly] += m_waveformStep[poly];
+
+            if (m_waveformPos[poly] >= m_wavetableSize)
                 m_waveformPos[poly] -= m_wavetableSize;
-            for (jack_nframes_t i = 0; i < frames; ++i) {
-                double freq = 261.63 * (std::pow(2.0f, cvBuffer[i] + m_param[OSC_PARAM_FREQ]));
-                double targetStep = freq / WAVETABLE_FREQ;
-                if (targetStep < 0.001)
-                    targetStep = 0.001;
-                m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);
-                outBuffer[i] = WAVETABLE[(uint32_t)m_param[OSC_PARAM_WAVEFORM]][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
-                m_waveformPos[poly] += m_waveformStep[poly];
-                if (m_waveformPos[poly] >= m_wavetableSize)
-                    m_waveformPos[poly] -= m_wavetableSize;
-            }
         }
     }
     return 0;
@@ -76,12 +76,32 @@ int Oscillator::process(jack_nframes_t frames) {
 
 // Register this module as an available plugin
 static RegisterModule<Oscillator> reg_osc(ModuleInfo({
-    "osc",                                          // id
-    "Oscillator",                                   // name
-    {"pwm"},                                        // inputs
-    {"frequency"},                                  // poly inputs
-    {},                                             // outputs
-    {"out"},                                        // poly outputs
-    {"frequency", "waveform", "pwm", "amplitude"},  // params
-    false                                           // MIDI
+    //id
+    "osc",
+    //name
+    "Oscillator",
+    //inputs
+    {
+        "pwm" // Pulse width (0..1) square wave only
+    },
+    //polyphonic inputs
+    {
+        "frequency" // Oscillator frequency CV in octaves 0=C4 (261.63Hz). 
+    },
+    //outputs
+    {
+    },
+    //polyphonic outputs
+    {
+        "out" // Audio output
+    },
+    //parameters
+    {
+        "frequency", // Frequency in octaves 0=C4 (261.63Hz)
+        "waveform", // Morphing waveform selection (0:sin, 1:tri, 2:saw 3:square, 4:noise)
+        "pwm", // Pulse width (0..1) square wave only
+        "amplitude" // Output level (normalised 1=unitiy gain)
+    },
+    //MIDI
+    false // MIDI input disabled
 }));
