@@ -17,10 +17,14 @@
 #include <cstdio> // Provides printf
 #include <getopt.h> // Provides getopt_long for command line parsing
 #include <unistd.h> // Provides usleep
-#include <jack/jack.h>
+#include <jack/jack.h> // Provides jack client
 #include <map>
 #include <stdarg.h> // Provides varg
 #include <stdlib.h> // Provides atoi
+#include <csignal> // Provides signal
+#include <fstream> // Provies ofstream for saving files
+#include <iostream> // Provides stream operations like <<
+#include <sstream>
 
 enum VERBOSE {
     VERBOSE_SILENT  = 0,
@@ -33,6 +37,7 @@ uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
+jack_client_t* g_jackClient;
 
 /*  TODO
     Initialise display
@@ -123,12 +128,111 @@ bool parseCmdline(int argc, char** argv) {
     return false;
 }
 
+
+// Function to save all the Jack connections to a file
+void saveJackConnectionsToFile(const std::string& filename) {
+    // Open a file for writing the connections
+    std::ofstream outFile(filename);
+
+    // Get all the audio ports (input and output)
+    const char **audio_ports = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
+    // Get all the MIDI ports (input and output)
+    const char **midi_ports = jack_get_ports(g_jackClient, NULL, "midi", JackPortIsOutput);
+    // Combine both audio and MIDI ports into one list
+    std::vector<const char*> all_ports;    
+    for (int i = 0; audio_ports[i] != NULL; ++i) {
+        all_ports.push_back(audio_ports[i]);
+    }
+    for (int i = 0; midi_ports[i] != NULL; ++i) {
+        all_ports.push_back(midi_ports[i]);
+    }
+    // Iterate over the ports and check connections
+    for (const auto& portName : all_ports) {
+        // Get the list of connected ports to this port
+        const char** connected_ports = jack_port_get_connections(jack_port_by_name(g_jackClient, portName));
+        if (connected_ports == NULL)
+            continue;
+        for (int j = 0; connected_ports[j] != NULL; ++j) {
+            // Write the connected port pair to the file
+            outFile << portName << "," << connected_ports[j] << std::endl;
+        }
+    }
+    std::cout << "Got here" << std::endl;
+
+    // Close the file after writing
+    outFile.close();
+    std::cout << "Connections saved to " << filename << std::endl;
+}
+
+// Function to reload and restore Jack connections from a file
+void restoreJackConnectionsFromFile(const std::string& filename) {
+    std::ifstream inFile(filename);    
+    if (!inFile.is_open()) {
+        std::cerr << "Error opening file for reading!" << std::endl;
+        return;
+    }
+    std::string line;
+    while (std::getline(inFile, line)) {
+        std::stringstream ss(line);
+        std::string sourcePort;
+        std::string destinationPort;
+        
+        // Parse the line in the format: "sourcePort -> destinationPort"
+        if (std::getline(ss, sourcePort, ',') && std::getline(ss, destinationPort)) {
+            
+            // Get the source and destination Jack ports
+            jack_port_t* source = jack_port_by_name(g_jackClient, sourcePort.c_str());
+            jack_port_t* destination = jack_port_by_name(g_jackClient, destinationPort.c_str());
+
+            // Check if the ports are valid
+            std::cout << "Attempting connection " << sourcePort << ".." << destinationPort << std::endl;
+            if (source && destination) {
+                // Reconnect the ports
+                jack_connect(g_jackClient, sourcePort.c_str(), destinationPort.c_str());
+                std::cout << "Reconnected " << sourcePort << " -> " << destinationPort << std::endl;
+            } else {
+                std::cerr << "Invalid port names: " << sourcePort << " or " << destinationPort << std::endl;
+            }
+        }
+    }
+
+    inFile.close();
+    std::cout << "Connections restored from " << filename << std::endl;
+}
+
+void signalHandler(int signal) {
+    if (signal == SIGINT) {
+        saveJackConnectionsToFile("last_state.rmstate");
+        std::exit(0);
+    }
+}
+
+void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
+    jack_port_t* portA = jack_port_by_id(g_jackClient, a);
+    jack_port_t* portB = jack_port_by_id(g_jackClient, b);
+    if (portA && portB)
+        info("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portA));
+}
+
 int main(int argc, char** argv) {
+    std::signal(SIGINT, signalHandler);
     if(parseCmdline(argc, argv)) {
         // Error parsing command line
         return -1;
     }
     info("Starting riban modular core with polyphony %u...\n", g_poly);
+
+    char* serverName = nullptr;
+    g_jackClient = jack_client_open("rmcore", JackNoStartServer, 0, serverName);
+    if (!g_jackClient) {
+        error("Failed to open JACK client\n");
+        std::exit(-1);
+    }
+
+    jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
+    jack_activate(g_jackClient);
+
+
     uint32_t id;
 
     ModuleManager& moduleManager = ModuleManager::get();
@@ -144,6 +248,8 @@ int main(int argc, char** argv) {
     /*
     moduleManager.addModule("filter");
     */
+
+    restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo
         Start background panel detection
@@ -163,20 +269,6 @@ int main(int argc, char** argv) {
     }
     usart.txCmd(HOST_CMD_PNL_INFO);
 
-    double d = 0.0;
-    double dD = 0.01;
-    while(g_running) {
-        moduleManager.setParam(id, 1, d);
-        d+= dD;
-        if (d >=4.0) {
-            d = 4.0;
-            dD = -0.01;
-        } else if (d <= 0.0) {
-            d = 0.0;
-            dD = 0.01;
-        }
-        usleep(10000);
-    }
     // Main program loop
     while(g_running) {
         rxLen = usart.rx();

@@ -139,6 +139,17 @@ int Midi::process(jack_nframes_t frames) {
                     //!@todo May want different behaviour based on legato
                     m_outputValue[nextPoly].gate = 0.0;
                 }
+                break;
+            case 0xb0:
+                // CC
+                if (midiEvent.buffer[1] < 1 || midiEvent.buffer[1] > NUM_MIDI_CC)
+                    continue;
+                m_cc[midiEvent.buffer[1] - 1] = (float)midiEvent.buffer[2] / 127;
+                break;
+            case 0xe0:
+                // Pitch bend
+                m_pitchbend = m_pitchbendRange / 12 * double(midiEvent.buffer[1] + (midiEvent.buffer[2] << 7) - 0x2000) / 0x2000;
+                break;
         }
     }
     for (uint8_t poly = 0; poly < g_poly; ++poly) {
@@ -147,24 +158,55 @@ int Midi::process(jack_nframes_t frames) {
         jack_default_audio_sample_t * velBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_VEL], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             m_outputValue[poly].cv += m_portamento * (m_outputValue[poly].targetCv - m_outputValue[poly].cv);
-            cvBuffer[frame] = m_outputValue[poly].cv;
+            cvBuffer[frame] = m_outputValue[poly].cv + m_pitchbend;
             gateBuffer[frame] = m_outputValue[poly].gate;
             velBuffer[frame] = m_outputValue[poly].velocity;
+        }
+    }
+    for (uint8_t cc = 0; cc < NUM_MIDI_CC; ++cc) {
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[cc], frames);
+        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            cvBuffer[frame] = m_cc[cc];
         }
     }
     return 0;
 }
 
-ModuleInfo createMidiModuleInfo() {
-    ModuleInfo info;
-    info.type = "midi";
-    info.name = "MIDI Input";
-    info.polyOutputs.push_back("cv");
-    info.polyOutputs.push_back("gate");
-    info.polyOutputs.push_back("vel");
-    info.params = {"portamento", "legato", "channel"};
-    info.midi = true;
-    return info;
-}
 // Register this module as an available plugin
-static RegisterModule<Midi> reg_midi(createMidiModuleInfo());
+static RegisterModule<Midi> rereg_midig_osc(ModuleInfo({
+    //id
+    "midi",
+    //name
+    "MIDI2CV",
+    //inputs
+    {
+    },
+    //polyphonic inputs
+    {
+    },
+    //outputs
+    {
+        "cc1",
+        "cc2",
+        "cc3",
+        "cc4",
+        "cc5",
+        "cc6",
+        "cc7",
+        "cc8"
+    },
+    //polyphonic outputs
+    {
+        "freq",
+        "gate",
+        "velocity"
+    },
+    //parameters
+    {
+        "portamento",
+        "legato",
+        "channel"
+    },
+    //MIDI
+    true // MIDI input enabled
+}));

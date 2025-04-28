@@ -14,6 +14,8 @@
 #include "node.h"
 #include <jack/jack.h>
 
+#define NUM_MIDI_CC 8
+
 enum MIDI_PORT {
     MIDI_PORT_CV        = 0,
     MIDI_PORT_GATE      = 1,
@@ -56,4 +58,7 @@ class Midi : public Node {
         POLY_OUTPUT m_outputValue[MAX_POLY]; // Array of output values
         std::vector<POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
         float m_portamento = 1.0; // Rate of change of CV
+        float m_cc[NUM_MIDI_CC]; // CC values;
+        double m_pitchbend = 0.0; // Normalised pitch bend
+        double m_pitchbendRange = 2; // Semitone range for pitch bend
 };
