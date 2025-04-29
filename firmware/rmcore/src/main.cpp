@@ -49,7 +49,8 @@ const std::string g_panelTypes [] = {
     "filter",
     "noise",
     "mixer",
-    "random"
+    "random",
+    "sequencer"
 };
 
 /*  TODO
@@ -297,6 +298,7 @@ int main(int argc, char** argv) {
     addPanel(7, 0x01234567, 0x89abcdef, 0x11110000); // Noise
     moduleManager.addModule("mixer", "mixer");
     moduleManager.addModule("random", "SH");
+    moduleManager.addModule("sequencer", "Step");
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo
