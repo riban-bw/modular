@@ -143,9 +143,4 @@ enum CAN_FILTER_MASK {
 
 #define CAN_MASK_PANEL_ID 0b11111
 
-// Modules
-enum MODULE_TYPE {
-    MODULE_AUDIO_OUT,
-    MODULE_OSC
-};
 #endif  // GLOBAL_H

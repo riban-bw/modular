@@ -35,22 +35,24 @@ class ModuleManager {
 
         /** @brief  Add a module to the graph
             @param  type Module type
-            @retval uint32_t Module id
-        */
-        uint32_t addModule(const std::string& type);
-
-        /** @brief  Remove a module from the graph
-            @param  id Module id
+            @param  uuid Module UUID
             @retval bool True on success
         */
-        bool removeModule(uint32_t type);
+        bool addModule(const std::string& type, const std::string& uuid);
+
+        /** @brief  Remove a module from the graph
+            @param  type Module type
+            @param  uuid UUID of the panel/module
+            @retval bool True on success
+        */
+        bool removeModule(std::string uuid);
 
         /** @brief  Set value of a module parameter 
             @param  module  Index of module
             @param  param   Index of parameter
             @param  value   Normalised value
         */
-        void setParam(uint32_t module, uint32_t param, float value);
+        void setParam(const std::string& uuid, uint32_t param, float value);
 
     private:
         struct NodeConfig {
@@ -60,8 +62,7 @@ class ModuleManager {
 
         std::map<std::string, std::pair<Creator, ModuleInfo>> m_creators;
         //std::map<std::string, NodeConfig> m_creators; // Map of classes derived from Node, indexed by type
-        std::map<uint32_t, std::unique_ptr<Node>> m_modules; // Map of module pointers, indexed by id
-        uint32_t m_nextId = 0; // Next available node id
+        std::map<std::string, std::unique_ptr<Node>> m_modules; // Map of module pointers, indexed by uuid
 };
 
 // Register derived class with its type string

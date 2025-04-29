@@ -20,18 +20,20 @@ void ModuleManager::registerModule(const ModuleInfo& info, Creator creator) {
     m_creators[info.type] = {std::move(creator), info};
 }
 
-uint32_t ModuleManager::addModule(const std::string& type) {
+bool ModuleManager::addModule(const std::string& type, const std::string& uuid) {
+    if (m_modules.find(uuid) != m_modules.end())
+        return false;
     auto it = m_creators.find(type);
     if (it == m_creators.end())
-        return -1;
+        return false;
     auto& [creator, info] = it->second;
-    m_modules[m_nextId] = creator();
-    m_modules[m_nextId]->_init(m_nextId);
-    fprintf(stderr, "Added module '%s' (%s) with id %u. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
-        type.c_str(), info.name.c_str(), m_nextId, info.inputs.size(), info.polyInputs.size(), info.outputs.size(), info.polyOutputs.size(), info.params.size());
-    return m_nextId++;
+    m_modules[uuid] = creator();
+    m_modules[uuid]->_init(uuid);
+    fprintf(stderr, "Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
+        type.c_str(), info.name.c_str(), uuid.c_str(), info.inputs.size(), info.polyInputs.size(), info.outputs.size(), info.polyOutputs.size(), info.params.size());
+    return true;
 }
 
-void ModuleManager::setParam(uint32_t module, uint32_t param, float value) {
-    m_modules[module]->setParam(param, value);
+void ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {
+    m_modules[uuid]->setParam(param, value);
 }

@@ -6,26 +6,26 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Filter class header.
+    Biquad 2nd order low-pass filter class header.
 */
 
 #pragma once
 
 #include "node.h"
 
-#define FILTER_PORT_INPUT  0
-#define FILTER_PORT_FREQ   0
-#define FILTER_PORT_RES    1
-#define FILTER_PORT_OUTPUT 0
+#define LPF_PORT_INPUT  0
+#define LPF_PORT_FREQ   0
+#define LPF_PORT_RES    1
+#define LPF_PORT_OUTPUT 0
 
-enum FILTER_PARAM {
-    FILTER_FREQ     = 0,
-    FILTER_RES      = 1,
+enum LPF_PARAM {
+    LPF_FREQ     = 0,
+    LPF_RES      = 1,
     FLTER_FREQ_CV   = 2,
     FLTER_RES_CV    = 3
 };
 
-class Filter : public Node {
+class LPF : public Node {
 
     public:
     using Node::Node;  // Inherit Node's constructor
@@ -44,10 +44,10 @@ class Filter : public Node {
     private:
         void updateCoefficients();
 
-        float m_freq = 8000.0f;
+        float m_cutoff = 8000.0f;
         float m_res = 0.7f;
         // Filter coefficients
-        float a1, a2, b0, b1, b2; 
+        double a1, a2, b0, b1; 
         // Delay buffers
-        float x1, x2, y1, y2;
+        double x1, x2, y1, y2;
 };

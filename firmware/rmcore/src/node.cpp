@@ -14,10 +14,13 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
+Node::~Node() {
+    if (m_jackClient)
+        if(jack_client_close(m_jackClient))
+            fprintf(stderr, "Failed closing jack client\n");
+}
 
-void Node::_init(uint32_t id) {
-    m_id = id;
-
+void Node::_init(const std::string& uuid) {
     // Register with Jack server
     char* serverName = nullptr;
     char nameBuffer[128];
@@ -25,7 +28,7 @@ void Node::_init(uint32_t id) {
     jack_options_t options = JackNoStartServer;
     jack_port_t* port;
 
-    sprintf(nameBuffer, "%s %u", m_info.name.c_str(), m_id);
+    sprintf(nameBuffer, "%s %s", m_info.name.c_str(), uuid.c_str());
     m_jackClient = jack_client_open(nameBuffer, options, &status, serverName);
     if (!m_jackClient) {
         fprintf(stderr, "Failed to open JACK client\n");

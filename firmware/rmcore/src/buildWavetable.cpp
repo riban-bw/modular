@@ -17,7 +17,7 @@
 
 #define SAMPLERATE 48000
 #define PI 3.141592653589793238462643383279502884L
-#define WAVETABLE_FREQ 20
+#define WAVETABLE_FREQ 1
 #define WAVETABLE_SIZE SAMPLERATE / WAVETABLE_FREQ
 
 int main() {
@@ -30,7 +30,7 @@ int main() {
         WAVEFORM_TRI    = 1,
         WAVEFORM_SAW    = 2,
         WAVEFORM_SQU    = 3,
-        WAVEFORM_NOISE  = 4,
+        WAVEFORM_END    = 4
     };
     
     // Sine
@@ -66,12 +66,6 @@ int main() {
         wavetable[WAVEFORM_SQU][i] = 1.0;
     }
 
-    // Noise
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    for (uint32_t i = 0; i < WAVETABLE_SIZE; ++i) {
-        wavetable[WAVEFORM_NOISE][i] = 2.0f * static_cast<float>(std::rand()) / RAND_MAX - 1.0f;
-    }
-
     std::ofstream file("wavetable.h");
     file << "/*  riban modular\n";
     file << "    Copyright 2023-2025 riban ltd <info@riban.co.uk>\n\n";
@@ -83,7 +77,7 @@ int main() {
 
     file << "const static float WAVETABLE_FREQ = " << WAVETABLE_FREQ << ";\n";
     file << "const float WAVETABLE[5][" << WAVETABLE_SIZE << "] = {\n";
-    for (uint8_t i = 0; i < 5; ++i) {
+    for (uint8_t i = 0; i < WAVEFORM_END; ++i) {
         file << "{";
         for (uint32_t j = 0; j < WAVETABLE_SIZE; ++j) {
             file << wavetable[i][j] << ",";

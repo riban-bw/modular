@@ -18,13 +18,14 @@
 #include <getopt.h> // Provides getopt_long for command line parsing
 #include <unistd.h> // Provides usleep
 #include <jack/jack.h> // Provides jack client
-#include <map>
+#include <map> // Provides std::map
 #include <stdarg.h> // Provides varg
 #include <stdlib.h> // Provides atoi
 #include <csignal> // Provides signal
 #include <fstream> // Provies ofstream for saving files
 #include <iostream> // Provides stream operations like <<
-#include <sstream>
+#include <string> // Provides std::string
+#include <iomanip> // Provides std::setw
 
 enum VERBOSE {
     VERBOSE_SILENT  = 0,
@@ -39,6 +40,18 @@ bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
 jack_client_t* g_jackClient;
 uint32_t g_xruns = 0;
+
+// Map panel type to module type
+const std::string g_panelTypes [] = {
+    "generic",
+    "brain",
+    "midi",
+    "oscillator",
+    "amp",
+    "envelope",
+    "lpf",
+    "noise"
+};
 
 /*  TODO
     Initialise display
@@ -133,7 +146,6 @@ bool parseCmdline(int argc, char** argv) {
     return false;
 }
 
-
 // Function to save all the Jack connections to a file
 void saveJackConnectionsToFile(const std::string& filename) {
     // Open a file for writing the connections
@@ -221,6 +233,42 @@ void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *ar
         info("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portA));
 }
 
+// Create uuid from uint32_t - fixed 24 char width
+std::string toHex96(uint32_t high, uint32_t mid, uint32_t low) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    ss << std::setw(8) << high;
+    ss << std::setw(8) << mid;
+    ss << std::setw(8) << low;
+    return ss.str();
+}
+
+// Create uuid from uint32_t - variable (up to 24) char width
+std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
+    std::stringstream ss;
+    ss << std::hex; // hex output, no fixed width
+    if (high != 0) {
+        ss << high;
+        ss << std::setw(8) << std::setfill('0') << mid;
+        ss << std::setw(8) << std::setfill('0') << low;
+    }
+    else if (mid != 0) {
+        ss << mid;
+        ss << std::setw(8) << std::setfill('0') << low;
+    }
+    else {
+        ss << low;
+    }
+    return ss.str();
+}
+
+bool addPanel(uint32_t type, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
+    if (type >= sizeof(g_panelTypes))
+        return false;
+    std::string uuid = toHex96(uuid0, uuid1, uuid2);
+    return ModuleManager::get().addModule(g_panelTypes[type], uuid);
+}
+
 int main(int argc, char** argv) {
     std::signal(SIGINT, signalHandler);
     if(parseCmdline(argc, argv)) {
@@ -240,21 +288,22 @@ int main(int argc, char** argv) {
     jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
     jack_activate(g_jackClient);
 
-    uint32_t id;
 
     ModuleManager& moduleManager = ModuleManager::get();
-    moduleManager.addModule("midi");
-    id = moduleManager.addModule("osc");
-    moduleManager.setParam(id, 0, -9.0); // Set LFO frequency
-    moduleManager.setParam(id, 1, 0); // Set LFO waveform
-    moduleManager.setParam(id, 3, 2); // Set LFO depth
-    id = moduleManager.addModule("osc");
-    moduleManager.setParam(id, 1, 0); // Set VCO waveform
-    moduleManager.addModule("amp");
-    moduleManager.addModule("env");
-    uint32_t noise = moduleManager.addModule("noise");
-    moduleManager.setParam(noise, 0, 0.1);
-    moduleManager.addModule("filter");
+    addPanel(2, 0xffff, 0xffff, 0xffff);
+    //moduleManager.addModule("midi", "midi");
+    moduleManager.addModule("osc", "lfo");
+    moduleManager.setParam("lfo", 0, -9.0); // Set LFO frequency
+    moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
+    moduleManager.setParam("lfo", 3, 2); // Set LFO depth
+    moduleManager.addModule("osc", "vco");
+    moduleManager.setParam("vco", 1, 0); // Set VCO waveform
+    moduleManager.addModule("amp", "vca");
+    moduleManager.addModule("env", "eg");
+    moduleManager.addModule("noise", "noise");
+    moduleManager.setParam("noise", 0, 0.1);
+    moduleManager.addModule("lpf", "vcf");
+    addPanel(7, 0x01234567, 0x89abcdef, 0x11110000);
 
     restoreJackConnectionsFromFile("last_state.rmstate");
 

@@ -6,7 +6,7 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Filter class implementation.
+    Biquad 2nd order low-pass filter class implementation.
 */
 
 #include "filter.h"
@@ -16,14 +16,14 @@
 
 #define CV_ALPHA 0.01
 
-void Filter::init() {
+void LPF::init() {
     x1 = x2 = y1 = y2 = 0.0f;
-    setParam(FILTER_FREQ, 8000.0f);
-    setParam(FILTER_RES, 0.7f);
+    setParam(LPF_FREQ, 8000.0f);
+    setParam(LPF_RES, 0.7f);
     updateCoefficients();
 }
 
-bool Filter::setParam(uint32_t param, float val) {
+bool LPF::setParam(uint32_t param, float val) {
     if (Node::setParam(param, val)) {
         updateCoefficients();
         return true;
@@ -31,34 +31,33 @@ bool Filter::setParam(uint32_t param, float val) {
     return false;
 }
 
-void Filter::updateCoefficients() {
-    float omega = 2.0f * M_PI * m_freq / m_samplerate;
-    float sin_omega = sinf(omega);
-    float cos_omega = cosf(omega);
-    float alpha = sin_omega / (2.0f * m_res);
+void LPF::updateCoefficients() {
+    double omega = 2.0 * M_PI * double(m_cutoff / m_samplerate);
+    double cos_omega = cosf(omega);
+    double alpha = sinf(omega) / (2.0 * m_res);
 
-    float a0 = 1.0f + alpha;
+    double a0 = 1.0 + alpha;
+
     b0 = ((1.0f - cos_omega) / 2.0f) / a0;
     b1 = ((1.0f - cos_omega)) / a0;
-    b2 = b0;
     a1 = (-2.0f * cos_omega) / a0;
     a2 = (1.0f - alpha) / a0;
 }
 
-int Filter::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_FREQ], frames);
-    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_RES], frames);
-    if (m_freq != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_res) {
-        m_freq = std::clamp(freqBuffer[0] * 8000.0f, 20.0f , m_samplerate * 0.49f);
+int LPF::process(jack_nframes_t frames) {
+    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[LPF_PORT_FREQ], frames);
+    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[LPF_PORT_RES], frames);
+    if (m_cutoff != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_res) {
+        m_cutoff = std::clamp(freqBuffer[0] * 8000.0f, 20.0f , m_samplerate * 0.49f);
         m_res = std::max(0.001f, resBuffer[0] * 10.0f);
         updateCoefficients();
     }
     for (uint8_t poly = 0; poly < g_poly; ++poly) {
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][FILTER_PORT_INPUT], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][FILTER_PORT_OUTPUT], frames);
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][LPF_PORT_INPUT], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][LPF_PORT_OUTPUT], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            outBuffer[frame] = b0 * inBuffer[frame] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-            // Shift the buffer
+            outBuffer[frame] = b0 * inBuffer[frame] + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+            // Shift the delay buffer
             x2 = x1;
             x1 = inBuffer[frame];
             y2 = y1;
@@ -70,11 +69,11 @@ int Filter::process(jack_nframes_t frames) {
 }
 
 // Register this module as an available plugin
-static RegisterModule<Filter> reg_filter(ModuleInfo({
+static RegisterModule<LPF> reg_filter(ModuleInfo({
     //id
-    "filter",
+    "lpf",
     //name
-    "Filter",
+    "LP VCF",
     //inputs
     {
         "freq cv",

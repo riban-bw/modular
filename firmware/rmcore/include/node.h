@@ -39,11 +39,11 @@ class Node {
         Node(const ModuleInfo& info)
             : m_info(info) {};
 
-        virtual ~Node() = default;
+        virtual ~Node();
 
         /** @brief  Initialise a node object
         */
-        void _init(uint32_t id);
+        void _init(const std::string& uuid);
         
         virtual void init() {};
 
@@ -77,7 +77,6 @@ class Node {
         int samplerateChange(jack_nframes_t samplerate);
 
     protected:
-        uint32_t m_id; // UID of the instance of this module node
         struct ModuleInfo m_info; // Node info
         jack_client_t* m_jackClient;
         std::vector<jack_port_t*> m_input; // Vector of input ports
