@@ -125,6 +125,8 @@ int FILTER::process(jack_nframes_t frames) {
     jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_FREQ], frames);
     jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_RES], frames);
     if (m_cutoff != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_resonance) {
+        //!@todo Smooth adjustment of cutoff & resonance
+        //!@todo Add log scale
         m_cutoff = std::clamp(freqBuffer[0] * 8000.0f, 20.0f , m_samplerate * 0.49f);
         m_resonance = std::max(0.01f, resBuffer[0] * 10.0f);
         updateCoefficients();

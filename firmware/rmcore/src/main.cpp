@@ -48,7 +48,8 @@ const std::string g_panelTypes [] = {
     "envelope",
     "filter",
     "noise",
-    "mixer"
+    "mixer",
+    "random"
 };
 
 /*  TODO
@@ -283,7 +284,7 @@ int main(int argc, char** argv) {
     addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
     //moduleManager.addModule("midi", "midi");
     moduleManager.addModule("osc", "lfo");
-    moduleManager.setParam("lfo", 0, -9.0); // Set LFO frequency
+    moduleManager.setParam("lfo", 0, -6.0); // Set LFO frequency
     moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
     moduleManager.setParam("lfo", 3, 2); // Set LFO depth
     moduleManager.addModule("osc", "vco");
@@ -295,6 +296,7 @@ int main(int argc, char** argv) {
     moduleManager.addModule("filter", "vcf");
     addPanel(7, 0x01234567, 0x89abcdef, 0x11110000); // Noise
     moduleManager.addModule("mixer", "mixer");
+    moduleManager.addModule("random", "SH");
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo
