@@ -6,38 +6,20 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Amplifier class header.
+    Utility helper functions header.
 */
 
 #pragma once
 
-#include "module.h"
-#include <jack/jack.h>
-
-#define AMP_PORT_INPUT 0
-#define AMP_PORT_CV 1
-#define AMP_PORT_OUTPUT 0
-
-enum AMP_PARAM {
-    AMP_PARAM_GAIN   = 0
+enum VERBOSE {
+    VERBOSE_SILENT  = 0,
+    VERBOSE_ERROR   = 1,
+    VERBOSE_INFO    = 2,
+    VERBOSE_DEBUG   = 3
 };
 
+void debug(const char *format, ...);
+  
+void info(const char *format, ...);
 
-class Amplifier : public Module {
-
-    public:
-        using Module::Module;  // Inherit Module's constructor
-        ~Amplifier() override { _deinit(); }
-
-        /*  @brief  Initalise the module
-        */
-        void init();
-
-        /*  @brief  Process period of audio, cv, midi, etc.
-            @param  frames Quantity of frames in this period
-        */
-        int process(jack_nframes_t frames);
-
-    private:
-        double m_gain[MAX_POLY]; // Amplification
-};
+void error(const char *format, ...);

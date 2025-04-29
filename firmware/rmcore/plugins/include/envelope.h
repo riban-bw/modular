@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "node.h"
+#include "module.h"
 #include <jack/jack.h>
 
 #define ENV_PORT_GATE   0
@@ -33,10 +33,11 @@ enum ENV_PHASE {
     ENV_PHASE_RELEASE   = 4
 };
 
-class Envelope : public Node {
+class Envelope : public Module {
 
     public:
-        using Node::Node;  // Inherit Node's constructor
+        using Module::Module;  // Inherit Module's constructor
+        ~Envelope() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */

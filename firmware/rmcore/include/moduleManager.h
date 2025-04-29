@@ -12,7 +12,7 @@
 #pragma once
 
 #include "global.h"
-#include "node.h"
+#include "module.h"
 #include <map> // Provides std::map
 #include <functional> // Provides std::function
 #include <memory> // Provides std::unique_ptr
@@ -20,14 +20,14 @@
 
 class ModuleManager {
     public:
-        using Creator = std::function<std::unique_ptr<Node>()>;
+        using Creator = std::function<std::unique_ptr<Module>()>;
 
         /** @brief  Get the module manager singleton object
             @retval static ModuleManager Reference to the module manager object
         */
         static ModuleManager& get();
 
-        /** @brief  Register a module type (class derived from Node)
+        /** @brief  Register a module type (class derived from Module)
             @param  type Module type
             @param  creator Class to register
         */
@@ -55,14 +55,14 @@ class ModuleManager {
         void setParam(const std::string& uuid, uint32_t param, float value);
 
     private:
-        struct NodeConfig {
+        struct ModuleConfig {
             Creator creator;
             ModuleInfo info;
         };
 
         std::map<std::string, std::pair<Creator, ModuleInfo>> m_creators;
-        //std::map<std::string, NodeConfig> m_creators; // Map of classes derived from Node, indexed by type
-        std::map<std::string, std::unique_ptr<Node>> m_modules; // Map of module pointers, indexed by uuid
+        //std::map<std::string, ModuleConfig> m_creators; // Map of classes derived from Module, indexed by type
+        std::map<std::string, std::unique_ptr<Module>> m_modules; // Map of module pointers, indexed by uuid
 };
 
 // Register derived class with its type string

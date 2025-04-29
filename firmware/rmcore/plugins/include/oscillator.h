@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "node.h"
+#include "module.h"
 
 #define OSC_PORT_OUT        0
 #define OSC_PORT_CV         0
@@ -33,10 +33,11 @@ enum WAVEFORM {
     WAVEFORM_NOISE  = 4,
 };
 
-class Oscillator : public Node {
+class Oscillator : public Module {
 
     public:
-        using Node::Node;  // Inherit Node's constructor
+        using Module::Module;  // Inherit Module's constructor
+        ~Oscillator() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
@@ -49,6 +50,8 @@ class Oscillator : public Node {
 
     private:
         uint32_t m_wavetableSize; // Quantity of floats in each wavetable
+        float m_pwm = 0.5f; // Square wave PWM value
+        float m_waveform = 0.0f; // Waveform morph value
         double m_waveformPos[MAX_POLY]; // Position within waveform
         double m_waveformStep[MAX_POLY]; // Step to iterate through waveform at desired frequency
 };

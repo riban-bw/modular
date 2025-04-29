@@ -10,11 +10,10 @@
 */
 
 #include "oscillator.h"
-#include "wavetable.h"
-#include "global.h"
+#include "wavetable.h" // Static array of samples
 #include "moduleManager.h"
-#include <stdio.h>
-#include <cmath>
+#include <cmath> // Provides std::pow
+#include <algorithm> // Provides std::clamp
 
 #define CV_ALPHA 0.01
 
@@ -32,7 +31,9 @@ void Oscillator::init() {
 
 int Oscillator::process(jack_nframes_t frames) {
     jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[OSC_PORT_PWM], frames);
+    float targetPwm = std::clamp(pwmBuffer[0] + m_param[OSC_PARAM_PWM], 0.1f, 0.9f);
     jack_default_audio_sample_t * waveformBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[OSC_PORT_WAVEFORM], frames);
+    float targetWaveform = std::clamp((waveformBuffer[0] + m_param[OSC_PARAM_WAVEFORM]) * 3.0f, 0.0f, 3.0f);
     for(uint8_t poly = 0; poly < g_poly; ++poly) {
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][OSC_PORT_OUT], frames);
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][OSC_PORT_CV], frames);
@@ -45,34 +46,25 @@ int Oscillator::process(jack_nframes_t frames) {
             if (targetStep < 0.001)
                 targetStep = 0.001;
             m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);
+            m_pwm += CV_ALPHA * (targetPwm - m_pwm);
+            m_waveform += CV_ALPHA * (targetWaveform - m_waveform);
 
-            double waveform = m_param[OSC_PARAM_WAVEFORM] + waveformBuffer[frame] * 3;
-            uint8_t baseWaveform = waveform;
-            double waveform1 = double(baseWaveform + 1) - waveform;
-            double waveform2 = waveform - double(baseWaveform);
+            uint8_t baseWaveform = m_waveform;
+            double waveform1 = double(baseWaveform + 1) - m_waveform;
+            double waveform2 = m_waveform - double(baseWaveform);
             if (baseWaveform == WAVEFORM_SQU) {
-                float pwm = pwmBuffer[frame];
-                if (pwm < 0.05)
-                    pwm = 0.05;
-                    if (pwm > 0.95)
-                    pwm = 0.95;
-                if (m_waveformPos[poly] > pwm * m_wavetableSize)
-                    outBuffer[frame] = m_param[OSC_PARAM_AMP] * waveform1;
-                else
+                if (m_waveformPos[poly] > m_pwm * m_wavetableSize)
                     outBuffer[frame] = -m_param[OSC_PARAM_AMP] * waveform1;
+                else
+                    outBuffer[frame] = m_param[OSC_PARAM_AMP] * waveform1;
             } else {
                 outBuffer[frame] = waveform1 * WAVETABLE[baseWaveform][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
             }
             if (baseWaveform + 1 == WAVEFORM_SQU) {
-                float pwm = pwmBuffer[frame];
-                if (pwm < 0.05)
-                    pwm = 0.05;
-                    if (pwm > 0.95)
-                    pwm = 0.95;
-                if (m_waveformPos[poly] > pwm * m_wavetableSize)
-                    outBuffer[frame] += m_param[OSC_PARAM_AMP] * waveform2;
-                else
+                if (m_waveformPos[poly] > m_pwm * m_wavetableSize)
                     outBuffer[frame] += -m_param[OSC_PARAM_AMP] * waveform2;
+                else
+                    outBuffer[frame] += m_param[OSC_PARAM_AMP] * waveform2;
             } else {
                 outBuffer[frame] += waveform2 * WAVETABLE[baseWaveform + 1][(uint32_t)m_waveformPos[poly]] * m_param[OSC_PARAM_AMP];
             }

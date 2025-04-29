@@ -6,21 +6,25 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Node class header. Base class for all modules.
+    Module class header. Base class for all modules.
 */
 
 #pragma once
 
 #include "global.h"
-#include <cstdint> // Provides fixed sized integer types
-#include <vector>
-#include <jack/jack.h>
-#include <string>
+#include <vector> // Provides std::vector
+#include <jack/jack.h> // Provides jack_client_t, jack_port_t, jack_nframes_t
+#include <string> // Provides std::string
 
 extern uint8_t g_poly;
+// Helper functions used by rmcore and plugins
+extern void debug(const char *format, ...);
+extern void info(const char *format, ...);
+extern void error(const char *format, ...);
+
 
 struct ModuleInfo {
-    std::string type; //!@todo This be the module UID?
+    std::string type;
     std::string name;
     std::vector<std::string> inputs;
     std::vector<std::string> polyInputs;
@@ -30,21 +34,25 @@ struct ModuleInfo {
     bool midi = false;
 };
 
-class Node {
+class Module {
     public:
 
-        /** @brief  Instantiate a node object
+        /** @brief  Instantiate a module object
             @param  info Module info structure
         */
-        Node(const ModuleInfo& info)
+        Module(const ModuleInfo& info)
             : m_info(info) {};
 
-        virtual ~Node();
+        virtual ~Module() = default;
 
-        /** @brief  Initialise a node object
+        /** @brief  Initialise a module object
         */
         void _init(const std::string& uuid);
-        
+
+        /** @brief  Clean up a module object
+        */
+        void _deinit();
+
         virtual void init() {};
 
         /** @brief  Process a period of data
@@ -72,12 +80,12 @@ class Node {
             @param  val New value
             @retval bool True on success
         */
-        bool setParam(uint32_t param, float val);
+        virtual bool setParam(uint32_t param, float val);
 
         int samplerateChange(jack_nframes_t samplerate);
 
     protected:
-        struct ModuleInfo m_info; // Node info
+        struct ModuleInfo m_info; // Module info
         jack_client_t* m_jackClient;
         std::vector<jack_port_t*> m_input; // Vector of input ports
         std::vector<jack_port_t*> m_polyInput[MAX_POLY]; // Array of vector of polyphonic input ports
@@ -91,11 +99,11 @@ class Node {
 };
 
 static int samplerateStatic(jack_nframes_t frames, void* arg) {
-    Node* self = static_cast<Node*>(arg);
+    Module* self = static_cast<Module*>(arg);
     return self->samplerateChange(frames);
 };
 
 static int processStatic(jack_nframes_t frames, void* arg) {
-    Node* self = static_cast<Node*>(arg);
+    Module * self = static_cast<Module*>(arg);
     return self->process(frames);
 };

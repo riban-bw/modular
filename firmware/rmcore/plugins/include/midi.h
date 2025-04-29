@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "node.h"
+#include "module.h"
 #include <jack/jack.h>
 
 #define NUM_MIDI_CC 8
@@ -38,10 +38,11 @@ struct POLY_OUTPUT {
     float gate = 0.0;
 };
 
-class Midi : public Node {
+class Midi : public Module {
 
     public:
-        using Node::Node;  // Inherit Node's constructor
+        using Module::Module;  // Inherit Module's constructor
+        ~Midi() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */

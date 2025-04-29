@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "node.h"
+#include "module.h"
 
 #define NOISE_PORT_OUT  0
 
@@ -19,10 +19,11 @@ enum NOISE_PARAM {
     NOISE_PARAM_AMP = 0
 };
 
-class Noise : public Node {
+class Noise : public Module {
 
     public:
-        using Node::Node;  // Inherit Node's constructor
+        using Module::Module;  // Inherit Module's constructor
+        ~Noise() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */

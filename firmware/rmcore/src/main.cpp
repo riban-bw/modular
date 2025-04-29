@@ -10,16 +10,15 @@
 */
 
 #include "global.h"
+#include "util.h"
 #include "usart.h"
 #include "moduleManager.h"
 #include "version.h"
 
-#include <cstdio> // Provides printf
 #include <getopt.h> // Provides getopt_long for command line parsing
 #include <unistd.h> // Provides usleep
 #include <jack/jack.h> // Provides jack client
 #include <map> // Provides std::map
-#include <stdarg.h> // Provides varg
 #include <stdlib.h> // Provides atoi
 #include <csignal> // Provides signal
 #include <fstream> // Provies ofstream for saving files
@@ -27,12 +26,10 @@
 #include <string> // Provides std::string
 #include <iomanip> // Provides std::setw
 
-enum VERBOSE {
-    VERBOSE_SILENT  = 0,
-    VERBOSE_ERROR   = 1,
-    VERBOSE_INFO    = 2,
-    VERBOSE_DEBUG   = 3
-};
+#include <iostream>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
@@ -49,7 +46,7 @@ const std::string g_panelTypes [] = {
     "oscillator",
     "amp",
     "envelope",
-    "lpf",
+    "filter",
     "noise"
 };
 
@@ -69,34 +66,6 @@ const std::string g_panelTypes [] = {
         Adjust parameter values
         Periodic / event driven persistent state save
 */
-
-void debug(const char *format, ...) {
-    if (g_verbose >= VERBOSE_DEBUG) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(stderr, format, args);
-        va_end(args);
-    }
-}
-  
-  void info(const char *format, ...) {
-    if (g_verbose >= VERBOSE_INFO) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(stdout, format, args);
-        va_end(args);
-    }
-}
-  
-  void error(const char *format, ...) {
-    if (g_verbose >= VERBOSE_ERROR) {
-        va_list args;
-        va_start(args, format);
-        fprintf(stderr, "ERROR: ");
-        vfprintf(stderr, format, args);
-        va_end(args);
-    }
-}
 
 void print_version() {
     info("%s %s (%s) Copyright riban ltd 2023-%s\n", PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_YEAR);
@@ -177,14 +146,14 @@ void saveJackConnectionsToFile(const std::string& filename) {
 
     // Close the file after writing
     outFile.close();
-    std::cout << "Connections saved to " << filename << std::endl;
+    info("Connections saved to %s\n", filename.c_str());
 }
 
 // Function to reload and restore Jack connections from a file
 void restoreJackConnectionsFromFile(const std::string& filename) {
     std::ifstream inFile(filename);    
     if (!inFile.is_open()) {
-        std::cerr << "Error opening file for reading!" << std::endl;
+        error("Opening file for reading!\n");
         return;
     }
     std::string line;
@@ -209,14 +178,35 @@ void restoreJackConnectionsFromFile(const std::string& filename) {
             }
         }
     }
-
     inFile.close();
-    std::cout << "Connections restored from " << filename << std::endl;
+    info("Connections restored from %s\n", filename.c_str());
+}
+
+void setNonBlocking(bool enable) {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, enable ? flags | O_NONBLOCK : flags & ~O_NONBLOCK);
+}
+
+void setBufferedInput(bool enable) {
+    static struct termios oldt, newt;
+    if (!enable) {
+        tcgetattr(STDIN_FILENO, &oldt);
+        newt = oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    } else {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    }
 }
 
 void signalHandler(int signal) {
     if (signal == SIGINT) {
+        setBufferedInput(true);
         saveJackConnectionsToFile("last_state.rmstate");
+        if (g_jackClient) {
+            jack_deactivate(g_jackClient);
+            jack_client_close(g_jackClient);
+        }
         std::exit(0);
     }
 }
@@ -290,21 +280,20 @@ int main(int argc, char** argv) {
 
 
     ModuleManager& moduleManager = ModuleManager::get();
-    addPanel(2, 0xffff, 0xffff, 0xffff);
+    addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
     //moduleManager.addModule("midi", "midi");
     moduleManager.addModule("osc", "lfo");
     moduleManager.setParam("lfo", 0, -9.0); // Set LFO frequency
     moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
     moduleManager.setParam("lfo", 3, 2); // Set LFO depth
     moduleManager.addModule("osc", "vco");
-    moduleManager.setParam("vco", 1, 0); // Set VCO waveform
+    moduleManager.setParam("vco", 2, 0);  //OSC_PARAM_PWM
     moduleManager.addModule("amp", "vca");
     moduleManager.addModule("env", "eg");
     moduleManager.addModule("noise", "noise");
     moduleManager.setParam("noise", 0, 0.1);
-    moduleManager.addModule("lpf", "vcf");
-    addPanel(7, 0x01234567, 0x89abcdef, 0x11110000);
-
+    moduleManager.addModule("filter", "vcf");
+    addPanel(7, 0x01234567, 0x89abcdef, 0x11110000); // Noise
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo
@@ -315,6 +304,51 @@ int main(int argc, char** argv) {
         Start config manager (persistent configuration storage)
         Start audio processing
     */
+
+    // Console input
+    setBufferedInput(false);
+    setNonBlocking(true);
+    info("Select filter type [1..8]\n");
+    char ch;
+    while (true) {
+        if (read(STDIN_FILENO, &ch, 1) > 0) {
+            switch (ch) {
+                case '1':
+                    moduleManager.setParam("vcf", 2, 0);  //FILTER_TYPE_LOW_PASS
+                    info("Low pass\n");
+                    break;
+                case '2':
+                    moduleManager.setParam("vcf", 2, 1);  //FILTER_TYPE_HIGH_PASS
+                    info("High pass\n");
+                    break;
+                case '3':
+                    moduleManager.setParam("vcf", 2, 2);  //FILTER_TYPE_BAND_PASS
+                    info("Band pass\n");
+                    break;
+                case '4':
+                    moduleManager.setParam("vcf", 2, 3);  //FILTER_TYPE_NOTCH
+                    info("Notch\n");
+                    break;
+                case '5':
+                    moduleManager.setParam("vcf", 2, 4);  //FILTER_TYPE_ALL_PASS
+                    info("All pass\n");
+                    break;
+                case '6':
+                    moduleManager.setParam("vcf", 2, 5);  //FILTER_TYPE_PEAK
+                    info("Peaking\n");
+                    break;
+                case '7':
+                    moduleManager.setParam("vcf", 2, 6);  //FILTER_TYPE_LOW_SHELF
+                    info("Low shelfing\n");
+                    break;
+                case '8':
+                    moduleManager.setParam("vcf", 2, 7);  //FILTER_TYPE_HIGH_SHELF
+                    info("High shelfing\n");
+                    break;
+            }
+        }
+        usleep(1000); // 1ms sleep to avoid tight loop
+    }
 
     uint8_t txData[8];
     double value;

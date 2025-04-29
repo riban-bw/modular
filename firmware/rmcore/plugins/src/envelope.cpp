@@ -27,7 +27,7 @@ void Envelope::init() {
 }
 
 bool Envelope::setParam(uint32_t param, float val) {
-    Node::setParam(param, val);
+    Module::setParam(param, val);
     if (val < 0.0002)
     val = 0.0002;
     switch (param) {

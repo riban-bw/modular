@@ -10,6 +10,7 @@
 */
 
 #include "moduleManager.h"
+#include "util.h"
 
 ModuleManager& ModuleManager::get() {
     static ModuleManager manager;
@@ -26,14 +27,15 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     auto it = m_creators.find(type);
     if (it == m_creators.end())
         return false;
-    auto& [creator, info] = it->second;
+    auto& [creator, modInfo] = it->second;
     m_modules[uuid] = creator();
     m_modules[uuid]->_init(uuid);
-    fprintf(stderr, "Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
-        type.c_str(), info.name.c_str(), uuid.c_str(), info.inputs.size(), info.polyInputs.size(), info.outputs.size(), info.polyOutputs.size(), info.params.size());
+    info("Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
+        type.c_str(), modInfo.name.c_str(), uuid.c_str(), modInfo.inputs.size(), modInfo.polyInputs.size(), modInfo.outputs.size(), modInfo.polyOutputs.size(), modInfo.params.size());
     return true;
 }
 
 void ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {
+    //!@todo This will seg fault if bad uuid is passed
     m_modules[uuid]->setParam(param, value);
 }

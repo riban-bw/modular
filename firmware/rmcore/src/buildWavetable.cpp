@@ -41,15 +41,11 @@ int main() {
 
     // Triangle
     step = 4.0 / wavetableSize;
-    for (i = 0; i < WAVETABLE_SIZE / 4; ++i) {
-        wavetable[WAVEFORM_TRI][i] = i * step;
+    for (i = 0; i < WAVETABLE_SIZE / 2; ++i) {
+        wavetable[WAVEFORM_TRI][i] = -1.0 + i * step;
     }
-    for (j = 0; j < WAVETABLE_SIZE / 2; ++j) {
-        wavetable[WAVEFORM_TRI][i + j] = 1.0 - j * step;
-    }
-    i += j;
-    for (j = 0; j < WAVETABLE_SIZE / 4; ++j) {
-        wavetable[WAVEFORM_TRI][i + j] = j * step - 1.0;
+    for (i = 0; i < WAVETABLE_SIZE / 2; ++i) {
+        wavetable[WAVEFORM_TRI][(WAVETABLE_SIZE >> 1) + i] =  1.0 - i * step;
     }
 
     // Sawtooth
@@ -66,7 +62,7 @@ int main() {
         wavetable[WAVEFORM_SQU][i] = 1.0;
     }
 
-    std::ofstream file("wavetable.h");
+    std::ofstream file("../include/wavetable.h");
     file << "/*  riban modular\n";
     file << "    Copyright 2023-2025 riban ltd <info@riban.co.uk>\n\n";
     file << "    This file is part of riban modular.\n";

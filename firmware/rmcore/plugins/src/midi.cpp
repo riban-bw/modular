@@ -25,7 +25,7 @@ void Midi::init() {
 }
 
 bool Midi::setParam(uint32_t param, float val) {
-    Node::setParam(param, val);
+    Module::setParam(param, val);
     switch (param) {
         case MIDI_PARAM_PORTAMENTO:
             m_portamento = 1.0 - val; //!@todo Fix portamento time

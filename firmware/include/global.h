@@ -1,6 +1,6 @@
 /* riban modular
 
-  Copyright 2023-2024 riban ltd <info@riban.co.uk>
+  Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
   This file is part of riban modular.
   riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.

@@ -6,32 +6,25 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Node class implementation. Base class for all modules.
+    Module class implementation. Base class for all modules.
 */
 
-#include "node.h"
+#include "module.h"
 #include <stdlib.h>
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
+#include "util.h"
 
-Node::~Node() {
-    if (m_jackClient)
-        if(jack_client_close(m_jackClient))
-            fprintf(stderr, "Failed closing jack client\n");
-}
-
-void Node::_init(const std::string& uuid) {
+void Module::_init(const std::string& uuid) {
     // Register with Jack server
     char* serverName = nullptr;
     char nameBuffer[128];
-    jack_status_t status;
-    jack_options_t options = JackNoStartServer;
     jack_port_t* port;
 
     sprintf(nameBuffer, "%s %s", m_info.name.c_str(), uuid.c_str());
-    m_jackClient = jack_client_open(nameBuffer, options, &status, serverName);
+    m_jackClient = jack_client_open(nameBuffer, JackNoStartServer, 0, serverName);
     if (!m_jackClient) {
-        fprintf(stderr, "Failed to open JACK client\n");
+        error("Failed to open JACK client\n");
     }
     for (uint32_t i = 0; i < m_info.inputs.size(); ++i) {
         port = jack_port_register(m_jackClient, m_info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
@@ -73,28 +66,37 @@ void Node::_init(const std::string& uuid) {
     jack_activate(m_jackClient);
 }
 
-uint32_t Node::getNumInputs() {
+void Module::_deinit() {
+    if (m_jackClient) {
+        jack_deactivate(m_jackClient);
+        jack_client_close(m_jackClient);
+        m_jackClient = nullptr;
+    }
+}
+
+uint32_t Module::getNumInputs() {
     return m_input.size();
 }
 
-uint32_t Node::getNumOutputs() {
+uint32_t Module::getNumOutputs() {
     return m_output.size();
 }
 
-float Node::getParam(uint32_t param) {
+float Module::getParam(uint32_t param) {
     if (param > m_param.size())
         return 0.0;
     return m_param[param];
 }
 
-bool Node::setParam(uint32_t param, float val) {
+bool Module::setParam(uint32_t param, float val) {
+    info("Module::setParam(uint32_t %u, %f)\n", param, val);
     if (param >= m_param.size())
         return false;
     m_param[param] = val;
     return true;
 }
 
-int Node::samplerateChange(jack_nframes_t samplerate) {
+int Module::samplerateChange(jack_nframes_t samplerate) {
     if (samplerate ==0)
         return -1;
     m_samplerate = samplerate;

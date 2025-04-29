@@ -11,24 +11,38 @@
 
 #pragma once
 
-#include "node.h"
+#include "module.h"
 
-#define LPF_PORT_INPUT  0
-#define LPF_PORT_FREQ   0
-#define LPF_PORT_RES    1
-#define LPF_PORT_OUTPUT 0
+#define FILTER_PORT_INPUT  0
+#define FILTER_PORT_FREQ   0
+#define FILTER_PORT_RES    1
+#define FILTER_PORT_OUTPUT 0
 
-enum LPF_PARAM {
-    LPF_FREQ     = 0,
-    LPF_RES      = 1,
-    FLTER_FREQ_CV   = 2,
-    FLTER_RES_CV    = 3
+enum FILTER_TYPE {
+    FILTER_TYPE_LOW_PASS,
+    FILTER_TYPE_HIGH_PASS,
+    FILTER_TYPE_BAND_PASS,
+    FILTER_TYPE_NOTCH,
+    FILTER_TYPE_ALL_PASS,
+    FILTER_TYPE_PEAK,
+    FILTER_TYPE_LOW_SHELF,
+    FILTER_TYPE_HIGH_SHELF,
+    FILTER_TYPE_END
 };
 
-class LPF : public Node {
+enum FILTER_PARAM {
+    FILTER_PARAM_CUTOFF,
+    FILTER_PARAM_RESONANCE,
+    FILTER_PARAM_TYPE,
+    FILTER_PARAM_CUTOFF_CV,
+    FILTER_PARAM_RESONANCE_CV
+};
+
+class FILTER : public Module {
 
     public:
-    using Node::Node;  // Inherit Node's constructor
+    using Module::Module;  // Inherit Module's constructor
+    ~FILTER() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
@@ -44,10 +58,12 @@ class LPF : public Node {
     private:
         void updateCoefficients();
 
-        float m_cutoff = 8000.0f;
-        float m_res = 0.7f;
+        uint8_t m_filterType = 0; // Filter type @see FILTER_TYPE
+        float m_cutoff = 8000.0f; // Cutoff frequence (Hz)
+        float m_resonance = 0.7f; // Resonance / Q
+        float m_gain = -6.0f; // Peaking / shelfing gain (dB)
         // Filter coefficients
-        double a1, a2, b0, b1; 
+        double a1 = 0.0, a2 = 0.0, b0 = 0.0, b1 = 0.0, b2 = 0.0; 
         // Delay buffers
-        double x1, x2, y1, y2;
+        double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
 };
