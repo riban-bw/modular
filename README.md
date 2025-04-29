@@ -3,9 +3,9 @@
 
 ## Overview
 
-Riban modular is a virtual modular synthesiser with physical control panels that fit the Eurorack format. There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs, etc. that mimic and control the virtual modules. A Raspberry Pi 4 forms the core providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system. Riban modular supports many VCV Rack and Cardinal modules.
+Riban modular is a virtual modular synthesiser with physical control panels that fit the Eurorack format. There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs, etc. that mimic and control the virtual modules. A Raspberry Pi 5 forms the core, providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system.
 
-The system consists of a _Brain_ and panels. The Brain consists of a Raspberry Pi 4, STM32F103 microcontroller, CAN connector, audio interface and associated connectors, buttons, pots, etc. Modules consist of STM32F103 microcontroller, CAN connector and buttons, pots, etc.
+The system consists of a _Brain_ and panels. The Brain consists of a Raspberry Pi 5, STM32F103 microcontroller, CAN connector, audio interface and associated connectors, buttons, pots, etc. Panels consist of STM32F103 microcontroller, CAN connector and buttons, pots, etc.
 
 Each panel is based on a STM32F103C8 microcontroller with a common firmware that supports various quantities and types of controls and indicators. Each panel has a type number that identifies what type of virtual module it represents.
 
@@ -13,11 +13,11 @@ Connect each module to a ribbon cable connector then power up the system. The co
 
 ## Usage
 
-Note: All signals are digital and virtual (except audio input and output) but to provide familiar experience we refer to control voltages (CV), voltage control, etc. throughout this document. Similarly, there are no physical cables but we sometimes refer to connections between inputs and outputs as cables.
+Note: All signals are digital and virtual (except audio input and output) but to provide familiar experience we may refer to control voltages (CV), voltage control, etc. throughout this document. Similarly, there are no physical cables but we sometimes refer to connections between inputs and outputs as cables.
 
 Each panel has input and output buttons representing audio and CV ports. By default, inputs will glow blue and outputs will glow green. (This may be changed via configuration.)  Connected inputs and outputs glow brighter than unconnected inputs and outputs.
 
-Pressing an output button will select the output, flash the light in its button and flash any connected inputs' buttons. Pressing the button again will deselect it. Similarly pressing an input button will select it and indicate any connected output. When an input (or output) is selected, pressing an output (or input) button will make a _cable_ connection between them. If a cable is already connected then it will be removed.
+Pressing an output button will select the output, flash the light in its button and flash any connected inputs' buttons. Pressing the button again will deselect it. Similarly pressing an input button will select it and indicate any connected outputs. When an input (or output) is selected, pressing an output (or input) button will make a _cable_ connection between them. If a cable is already connected then it will be removed.
 
 Adjusting a knob, switch, etc. will adjust the associated parameter, e.g. VCO frequency.
 
@@ -33,7 +33,7 @@ CAN message id is 11-bit (std) or 29-bit (ext) word.
 
 Standard CAN format (11-bit id) is used for runtime realtime messages.
 
-Extended CAN format (29-bit id) is  used for configuration and firmware update.
+Extended CAN format (29-bit id) is used for configuration and firmware update.
 
 #### CAN runtime realtime messages
 
