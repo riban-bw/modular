@@ -6,55 +6,46 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
     You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Envelope class header.
+    Template module class header.
 */
 
 #pragma once
 
 #include "module.h"
 
-#define ENV_PORT_GATE   0
-#define ENV_PORT_GAIN   1
-#define ENV_PORT_OUT    0
+// Input ports
+#define TEMPLATE_PORT_PARAM1 0
+// Polyphonic input ports
+#define TEMPLATE_PORT_INPUT 0
+#define TEMPLATE_PORT_CV 1
+// Output ports
 
-enum ENV_PARAM {
-    ENV_PARAM_ATTACK     = 0,
-    ENV_PARAM_DECAY      = 1,
-    ENV_PARAM_SUSTAIN    = 2,
-    ENV_PARAM_RELEASE    = 3
+// Polyphonic output ports
+#define TEMPLATE_PORT_OUTPUT 0
+
+enum TEMPLATE_PARAM {
+    TEMPLATE_PARAM_GAIN   = 0
 };
 
-enum ENV_PHASE {
-    ENV_PHASE_IDLE      = 0,
-    ENV_PHASE_ATTACK    = 1,
-    ENV_PHASE_DECAY     = 2,
-    ENV_PHASE_SUSTAIN   = 3,
-    ENV_PHASE_RELEASE   = 4
-};
-
-class Envelope : public Module {
+/*  Define the class - inherit from Module class */
+class Template : public Module {
 
     public:
         using Module::Module;  // Inherit Module's constructor
-        ~Envelope() override { _deinit(); }
+        ~Template() override { _deinit(); } // Call clean-up code on destruction
 
         /*  @brief  Initalise the module
         */
         void init();
 
-        bool setParam(uint32_t param, float val);
-
         /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period
         */
         int process(jack_nframes_t frames);
+    
+    protected:
+        // A vector of floats called param is automatically created based on the config passed to RegisterModule
 
     private:
-        uint8_t m_phase[MAX_POLY]; // Current envelope phase (0:attack, 1:decay: 2:release)
-        double m_value[MAX_POLY]; // Current value of envelope
-        double m_attackStep; // Step change for each frame during attack phase
-        double m_decayStep; // Step change for each frame during attack phase
-        double m_sustain; // Sustain level
-        double m_releaseStep; // Step change for each frame during attack phase
-
+        double m_gain[MAX_POLY]; // Amplification
 };

@@ -38,7 +38,7 @@ uint8_t g_poly = 1; // Current polyphony
 jack_client_t* g_jackClient;
 uint32_t g_xruns = 0;
 
-// Map panel type to module type
+// Map panel type uuid to module type uuid
 const std::string g_panelTypes [] = {
     "generic",
     "brain",
@@ -47,7 +47,8 @@ const std::string g_panelTypes [] = {
     "amp",
     "envelope",
     "filter",
-    "noise"
+    "noise",
+    "mixer"
 };
 
 /*  TODO
@@ -56,7 +57,6 @@ const std::string g_panelTypes [] = {
     Obtain list of panels
     Initialise each panel: Get info, check firmware version, show status via panel LEDs
     Instantiate modules based on connected hardware panels
-    Reload last state including internal modules, binary (button) states, routing, etc.
     Unmute outputs
     Show info on display, e.g. firmware updates available, current patch name, etc.
     Start program loop:
@@ -220,7 +220,7 @@ void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *ar
     jack_port_t* portA = jack_port_by_id(g_jackClient, a);
     jack_port_t* portB = jack_port_by_id(g_jackClient, b);
     if (portA && portB)
-        info("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portA));
+        info("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portB));
 }
 
 // Create uuid from uint32_t - fixed 24 char width
@@ -294,6 +294,7 @@ int main(int argc, char** argv) {
     moduleManager.setParam("noise", 0, 0.1);
     moduleManager.addModule("filter", "vcf");
     addPanel(7, 0x01234567, 0x89abcdef, 0x11110000); // Noise
+    moduleManager.addModule("mixer", "mixer");
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo

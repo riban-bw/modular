@@ -12,7 +12,6 @@
 #pragma once
 
 #include "module.h"
-#include <jack/jack.h>
 
 #define AMP_PORT_INPUT 0
 #define AMP_PORT_CV 1

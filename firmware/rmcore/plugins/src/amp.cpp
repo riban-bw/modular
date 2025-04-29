@@ -24,8 +24,8 @@ int Amplifier::process(jack_nframes_t frames) {
         jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][AMP_PORT_INPUT], frames);
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][AMP_PORT_CV], frames);
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][AMP_PORT_OUTPUT], frames);
+        double targetGain = m_param[AMP_PARAM_GAIN] * cvBuffer[0]; //!@todo This moved out of the period loop and seems to work fine - validate it does not respond too slowly
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            double targetGain = m_param[AMP_PARAM_GAIN] * cvBuffer[frame];
             m_gain[poly] += CV_ALPHA * (targetGain - m_gain[poly]);
             outBuffer[frame] = m_gain[poly] * inBuffer[frame];
         }

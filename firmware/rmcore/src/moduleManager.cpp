@@ -22,11 +22,15 @@ void ModuleManager::registerModule(const ModuleInfo& info, Creator creator) {
 }
 
 bool ModuleManager::addModule(const std::string& type, const std::string& uuid) {
-    if (m_modules.find(uuid) != m_modules.end())
+    if (m_modules.find(uuid) != m_modules.end()) {
+        error("Module %s already exists\n", uuid.c_str());
         return false;
+    }
     auto it = m_creators.find(type);
-    if (it == m_creators.end())
+    if (it == m_creators.end()) {
+        error("Module type %s is not supported\n", type.c_str());
         return false;
+    }
     auto& [creator, modInfo] = it->second;
     m_modules[uuid] = creator();
     m_modules[uuid]->_init(uuid);
