@@ -3,7 +3,9 @@
 
 ## Overview
 
-Riban modular is a virtual modular synthesiser with physical control panels that fit the Eurorack format. There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs, etc. that mimic and control the virtual modules. A Raspberry Pi 5 forms the core, providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system.
+Riban modular is an open source and (where practical) open hardware virtual modular synthesiser with physical control panels that fit the Eurorack physical format. See the [wiki](https://github.com/riban-bw/modular/wiki) for documentation.
+
+There are hardware panels that represent each virtual module. The panels are plugged together via a daisy-chain ribbon cable which provides power and a CAN bus for inter-communication. Modules have rotary controls, switches, LEDs, etc. that mimic and control the virtual modules. A Raspberry Pi 5 forms the core, providing the audio processing and interfacing with the hardware panels. Panels are detected automatically when connected, creating a corresponding virtual module within the virtual modular system.
 
 The system consists of a _Brain_ and panels. The Brain consists of a Raspberry Pi 5, STM32F103 microcontroller, CAN connector, audio interface and associated connectors, buttons, pots, etc. Panels consist of STM32F103 microcontroller, CAN connector and buttons, pots, etc.
 
@@ -13,13 +15,7 @@ Connect each module to a ribbon cable connector then power up the system. The co
 
 ## Usage
 
-Note: All signals are digital and virtual (except audio input and output) but to provide familiar experience we may refer to control voltages (CV), voltage control, etc. throughout this document. Similarly, there are no physical cables but we sometimes refer to connections between inputs and outputs as cables.
-
-Each panel has input and output buttons representing audio and CV ports. By default, inputs will glow blue and outputs will glow green. (This may be changed via configuration.)  Connected inputs and outputs glow brighter than unconnected inputs and outputs.
-
-Pressing an output button will select the output, flash the light in its button and flash any connected inputs' buttons. Pressing the button again will deselect it. Similarly pressing an input button will select it and indicate any connected outputs. When an input (or output) is selected, pressing an output (or input) button will make a _cable_ connection between them. If a cable is already connected then it will be removed.
-
-Adjusting a knob, switch, etc. will adjust the associated parameter, e.g. VCO frequency.
+Hardware panels are required to interface with the firmware. See the [wiki](https://github.com/riban-bw/modular/wiki) for documentation.
 
 ## CAN Protocol
 
