@@ -17,6 +17,24 @@ Connect each module to a ribbon cable connector then power up the system. The co
 
 Hardware panels are required to interface with the firmware. See the [wiki](https://github.com/riban-bw/modular/wiki) for documentation.
 
+## Building
+
+There are two core elements to _riban modular_: Hardware panels (including the firmware that runs on them) and the core. Panel firmware is written in C++ for the STMicroelectronics STM32 range of ARM based microcontrollers. The core is written in C++ for the Raspberry Pi ARM based SBC. VSCode IDE is used by the developer with plugins including platformio, which provides the build platform for the STM32 firmware.
+
+### Core
+
+The core code runs on a Raspberry Pi (4 or later), running [DietPi](https://dietpi.com/) operating system. CMake is used as the build tool To compile the code:
+
+- Install dependencies, e.g. `sudo apt install build-essentials libjack-jackd2-dev git cmake`
+- Clone this repository, e.g. `git clone https://github.com/riban-bw/modular.git`
+- Change to the directory, e.g. `cd modular`
+- Create a build directory, e.g. `mkdir build`
+- Change to the build directory, e.g. `cd build`
+- Create build files, e.g. `cmake ..`
+- Build executable, e.g. `make`
+
+An executable file called _rmcore_ is creaed in the build directory. This may be run with optional command line options, e.g. `rmcore -h` to show help / usage.
+
 ## CAN Protocol
 
 Communication between the Brain and panels uses CAN two wire serial bus. CAN uses differential balanced cabling to provide robust, high speed communication over long distance. Detection of panels uses CAN extended frame format (to allow fewer frames during detection) whilst normal operation uses standad frame format (to allow shorter frames for realtime data). Each panel starts by advertising its 96-bit hardware UID (STM32 serial number). The Brain module detects new panels and negotiates a _panel id_ (1..63) for each. CAN uses a lowest-id-wins mechanism for bus arbitration which allows the Brain to negotiate each panel partaking in the detection process. The panel with the lowest UUID is assigned the next available panel id which then leaves the detection process and joins the pool of configured panels. The Brain iterates over all panels currently advertising their participation in the detection process.
