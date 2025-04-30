@@ -46,7 +46,7 @@ Each panel has a platformio configuration. These build instructions are for plat
 
 To switch panels, use vscode file menu, open folder... Each time a new panel project is opened for the first time, platformio takes some time to configure. (Even on subsequent switches, platformio can take some time to open a project.)
 
-Be aware that rmcore is within the firmware directory but is not a panel firmware and should be built as described in the [above section](#-core).
+Be aware that rmcore is within the firmware directory but is not a panel firmware and should be built as described in the [above section](#core).
 
 ## CAN Protocol
 
