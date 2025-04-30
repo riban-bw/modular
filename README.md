@@ -19,7 +19,7 @@ Hardware panels are required to interface with the firmware. See the [wiki](http
 
 ## Building
 
-There are two core elements to _riban modular_: Hardware panels (including the firmware that runs on them) and the core. Panel firmware is written in C++ for the STMicroelectronics STM32 range of ARM based microcontrollers. The core is written in C++ for the Raspberry Pi ARM based SBC. VSCode IDE is used by the developer with plugins including platformio, which provides the build platform for the STM32 firmware.
+There are two core elements to _riban modular_: Hardware panels (including the firmware that runs on them) and the core. Panel firmware is written in C++ for the STMicroelectronics STM32 range of ARM based microcontrollers. The core is written in C++ for the Raspberry Pi ARM based SBC. VSCode IDE is used by the developer with plugins including platformio, which provides the build platform for the STM32 firmware. VSCode is run on a development PC, connected via ssh to the target (Raspberry Pi) platform.
 
 ### Core
 
@@ -34,6 +34,19 @@ The core code runs on a Raspberry Pi (4 or later), running [DietPi](https://diet
 - Build executable, e.g. `make`
 
 An executable file called _rmcore_ is creaed in the build directory. This may be run with optional command line options, e.g. `rmcore -h` to show help / usage.
+
+### Panels
+
+Each panel has a platformio configuration. These build instructions are for platformio within vscode IDE. (You could just use platformio directly.) I have written up a [guide](https://github.com/riban-bw/blog/wiki/STM32--development-on-PlatformIO-in-VSCode-on-64-bi-ARM) to using platformio within vscode over ssh to a Raspberry Pi to develop STM32 code. Follow that guide to get a working build environment. There are sepearate platformio projects for each panel, defined by a _platformio.ini_ file in the panel's firmware directory.
+
+- Within vscode, click on the platformio icon in the left toolbar.
+- Click on "Open Folder" and open the panel directory.
+- If this is the first time, platformio will download and install the STM32 toolkit which may take several minutes.
+- Click on the tick icon in the bottom toolbar to build the project. First time build may take longer as it builds all the dependant libraries.
+
+To switch panels, use vscode file menu, open folder... Each time a new panel project is opened for the first time, platformio takes some time to configure. (Even on subsequent switches, platformio can take some time to open a project.)
+
+Be aware that rmcore is within the firmware directory but is not a panel firmware and should be built as described in the [above section](#-core).
 
 ## CAN Protocol
 
