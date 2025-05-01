@@ -302,7 +302,6 @@ int main(int argc, char** argv) {
     moduleManager.addModule("mixer", "mixer");
     moduleManager.addModule("random", "SH");
     moduleManager.addModule("sequencer", "Step");
-    moduleManager.addModule("template", "Test");
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo

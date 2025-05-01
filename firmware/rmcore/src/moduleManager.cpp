@@ -90,7 +90,14 @@ void ModuleManager::setParam(const std::string& uuid, uint32_t param, float valu
     m_modules[uuid]->setParam(param, value);
 }
 
+float ModuleManager::getParam(const std::string& uuid, uint32_t param) {
+    return m_modules[uuid]->getParam(param);
+}
+
 void ModuleManager::setPolyphony(uint8_t poly) {
-    if (poly > 0 && poly <= MAX_POLY)
-        m_poly = poly;
+    if (poly < 1 || poly > MAX_POLY)
+        return;
+    m_poly = poly;
+    for (auto it : m_modules)
+        it.second->setPolyphony(poly);
 }

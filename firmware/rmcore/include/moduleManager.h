@@ -49,6 +49,13 @@ class ModuleManager {
         */
         void setParam(const std::string& uuid, uint32_t param, float value);
 
+        /** @brief  Get value of a module parameter
+            @param  module  Index of module
+            @param  param   Index of parameter
+            @retval float   Normalised value
+        */
+        float getParam(const std::string& uuid, uint32_t param);
+
         /** @brief  Set polyphony
             @param  poly    Quantity of concurrent voices
         */
@@ -58,4 +65,3 @@ class ModuleManager {
         uint8_t m_poly = 1;
         std::map<std::string, Module*> m_modules; // Map of module pointers, indexed by uuid
 };
-
