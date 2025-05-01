@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Random CV module class implementation.
 */
@@ -14,6 +14,20 @@
 #include "moduleManager.h"
 #include <cmath> // Provides std::rand
 #include <ctime> // Provides std::time
+
+Random::Random() {
+    m_info.name ="S&H";
+    m_info.inputs = {
+        "gate"
+    };
+    m_info.outputs = {
+        "output"
+    },
+    m_info.params = {
+        // List of parameter names
+        "slew"
+    };
+}
 
 void Random::init() {
     // Do initialisation stuff here
@@ -42,29 +56,3 @@ int Random::process(jack_nframes_t frames) {
 
     return 0;
 }
-
-// Register this module as an available plugin
-static RegisterModule<Random> reg_random(ModuleInfo({
-    "random",// Unique id for this type of module
-    "S&H", // Module name (used for jack client)
-    {
-        // List of common jack input names
-        "gate"
-    },
-    {
-        // List of polyphonic jack input names
-    },
-    {
-        // List of common jack output names
-        "output"
-    },
-    {
-        // List of polyphonic jack output names
-    },
-    {
-        // List of parameter names
-        "slew"
-    },
-    false // True to enable MIDI input port
-}));
-

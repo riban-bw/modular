@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Module manager class header.
 */
@@ -12,26 +12,17 @@
 #pragma once
 
 #include "global.h"
-#include "module.h"
+#include "module.hpp"
 #include <map> // Provides std::map
-#include <functional> // Provides std::function
-#include <memory> // Provides std::unique_ptr
 #include <string> // Provides std::string
 
 class ModuleManager {
     public:
-        using Creator = std::function<std::unique_ptr<Module>()>;
 
         /** @brief  Get the module manager singleton object
             @retval static ModuleManager Reference to the module manager object
         */
         static ModuleManager& get();
-
-        /** @brief  Register a module type (class derived from Module)
-            @param  type Module type
-            @param  creator Class to register
-        */
-        void registerModule(const ModuleInfo& info, Creator creator);
 
         /** @brief  Add a module to the graph
             @param  type Module type
@@ -47,6 +38,10 @@ class ModuleManager {
         */
         bool removeModule(std::string uuid);
 
+        /** @brief  Remove all modules from the graph
+        */
+        void removeAll();
+
         /** @brief  Set value of a module parameter 
             @param  module  Index of module
             @param  param   Index of parameter
@@ -54,23 +49,13 @@ class ModuleManager {
         */
         void setParam(const std::string& uuid, uint32_t param, float value);
 
+        /** @brief  Set polyphony
+            @param  poly    Quantity of concurrent voices
+        */
+        void setPolyphony(uint8_t poly);
+
     private:
-        struct ModuleConfig {
-            Creator creator;
-            ModuleInfo info;
-        };
-
-        std::map<std::string, std::pair<Creator, ModuleInfo>> m_creators;
-        //std::map<std::string, ModuleConfig> m_creators; // Map of classes derived from Module, indexed by type
-        std::map<std::string, std::unique_ptr<Module>> m_modules; // Map of module pointers, indexed by uuid
+        uint8_t m_poly = 1;
+        std::map<std::string, Module*> m_modules; // Map of module pointers, indexed by uuid
 };
 
-// Register derived class with its type string
-template <typename T>
-struct RegisterModule {
-    RegisterModule(const ModuleInfo& info) {
-        ModuleManager::get().registerModule(info, [info]() {
-            return std::make_unique<T>(info);
-        });
-    }
-};

@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     MIDI input class implementation.
 */
@@ -15,6 +15,31 @@
 #include <stdio.h>
 #include <jack/midiport.h> // provides JACK MIDI interface
 #include <cmath>
+
+Midi::Midi() {
+    m_info.name = "MIDI2CV";
+    m_info.outputs = {
+            "cc1",
+            "cc2",
+            "cc3",
+            "cc4",
+            "cc5",
+            "cc6",
+            "cc7",
+            "cc8"
+    };
+    m_info.polyOutputs = {
+            "freq",
+            "gate",
+            "velocity"
+    };
+    m_info.params = {
+            "portamento",
+            "legato",
+            "channel"
+    };
+    m_info.midi = true;
+}
 
 void Midi::init() {
     for (uint8_t i = 0; i < MAX_POLY; ++i)
@@ -32,7 +57,7 @@ bool Midi::setParam(uint32_t param, float val) {
             break;
         case MIDI_PARAM_POLYPHONY:
             if ((uint8_t)val < MAX_POLY)
-                g_poly = (uint8_t)val;
+                m_poly = (uint8_t)val;
             //!@todo Reconfigure all polyphonic modules
             break;
     }
@@ -40,6 +65,7 @@ bool Midi::setParam(uint32_t param, float val) {
 }
 
 int Midi::process(jack_nframes_t frames) {
+    return 0;
     // Process MIDI input
     void* midiBuffer = jack_port_get_buffer(m_midiIn, frames);
     jack_midi_event_t midiEvent;
@@ -72,7 +98,7 @@ int Midi::process(jack_nframes_t frames) {
                         continue; // Ignore duplicate note-on
 
                     // Get available output
-                    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+                    for (uint8_t poly = 0; poly < m_poly; ++poly) {
                         if (m_outputValue[poly].gate == 0.0) {
                             m_outputValue[poly].note = note;
                             m_outputValue[poly].cv = (note - 60) / 12.0f;
@@ -152,7 +178,7 @@ int Midi::process(jack_nframes_t frames) {
                 break;
         }
     }
-    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+    for (uint8_t poly = 0; poly < m_poly; ++poly) {
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_CV], frames);
         jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_GATE], frames);
         jack_default_audio_sample_t * velBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_VEL], frames);
@@ -171,42 +197,3 @@ int Midi::process(jack_nframes_t frames) {
     }
     return 0;
 }
-
-// Register this module as an available plugin
-static RegisterModule<Midi> reg_midi(ModuleInfo({
-    //id
-    "midi",
-    //name
-    "MIDI2CV",
-    //inputs
-    {
-    },
-    //polyphonic inputs
-    {
-    },
-    //outputs
-    {
-        "cc1",
-        "cc2",
-        "cc3",
-        "cc4",
-        "cc5",
-        "cc6",
-        "cc7",
-        "cc8"
-    },
-    //polyphonic outputs
-    {
-        "freq",
-        "gate",
-        "velocity"
-    },
-    //parameters
-    {
-        "portamento",
-        "legato",
-        "channel"
-    },
-    //MIDI
-    true // MIDI input enabled
-}));

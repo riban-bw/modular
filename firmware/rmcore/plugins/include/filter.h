@@ -2,16 +2,16 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Biquad 2nd order low-pass filter class header.
 */
 
 #pragma once
 
-#include "module.h"
+#include "module.hpp"
 
 #define FILTER_PORT_INPUT  0
 #define FILTER_PORT_FREQ   0
@@ -38,11 +38,11 @@ enum FILTER_PARAM {
     FILTER_PARAM_RESONANCE_CV
 };
 
-class FILTER : public Module {
+class Filter : public Module {
 
     public:
-    using Module::Module;  // Inherit Module's constructor
-    ~FILTER() override { _deinit(); }
+    Filter();
+    ~Filter() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
@@ -67,3 +67,7 @@ class FILTER : public Module {
         // Delay buffers
         double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
 };
+
+extern "C" Module* createPlugin() {
+    return new Filter();
+}

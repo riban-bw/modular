@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Mixer module class implementation.
 */
@@ -15,6 +15,29 @@
 #include <cstring> // Provides std::memset
 
 #define CV_ALPHA 0.01f // CV smoothing filter factor
+
+Mixer::Mixer() {
+    m_info.name = "Mixer";
+    m_info.inputs = {
+        "input 1",
+        "input 2",
+        "input 3",
+        "input 4",
+        "gain 1",
+        "gain 2",
+        "gain 3",
+        "gain 4"
+    };
+    m_info.outputs = {
+        "output"
+    };
+    m_info.params = {
+        "gain 1",
+        "gain 2",
+        "gain 3",
+        "gain 4"
+    };
+}
 
 void Mixer::init() {
     // Do initialisation stuff here
@@ -39,36 +62,3 @@ int Mixer::process(jack_nframes_t frames) {
     }
     return 0;
 }
-
-// Register this module as an available plugin
-static RegisterModule<Mixer> reg_mixer(ModuleInfo({
-    "mixer",// Unique id for this type of module
-    "Mixer", // Module name (used for jack client)
-    {
-        // List of common jack input names
-        "input 1",
-        "input 2",
-        "input 3",
-        "input 4",
-        "gain 1",
-        "gain 2",
-        "gain 3",
-        "gain 4"
-    },
-    {
-        // List of polyphonic jack input names
-    },
-    {
-        // List of common jack output names
-        "output"
-    },
-    {
-        // List of polyphonic jack output names
-    },
-    {
-        // List of parameter names
-        "gain 1", "gain 2", "gain 3", "gain 4"
-    },
-    false // True to enable MIDI input port
-}));
-

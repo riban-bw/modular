@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Core host application.
 */
@@ -205,6 +205,7 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         setBufferedInput(true);
         saveJackConnectionsToFile("last_state.rmstate");
+        ModuleManager::get().removeAll();
         if (g_jackClient) {
             jack_deactivate(g_jackClient);
             jack_client_close(g_jackClient);
@@ -282,22 +283,32 @@ int main(int argc, char** argv) {
 
 
     ModuleManager& moduleManager = ModuleManager::get();
-    addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
-    //moduleManager.addModule("midi", "midi");
-    moduleManager.addModule("osc", "lfo");
+    moduleManager.setPolyphony(g_poly);
+    info("Add MIDI panel\n");
+    //addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
+    moduleManager.addModule("midi", "MIDI2CV");
+    info("Add VCO panel\n");
+    moduleManager.addModule("oscillator", "lfo");
     moduleManager.setParam("lfo", 0, -6.0); // Set LFO frequency
     moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
     moduleManager.setParam("lfo", 3, 2); // Set LFO depth
-    moduleManager.addModule("osc", "vco");
+    info("Add VCO panel\n");
+    moduleManager.addModule("oscillator", "vco");
     moduleManager.setParam("vco", 2, 0);  //OSC_PARAM_PWM
-    moduleManager.addModule("amp", "vca");
-    moduleManager.addModule("env", "eg");
+    info("Add VCA panel\n");
+    moduleManager.addModule("amplifier", "vca");
+    info("Add EG panel\n");
+    moduleManager.addModule("envelope", "eg");
+    info("Add Noise panel\n");
     moduleManager.addModule("noise", "noise");
     moduleManager.setParam("noise", 0, 0.1);
+    info("Add VCF panel\n");
     moduleManager.addModule("filter", "vcf");
-    addPanel(7, 0x01234567, 0x89abcdef, 0x11110000); // Noise
+    info("Add Mixer panel\n");
     moduleManager.addModule("mixer", "mixer");
+    info("Add Rand panel\n");
     moduleManager.addModule("random", "SH");
+    info("Add Seq panel\n");
     moduleManager.addModule("sequencer", "Step");
     restoreJackConnectionsFromFile("last_state.rmstate");
 

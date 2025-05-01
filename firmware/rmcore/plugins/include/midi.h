@@ -2,16 +2,16 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     MIDI input class header.
 */
 
 #pragma once
 
-#include "module.h"
+#include "module.hpp"
 #include <jack/jack.h>
 
 #define NUM_MIDI_CC 8
@@ -41,7 +41,7 @@ struct POLY_OUTPUT {
 class Midi : public Module {
 
     public:
-        using Module::Module;  // Inherit Module's constructor
+        Midi();
         ~Midi() override { _deinit(); }
 
         /*  @brief  Initalise the module
@@ -64,3 +64,8 @@ class Midi : public Module {
         double m_pitchbend = 0.0; // Normalised pitch bend
         double m_pitchbendRange = 2; // Semitone range for pitch bend
 };
+
+extern "C" Module* createPlugin() {
+    return new Midi();
+}
+

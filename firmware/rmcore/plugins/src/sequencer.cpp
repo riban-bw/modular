@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Step sequencer module class implementation.
 */
@@ -14,6 +14,22 @@
 #include "moduleManager.h"
 
 #define CV_ALPHA 0.01 // CV smoothing filter factor
+
+Sequencer::Sequencer() {
+    m_info.name = "Step Sequencer";
+    m_info.inputs = {
+        "clock",
+        "reset"
+    };
+    m_info.outputs = {
+        "cv",
+        "gate"
+    };
+    m_info.params = {
+        "cv 1", "cv 2", "cv 3", "cv 4", "cv 5", "cv 6", "cv 7", "cv 8",
+        "gate 1", "gate 2", "gate 3", "gate 4", "gate 5", "gate 6", "gate 7", "gate 8"
+    };
+}
 
 void Sequencer::init() {
     m_param[0] = 0.0;
@@ -69,30 +85,3 @@ int Sequencer::process(jack_nframes_t frames) {
 
     return 0;
 }
-
-// Register this module as an available plugin
-static RegisterModule<Sequencer> reg_sequencer(ModuleInfo({
-    "sequencer",// Unique id for this type of module
-    "Step Sequencer", // Module name (used for jack client)
-    {
-        // List of common jack input names
-        "clock", "reset"
-    },
-    {
-        // List of polyphonic jack input names
-    },
-    {
-        // List of common jack output names
-        "cv", "gate"
-    },
-    {
-        // List of polyphonic jack output names
-    },
-    {
-        // List of parameter names
-        "cv 1", "cv 2", "cv 3", "cv 4", "cv 5", "cv 6", "cv 7", "cv 8",
-        "gate 1", "gate 2", "gate 3", "gate 4", "gate 5", "gate 6", "gate 7", "gate 8"
-    },
-    false // True to enable MIDI input port
-}));
-

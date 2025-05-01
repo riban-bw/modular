@@ -29,14 +29,11 @@ add_custom_command(
 add_custom_target(generate_wavetable DEPENDS ${WAVETABLE_HEADER})
 
 # Add rmcore sources
-file(GLOB PLUGIN_SOURCES "plugins/src/*.cpp")
 add_executable(rmcore
     src/main.cpp
     src/usart.cpp
-    src/module.cpp
     src/moduleManager.cpp
     src/util.cpp
-    ${PLUGIN_SOURCES}
 )
 
 # Ensure rmcore builds after wavetable.h is generated
@@ -51,3 +48,26 @@ target_include_directories(rmcore PUBLIC
 
 # Link with JACK
 target_link_libraries(rmcore jack)
+
+# Configure plugins
+
+file(GLOB PLUGIN_SOURCES "plugins/src/*.cpp")
+
+foreach(plugin_src ${PLUGIN_SOURCES})
+    get_filename_component(plugin_name ${plugin_src} NAME_WE)
+
+    add_library(${plugin_name} SHARED ${plugin_src})
+
+    target_include_directories(${plugin_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/plugins/include
+    )
+
+    # If your plugins need to link to anything, do it here:
+    # target_link_libraries(${plugin_name} ...)
+
+    set_target_properties(${plugin_name} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/plugins
+    )
+endforeach()

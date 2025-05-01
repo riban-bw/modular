@@ -2,9 +2,9 @@
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
 
     This file is part of riban modular.
-    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-    You should have received a copy of the GNU General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
+    riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+    You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Wavetable based noise generator class implementation.
 */
@@ -13,6 +13,16 @@
 #include "moduleManager.h"
 #include <cmath> // Provides std::rand
 #include <ctime> // Provides std::time
+
+Noise::Noise() {
+    m_info.name = "Noise";
+    m_info.outputs = {
+        "out" // Audio output
+    };
+    m_info.params = {
+        "amplitude" // Output level (normalised 1=unitiy gain)
+    };
+}
 
 void Noise::init() {
     m_param[NOISE_PARAM_AMP] = 1.0;
@@ -26,30 +36,3 @@ int Noise::process(jack_nframes_t frames) {
     }
     return 0;
 }
-
-// Register this module as an available plugin
-static RegisterModule<Noise> reg_noise(ModuleInfo({
-    //id
-    "noise",
-    //name
-    "Noise",
-    //inputs
-    {
-    },
-    //polyphonic inputs
-    {
-    },
-    //outputs
-    {
-        "out" // Audio output
-    },
-    //polyphonic outputs
-    {
-    },
-    //parameters
-    {
-        "amplitude" // Output level (normalised 1=unitiy gain)
-    },
-    //MIDI
-    false // MIDI input disabled
-}));
