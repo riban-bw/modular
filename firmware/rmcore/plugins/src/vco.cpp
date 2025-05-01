@@ -9,7 +9,7 @@
     Wavetable based oscillator class implementation.
 */
 
-#include "oscillator.h"
+#include "vco.h"
 #include "wavetable.h" // Static array of samples
 #include "moduleManager.h"
 #include <cmath> // Provides std::pow

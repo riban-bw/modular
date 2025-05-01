@@ -43,10 +43,10 @@ const std::string g_panelTypes [] = {
     "generic",
     "brain",
     "midi",
-    "oscillator",
-    "amp",
-    "envelope",
-    "filter",
+    "vco",
+    "vca",
+    "eg",
+    "vcf",
     "noise",
     "mixer",
     "random",
@@ -284,31 +284,21 @@ int main(int argc, char** argv) {
 
     ModuleManager& moduleManager = ModuleManager::get();
     moduleManager.setPolyphony(g_poly);
-    info("Add MIDI panel\n");
     //addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
     moduleManager.addModule("midi", "MIDI2CV");
-    info("Add VCO panel\n");
-    moduleManager.addModule("oscillator", "lfo");
+    moduleManager.addModule("vco", "lfo");
     moduleManager.setParam("lfo", 0, -6.0); // Set LFO frequency
     moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
     moduleManager.setParam("lfo", 3, 2); // Set LFO depth
-    info("Add VCO panel\n");
-    moduleManager.addModule("oscillator", "vco");
+    moduleManager.addModule("vco", "vco");
     moduleManager.setParam("vco", 2, 0);  //OSC_PARAM_PWM
-    info("Add VCA panel\n");
-    moduleManager.addModule("amplifier", "vca");
-    info("Add EG panel\n");
-    moduleManager.addModule("envelope", "eg");
-    info("Add Noise panel\n");
+    moduleManager.addModule("vca", "vca");
+    moduleManager.addModule("eg", "ADSR");
     moduleManager.addModule("noise", "noise");
     moduleManager.setParam("noise", 0, 0.1);
-    info("Add VCF panel\n");
-    moduleManager.addModule("filter", "vcf");
-    info("Add Mixer panel\n");
+    moduleManager.addModule("vcf", "vcf");
     moduleManager.addModule("mixer", "mixer");
-    info("Add Rand panel\n");
     moduleManager.addModule("random", "SH");
-    info("Add Seq panel\n");
     moduleManager.addModule("sequencer", "Step");
     restoreJackConnectionsFromFile("last_state.rmstate");
 

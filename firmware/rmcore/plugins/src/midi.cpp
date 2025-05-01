@@ -65,7 +65,6 @@ bool Midi::setParam(uint32_t param, float val) {
 }
 
 int Midi::process(jack_nframes_t frames) {
-    return 0;
     // Process MIDI input
     void* midiBuffer = jack_port_get_buffer(m_midiIn, frames);
     jack_midi_event_t midiEvent;

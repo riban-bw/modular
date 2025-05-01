@@ -9,7 +9,7 @@
     Amplifier class implementation.
 */
 
-#include "amp.h"
+#include "vca.h"
 #include "global.h"
 #include "moduleManager.h"
 

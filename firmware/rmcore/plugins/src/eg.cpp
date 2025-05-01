@@ -9,7 +9,7 @@
     Envelope class implementation.
 */
 
-#include "envelope.h"
+#include "eg.h"
 #include "global.h"
 #include "moduleManager.h"
 

@@ -9,7 +9,7 @@
     Biquad 2nd order filter class implementation.
 */
 
-#include "filter.h"
+#include "vcf.h"
 #include "global.h"
 #include "moduleManager.h"
 #include <cmath>
