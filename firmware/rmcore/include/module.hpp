@@ -12,18 +12,13 @@
 #pragma once
 
 #include "global.h"
-//#include "util.h"
+#include "util.h"
 #include <vector> // Provides std::vector
 #include <jack/jack.h> // Provides jack_client_t, jack_port_t, jack_nframes_t
 #include <string> // Provides std::string
 #include <stdlib.h>
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
-
-// Helper functions used by rmcore and plugins
-//extern void debug(const char *format, ...);
-//extern void info(const char *format, ...);
-//extern void error(const char *format, ...);
 
 struct ModuleInfo {
     std::string name = "default";
@@ -39,6 +34,8 @@ struct ModuleInfo {
 static int samplerateStatic(jack_nframes_t frames, void* arg);
 static int processStatic(jack_nframes_t frames, void* arg);
 
+extern uint8_t g_verbose;
+
 class Module {
     public:
         Module() = default;
@@ -46,8 +43,9 @@ class Module {
 
         /** @brief  Initialise a module object
         */
-        void _init(const std::string& uuid, void* handle, uint8_t poly) {
+        bool _init(const std::string& uuid, void* handle, uint8_t poly, uint8_t verbose) {
             m_handle = handle;
+            g_verbose = verbose;
             if (poly > 0 && poly <= MAX_POLY)
                 m_poly = poly;
 
@@ -58,8 +56,10 @@ class Module {
         
             sprintf(nameBuffer, "%s %s", m_info.name.c_str(), uuid.c_str());
             m_jackClient = jack_client_open(nameBuffer, JackNoStartServer, 0, serverName);
-            if (!m_jackClient)
-                fprintf(stderr, "Failed to open JACK client\n");
+            if (!m_jackClient) {
+                error("Failed to open JACK client\n");
+                return false;
+            }
             for (uint32_t i = 0; i < m_info.inputs.size(); ++i) {
                 port = jack_port_register(m_jackClient, m_info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
                 if (port)
@@ -98,6 +98,7 @@ class Module {
             jack_set_sample_rate_callback(m_jackClient, samplerateStatic, this);
             jack_set_process_callback(m_jackClient, processStatic, this);
             jack_activate(m_jackClient);
+            return true;
         }
         
         /** @brief  Clean up a module object
@@ -176,9 +177,9 @@ class Module {
 };
 
 // Macro to define plugin create
-#define DEFINE_PLUGIN(CLASSNAME)           \
-extern "C" Module* createPlugin() {        \
-    return new CLASSNAME();  \
+#define DEFINE_PLUGIN(CLASSNAME)    \
+extern "C" Module* createPlugin() { \
+    return new CLASSNAME();         \
 }
 
 // Static methods used to access jack client from class

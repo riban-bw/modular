@@ -31,7 +31,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     std::string path = "./plugins/lib" + type + ".so";
     void* handle = dlopen(path.c_str(), RTLD_LAZY);
     if (!handle) {
-        error("%s\n", dlerror());;
+        error("%s\n", dlerror());
         return false;
     }
 
@@ -43,11 +43,26 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
         return false;
     }
 
-    m_modules[uuid] = create();
-    m_modules[uuid]->_init(uuid, handle, m_poly);
-    ModuleInfo modInfo = m_modules[uuid]->getInfo();
-    fprintf(stderr, "Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params\n",
-        type.c_str(), modInfo.name.c_str(), uuid.c_str(), modInfo.inputs.size(), modInfo.polyInputs.size(), modInfo.outputs.size(), modInfo.polyOutputs.size(), modInfo.params.size());
+    auto module = create();
+    if (!module || !module->_init(uuid, handle, m_poly, g_verbose)) {
+        error("Failed to add module %s\n", type);
+        delete module;
+        dlclose(handle);
+        return false;
+    }
+    m_modules[uuid] = module;
+    ModuleInfo modInfo = module->getInfo();
+    info("Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params %s\n",
+        type.c_str(),
+        modInfo.name.c_str(),
+        uuid.c_str(),
+        modInfo.inputs.size(),
+        modInfo.polyInputs.size(),
+        modInfo.outputs.size(),
+        modInfo.polyOutputs.size(),
+        modInfo.params.size(),
+        modInfo.midi ? "MIDI input" : ""
+    );
     return true;
 }
 
@@ -55,6 +70,7 @@ bool ModuleManager::removeModule(std::string uuid) {
     auto it = m_modules.find(uuid);
     if (it == m_modules.end())
         return false;
+    info("Removing module %s [%s]\n", it->second->getInfo().name.c_str(), uuid.c_str());
     void* handle = it->second->getHandle();
     delete it->second;
     m_modules.erase(it);
@@ -63,9 +79,10 @@ bool ModuleManager::removeModule(std::string uuid) {
 }
 
 void ModuleManager::removeAll() {
-    for (auto it = m_modules.begin(); it != m_modules.end(); ++it)
-        delete it->second;
-    m_modules.clear();
+    while (m_modules.size()) {
+        auto it = m_modules.begin();
+        removeModule(it->first);
+    }
 }
 
 void ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {

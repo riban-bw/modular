@@ -56,7 +56,7 @@ file(GLOB PLUGIN_SOURCES "plugins/src/*.cpp")
 foreach(plugin_src ${PLUGIN_SOURCES})
     get_filename_component(plugin_name ${plugin_src} NAME_WE)
 
-    add_library(${plugin_name} SHARED ${plugin_src})
+    add_library(${plugin_name} SHARED ${plugin_src} src/util.cpp)
 
     target_include_directories(${plugin_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include

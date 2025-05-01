@@ -31,7 +31,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-uint8_t g_verbose = VERBOSE_INFO;
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
@@ -123,17 +122,19 @@ void saveJackConnectionsToFile(const std::string& filename) {
     std::ofstream outFile(filename);
 
     // Get all the audio ports (input and output)
-    const char **audio_ports = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
+    const char **audioPorts = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
     // Get all the MIDI ports (input and output)
-    const char **midi_ports = jack_get_ports(g_jackClient, NULL, "midi", JackPortIsOutput);
+    const char **midiPorts = jack_get_ports(g_jackClient, NULL, "midi", JackPortIsOutput);
     // Combine both audio and MIDI ports into one list
-    std::vector<const char*> all_ports;    
-    for (int i = 0; audio_ports[i] != NULL; ++i) {
-        all_ports.push_back(audio_ports[i]);
-    }
-    for (int i = 0; midi_ports[i] != NULL; ++i) {
-        all_ports.push_back(midi_ports[i]);
-    }
+    std::vector<const char*> all_ports;
+    if (audioPorts)
+        for (int i = 0; audioPorts[i] != NULL; ++i) {
+            all_ports.push_back(audioPorts[i]);
+        }
+    if (midiPorts)
+        for (int i = 0; midiPorts[i] != NULL; ++i) {
+            all_ports.push_back(midiPorts[i]);
+        }
     // Iterate over the ports and check connections
     for (const auto& portName : all_ports) {
         // Get the list of connected ports to this port
@@ -210,6 +211,7 @@ void signalHandler(int signal) {
             jack_deactivate(g_jackClient);
             jack_client_close(g_jackClient);
         }
+        info("Exit rmcore\n");
         std::exit(0);
     }
 }
@@ -268,7 +270,7 @@ int main(int argc, char** argv) {
         // Error parsing command line
         return -1;
     }
-    info("Starting riban modular core with polyphony %u...\n", g_poly);
+    info("Starting riban modular core with polyphony %u\n", g_poly);
 
     char* serverName = nullptr;
     g_jackClient = jack_client_open("rmcore", JackNoStartServer, 0, serverName);
@@ -300,6 +302,7 @@ int main(int argc, char** argv) {
     moduleManager.addModule("mixer", "mixer");
     moduleManager.addModule("random", "SH");
     moduleManager.addModule("sequencer", "Step");
+    moduleManager.addModule("template", "Test");
     restoreJackConnectionsFromFile("last_state.rmstate");
 
     /*@todo

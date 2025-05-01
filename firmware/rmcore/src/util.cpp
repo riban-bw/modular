@@ -14,7 +14,7 @@
 #include <stdarg.h> // Provides varg
 #include <cstdio> // Provides fprintf
 
-extern uint8_t g_verbose;
+uint8_t g_verbose = VERBOSE_INFO;
 
 void debug(const char *format, ...) {
     if (g_verbose >= VERBOSE_DEBUG) {
