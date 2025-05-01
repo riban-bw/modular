@@ -46,6 +46,3 @@ class Random : public Module {
         bool m_triggered = false; // True when CV has triggered new value
 };
 
-extern "C" Module* createPlugin() {
-    return new Random();
-}

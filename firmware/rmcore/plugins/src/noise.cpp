@@ -10,9 +10,10 @@
 */
 
 #include "noise.h"
-#include "moduleManager.h"
 #include <cmath> // Provides std::rand
 #include <ctime> // Provides std::time
+
+DEFINE_PLUGIN(Noise)
 
 Noise::Noise() {
     m_info.name = "Noise";

@@ -11,10 +11,11 @@
 
 #include "midi.h"
 #include "global.h"
-#include "moduleManager.h"
 #include <stdio.h>
 #include <jack/midiport.h> // provides JACK MIDI interface
 #include <cmath>
+
+DEFINE_PLUGIN(Midi)
 
 Midi::Midi() {
     m_info.name = "MIDI2CV";

@@ -50,6 +50,3 @@ class Mixer : public Module {
         float m_gain[4]; // Amplification
 };
 
-extern "C" Module* createPlugin() {
-    return new Mixer();
-}

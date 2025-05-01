@@ -11,7 +11,8 @@
 
 #include "eg.h"
 #include "global.h"
-#include "moduleManager.h"
+
+DEFINE_PLUGIN(Envelope) 
 
 #define CV_ALPHA 0.01
 
@@ -107,4 +108,3 @@ int Envelope::process(jack_nframes_t frames) {
 
     return 0;
 }
-

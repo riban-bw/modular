@@ -37,6 +37,3 @@ class Noise : public Module {
     private:
 };
 
-extern "C" Module* createPlugin() {
-    return new Noise();
-}

@@ -175,8 +175,10 @@ class Module {
     private:
 };
 
-extern "C" {
-    Module* createPlugin();
+// Macro to define plugin create
+#define DEFINE_PLUGIN(CLASSNAME)           \
+extern "C" Module* createPlugin() {        \
+    return new CLASSNAME();  \
 }
 
 // Static methods used to access jack client from class

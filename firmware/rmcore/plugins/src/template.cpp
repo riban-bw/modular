@@ -11,9 +11,10 @@
     Run cmake to add a new module. Add panel/module uuid map to main.cpp.
 */
 
-#include "template.h"
-#include "global.h"
-#include "moduleManager.h"
+#include "template.h" // Include this module's header
+#include "global.h" // Include some global constants
+
+DEFINE_PLUGIN(Template) // Defines the plugin create function
 
 #define CV_ALPHA 0.01 // CV smoothing filter factor
 
@@ -42,7 +43,7 @@ Template::Template() {
 }
 
 void Template::init() {
-    // Do initialisation stuff here
+    // Do any required plugin initialisation stuff here, e.g. set default parameter values
 }
 
 int Template::process(jack_nframes_t frames) {

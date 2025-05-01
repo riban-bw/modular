@@ -63,6 +63,3 @@ class Sequencer : public Module {
         float m_outputCv = 0.0f; // Current CV output value
 };
 
-extern "C" Module* createPlugin() {
-    return new Sequencer();
-}

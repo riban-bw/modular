@@ -13,16 +13,16 @@
 
 #include "module.hpp"
 
-#define OSC_PORT_OUT        0
-#define OSC_PORT_CV         0
-#define OSC_PORT_PWM        0
-#define OSC_PORT_WAVEFORM   1
+#define VCO_PORT_OUT        0
+#define VCO_PORT_CV         0
+#define VCO_PORT_PWM        0
+#define VCO_PORT_WAVEFORM   1
 
-enum OSC_PARAM {
-    OSC_PARAM_FREQ      = 0,
-    OSC_PARAM_WAVEFORM  = 1,
-    OSC_PARAM_PWM       = 2,
-    OSC_PARAM_AMP       = 3
+enum VCO_PARAM {
+    VCO_PARAM_FREQ      = 0,
+    VCO_PARAM_WAVEFORM  = 1,
+    VCO_PARAM_PWM       = 2,
+    VCO_PARAM_AMP       = 3
 };
 
 enum WAVEFORM {
@@ -33,11 +33,11 @@ enum WAVEFORM {
     WAVEFORM_NOISE  = 4,
 };
 
-class Oscillator : public Module {
+class VCO : public Module {
 
     public:
-        Oscillator();
-        ~Oscillator() override { _deinit(); }
+        VCO();
+        ~VCO() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
@@ -55,7 +55,3 @@ class Oscillator : public Module {
         double m_waveformPos[MAX_POLY]; // Position within waveform
         double m_waveformStep[MAX_POLY]; // Step to iterate through waveform at desired frequency
 };
-
-extern "C" Module* createPlugin() {
-    return new Oscillator();
-}

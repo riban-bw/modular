@@ -11,13 +11,14 @@
 
 #include "vcf.h"
 #include "global.h"
-#include "moduleManager.h"
 #include <cmath>
 #include <algorithm>// Provides std::clamp
 
 #define CV_ALPHA 0.01
 
-Filter::Filter() {
+DEFINE_PLUGIN(VCF)
+
+VCF::VCF() {
     m_info.name = "VCF";
     m_info.inputs = {
         "freq cv",
@@ -38,16 +39,14 @@ Filter::Filter() {
     };
 }
 
-void Filter::init() {
+void VCF::init() {
     updateCoefficients();
 }
 
-bool Filter::setParam(uint32_t param, float val) {
-    fprintf(stderr, "Filter::setParam(param=%u, val=%f)\n", param, val);
-    if (param == FILTER_PARAM_TYPE) {
-        val = std::clamp(val, 0.0f, (float)FILTER_TYPE_END);
+bool VCF::setParam(uint32_t param, float val) {
+    if (param == VCF_PARAM_TYPE) {
+        val = std::clamp(val, 0.0f, (float)VCF_TYPE_END);
         m_filterType = uint8_t(val);
-        fprintf(stderr, "Filter val: %u\n", m_filterType);
     }
     if (Module::setParam(param, val)) {
         updateCoefficients();
@@ -56,7 +55,7 @@ bool Filter::setParam(uint32_t param, float val) {
     return false;
 }
 
-void Filter::updateCoefficients() {
+void VCF::updateCoefficients() {
     double w0 = 2.0f * M_PI * m_cutoff / m_samplerate; // Normalised frequency (radians/sample)
     double cos_w0 = cos(w0);
     double sin_w0 = sin(w0);
@@ -66,7 +65,7 @@ void Filter::updateCoefficients() {
     double a0 = 1.0 + alpha; // Used for normalising coefficients
 
     switch (m_filterType) {
-        case FILTER_TYPE_LOW_PASS:
+        case VCF_TYPE_LOW_PASS:
             b0 = (1 - cos_w0) / 2;
             b1 = 1 - cos_w0;
             b2 = (1 - cos_w0) / 2;
@@ -74,7 +73,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha;
             break;
-        case FILTER_TYPE_HIGH_PASS:
+        case VCF_TYPE_HIGH_PASS:
             b0 = (1 + cos_w0) / 2;
             b1 = -(1 + cos_w0);
             b2 = (1 + cos_w0) / 2;
@@ -82,7 +81,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha;
             break;
-        case FILTER_TYPE_BAND_PASS:
+        case VCF_TYPE_BAND_PASS:
             b0 = sin_w0 / 2;
             b1 = 0;
             b2 = -sin_w0 / 2;
@@ -90,7 +89,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha;
             break;
-        case FILTER_TYPE_NOTCH:
+        case VCF_TYPE_NOTCH:
             b0 = 1;
             b1 = -2 * cos_w0;
             b2 = 1;
@@ -98,7 +97,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha;
             break;
-        case FILTER_TYPE_ALL_PASS:
+        case VCF_TYPE_ALL_PASS:
             b0 = 1 - alpha;
             b1 = -2 * cos_w0;
             b2 = 1 + alpha;
@@ -106,7 +105,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha;
             break;
-        case FILTER_TYPE_PEAK:
+        case VCF_TYPE_PEAK:
             A = pow(10, m_gain / 40.0f);
             b0 = 1 + alpha * A;
             b1 = -2 * cos_w0;
@@ -115,7 +114,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * cos_w0;
             a2 = 1 - alpha / A;
             break;
-        case FILTER_TYPE_LOW_SHELF:
+        case VCF_TYPE_LOW_SHELF:
             A = pow(10, m_gain / 40.0f);
             beta = sqrt(A) / m_resonance;
             b0 = A * ((A + 1) - (A - 1) * cos_w0 + 2 * sqrt(A) * alpha);
@@ -125,7 +124,7 @@ void Filter::updateCoefficients() {
             a1 = -2 * ((A - 1) + (A + 1) * cos_w0);
             a2 = (A + 1) + (A - 1) * cos_w0 - 2 * sqrt(A) * alpha;
             break;
-        case FILTER_TYPE_HIGH_SHELF:
+        case VCF_TYPE_HIGH_SHELF:
             A = pow(10, m_gain / 40.0f);
             beta = sqrt(A) / m_resonance;
             b0 = A * ((A + 1) + (A - 1) * cos_w0 + 2 * sqrt(A) * alpha);
@@ -143,9 +142,9 @@ void Filter::updateCoefficients() {
     a2 /= a0;
 }
 
-int Filter::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_FREQ], frames);
-    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[FILTER_PORT_RES], frames);
+int VCF::process(jack_nframes_t frames) {
+    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_PORT_FREQ], frames);
+    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_PORT_RES], frames);
     if (m_cutoff != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_resonance) {
         //!@todo Smooth adjustment of cutoff & resonance
         //!@todo Add log scale
@@ -154,8 +153,8 @@ int Filter::process(jack_nframes_t frames) {
         updateCoefficients();
     }
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][FILTER_PORT_INPUT], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][FILTER_PORT_OUTPUT], frames);
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCF_PORT_INPUT], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][VCF_PORT_OUTPUT], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             outBuffer[frame] = b0 * inBuffer[frame] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
             // Shift the delay buffer

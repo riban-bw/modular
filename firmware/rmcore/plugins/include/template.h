@@ -7,12 +7,14 @@
     You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
     Template module class header.
+    This file provides a template for building a module plugin and describes what each element does.
 */
 
-#pragma once
+#pragma once // Only include this header once
 
-#include "module.hpp"
+#include "module.hpp" // Include the parent module class
 
+// Some defines and enums used in the souce code to indicate inputs, outputs, etc.
 // Input ports
 #define TEMPLATE_PORT_PARAM1 0
 // Polyphonic input ports
@@ -31,8 +33,8 @@ enum TEMPLATE_PARAM {
 class Template : public Module {
 
     public:
-        Template();
-        ~Template() override { _deinit(); } // Call clean-up code on destruction
+        Template(); // Declares the class - change this to the new class name
+        ~Template() override { _deinit(); } // Call clean-up code on destruction - Change this to the new class name
 
         /*  @brief  Initalise the module
         */
@@ -44,9 +46,6 @@ class Template : public Module {
         int process(jack_nframes_t frames);
 
     private:
+        // Some variables
         double m_gain[MAX_POLY]; // Amplification
 };
-
-extern "C" Module* createPlugin() {
-    return new Template();
-}

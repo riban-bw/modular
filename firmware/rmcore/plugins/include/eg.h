@@ -59,6 +59,3 @@ class Envelope : public Module {
 
 };
 
-extern "C" Module* createPlugin() {
-    return new Envelope();
-}

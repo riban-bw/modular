@@ -11,7 +11,8 @@
 
 #include "sequencer.h"
 #include "global.h"
-#include "moduleManager.h"
+
+DEFINE_PLUGIN(Sequencer)
 
 #define CV_ALPHA 0.01 // CV smoothing filter factor
 

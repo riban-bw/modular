@@ -11,8 +11,9 @@
 
 #include "mixer.h"
 #include "global.h"
-#include "moduleManager.h"
 #include <cstring> // Provides std::memset
+
+DEFINE_PLUGIN(Mixer)
 
 #define CV_ALPHA 0.01f // CV smoothing filter factor
 

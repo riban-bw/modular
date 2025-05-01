@@ -11,9 +11,10 @@
 
 #include "random.h"
 #include "global.h"
-#include "moduleManager.h"
 #include <cmath> // Provides std::rand
 #include <ctime> // Provides std::time
+
+DEFINE_PLUGIN(Random)
 
 Random::Random() {
     m_info.name ="S&H";

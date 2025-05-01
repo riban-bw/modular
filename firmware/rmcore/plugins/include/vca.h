@@ -6,26 +6,26 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
     You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Amplifier class header.
+    VCA class header.
 */
 
 #pragma once
 
 #include "module.hpp"
 
-#define AMP_PORT_INPUT 0
-#define AMP_PORT_CV 1
-#define AMP_PORT_OUTPUT 0
+#define VCA_PORT_INPUT 0
+#define VCA_PORT_CV 1
+#define VCA_PORT_OUTPUT 0
 
-enum AMP_PARAM {
-    AMP_PARAM_GAIN   = 0
+enum VCA_PARAM {
+    VCA_PARAM_GAIN   = 0
 };
 
-class Amplifier : public Module {
+class VCA : public Module {
 
     public:
-        Amplifier();
-        ~Amplifier() override { _deinit(); }
+        VCA();
+        ~VCA() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
@@ -40,6 +40,3 @@ class Amplifier : public Module {
         double m_gain[MAX_POLY]; // Amplification
 };
 
-extern "C" Module* createPlugin() {
-    return new Amplifier();
-}

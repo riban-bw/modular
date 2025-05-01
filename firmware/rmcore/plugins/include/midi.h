@@ -65,7 +65,3 @@ class Midi : public Module {
         double m_pitchbendRange = 2; // Semitone range for pitch bend
 };
 
-extern "C" Module* createPlugin() {
-    return new Midi();
-}
-
