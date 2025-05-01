@@ -320,6 +320,7 @@ int main(int argc, char** argv) {
     char ch;
     while (true) {
         if (read(STDIN_FILENO, &ch, 1) > 0) {
+            moduleManager.setPolyphony(ch - '1');
             switch (ch) {
                 case '1':
                     moduleManager.setParam("vcf", 2, 0);  //FILTER_TYPE_LOW_PASS

@@ -154,19 +154,22 @@ class Module {
         }
 
         void setPolyphony(uint8_t poly) {
-            // Remove excessive jack ports
-            for (uint8_t i = poly; i < m_poly; ++i) {
-                for (jack_port_t* port : m_polyInput[i])
-                    if (port)
+            uint8_t oldPoly = m_poly;
+            if (poly < m_poly) {
+                m_poly = poly;
+                // Remove excessive jack ports
+                for (uint8_t i = poly; i < oldPoly; ++i) {
+                    for (jack_port_t* port : m_polyInput[i])
                         jack_port_unregister(m_jackClient, port);
-                m_polyInput[i].clear();
-                for (jack_port_t* port : m_polyOutput[i])
-                    if (port)
+                    m_polyInput[i].clear();
+                    for (jack_port_t* port : m_polyOutput[i])
                         jack_port_unregister(m_jackClient, port);
+                    m_polyOutput[i].clear();
+                    }
             }
             // Add new ports
             char nameBuffer[128];
-            for (uint8_t j = m_poly; j < poly; ++j) {
+            for (uint8_t j = oldPoly; j < poly; ++j) {
                 for (uint32_t i = 0; i < m_info.polyInputs.size(); ++i) {
                     sprintf(nameBuffer, "%s[%u]", m_info.polyInputs[i].c_str(), j);
                     jack_port_t* port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
@@ -180,6 +183,7 @@ class Module {
                         m_polyOutput[j].push_back(port);
                 }
             }
+            m_poly = poly;
             //!@todo Reassert routes
         }
 
