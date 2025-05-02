@@ -19,10 +19,12 @@
 #define VCO_PORT_WAVEFORM   1
 
 enum VCO_PARAM {
-    VCO_PARAM_FREQ      = 0,
-    VCO_PARAM_WAVEFORM  = 1,
-    VCO_PARAM_PWM       = 2,
-    VCO_PARAM_AMP       = 3
+    VCO_PARAM_FREQ,
+    VCO_PARAM_WAVEFORM,
+    VCO_PARAM_PWM,
+    VCO_PARAM_AMP,
+    VCO_PARAM_LFO,
+    VCO_PARAM_LIN
 };
 
 enum WAVEFORM {
@@ -52,6 +54,7 @@ class VCO : public Module {
         uint32_t m_wavetableSize; // Quantity of floats in each wavetable
         float m_pwm = 0.5f; // Square wave PWM value
         float m_waveform = 0.0f; // Waveform morph value
+        float m_lfo = false; // Magnification factor for slow/LFO mode (0.0 for normal, -9.0 for LFO)
         double m_waveformPos[MAX_POLY]; // Position within waveform
         double m_waveformStep[MAX_POLY]; // Step to iterate through waveform at desired frequency
 };

@@ -24,6 +24,11 @@ class ModuleManager {
         */
         static ModuleManager& get();
 
+        /** @brief  Get list of running modules
+            @retval std::map<const std::string, Module*>> Map of module UUIDs
+        */
+        const std::map<const std::string, Module*>& getModules();
+
         /** @brief  Add a module to the graph
             @param  type Module type
             @param  uuid Module UUID
@@ -36,25 +41,39 @@ class ModuleManager {
             @param  uuid UUID of the panel/module
             @retval bool True on success
         */
-        bool removeModule(std::string uuid);
+        bool removeModule(const std::string& uuid);
 
         /** @brief  Remove all modules from the graph
+            @retval bool True on success
         */
-        void removeAll();
+        bool removeAll();
 
         /** @brief  Set value of a module parameter 
-            @param  module  Index of module
+            @param  module  Module UUID
             @param  param   Index of parameter
             @param  value   Normalised value
         */
         void setParam(const std::string& uuid, uint32_t param, float value);
 
         /** @brief  Get value of a module parameter
-            @param  module  Index of module
+            @param  module  Module UUID
             @param  param   Index of parameter
             @retval float   Normalised value
         */
         float getParam(const std::string& uuid, uint32_t param);
+
+        /** @brief  Get name of a module parameter
+            @param  module  Module UUID
+            @param  param   Index of parameter
+            @retval const std::string&   Name or "" if invalid parameter
+        */
+        const std::string& getParamName(const std::string& uuid, uint32_t param);
+
+        /** @brief  Get quantity of module parameters
+            @param  module  Module UUID
+            @retval uint32_t Quantity of parameters or 0 if invalid module
+        */
+        uint32_t getParamCount(const std::string& uuid);
 
         /** @brief  Set polyphony
             @param  poly    Quantity of concurrent voices
@@ -63,5 +82,5 @@ class ModuleManager {
 
     private:
         uint8_t m_poly = 1;
-        std::map<std::string, Module*> m_modules; // Map of module pointers, indexed by uuid
+        std::map<const std::string, Module*> m_modules; // Map of module pointers, indexed by uuid
 };

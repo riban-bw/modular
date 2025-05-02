@@ -47,7 +47,7 @@ target_include_directories(rmcore PUBLIC
 )
 
 # Link with JACK
-target_link_libraries(rmcore jack)
+target_link_libraries(rmcore jack readline)
 
 # Configure plugins
 

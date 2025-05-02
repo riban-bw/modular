@@ -35,6 +35,8 @@ VCO::VCO() {
         "waveform", // Morphing waveform selection (0:sin, 1:tri, 2:saw 3:square, 4:noise)
         "pwm", // Pulse width (0..1) square wave only
         "amplitude" // Output level (normalised 1=unitiy gain)
+        "lfo", // Factor to adjust frequency for LFO mode (0.0 none, -9.0 minus 9 octaves)
+        "linear" // >0.5 to enable linear frequency control. <0.5 to enable log frequency control
     };
 }
 
@@ -48,9 +50,11 @@ void VCO::init() {
     setParam(VCO_PARAM_WAVEFORM, WAVEFORM_SIN);
     setParam(VCO_PARAM_PWM, 0.5);
     setParam(VCO_PARAM_AMP, 1.0);
+    setParam(VCO_PARAM_LFO, 0.0);
 }
 
 int VCO::process(jack_nframes_t frames) {
+    double freq;
     jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_PORT_PWM], frames);
     float targetPwm = std::clamp(pwmBuffer[0] + m_param[VCO_PARAM_PWM], 0.1f, 0.9f);
     jack_default_audio_sample_t * waveformBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_PORT_WAVEFORM], frames);
@@ -62,8 +66,15 @@ int VCO::process(jack_nframes_t frames) {
         while (m_waveformPos[poly] >= m_wavetableSize)
             m_waveformPos[poly] -= m_wavetableSize;
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            double freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[VCO_PARAM_FREQ]));
-            double targetStep = freq / WAVETABLE_FREQ;
+            //!@todo Do we need to adjust frequency every frame or can it be slewed from a change every period?
+            if (m_param[VCO_PARAM_LIN])
+                if (m_param[VCO_PARAM_LFO])
+                    freq = m_param[VCO_PARAM_FREQ];
+                else
+                    freq = m_param[VCO_PARAM_FREQ] * 1000;
+            else
+                freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[VCO_PARAM_FREQ] + m_lfo));
+            double targetStep = freq / WAVETABLE_FREQ; //!@todo Currently using 1Hz table so could remove this calc
             if (targetStep < 0.001)
                 targetStep = 0.001;
             m_waveformStep[poly] += CV_ALPHA * (targetStep - m_waveformStep[poly]);

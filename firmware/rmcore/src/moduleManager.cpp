@@ -21,6 +21,11 @@ ModuleManager& ModuleManager::get() {
     return manager;
 }
 
+const std::map<const std::string, Module*>& ModuleManager::getModules() {
+    return m_modules;
+}
+
+
 bool ModuleManager::addModule(const std::string& type, const std::string& uuid) {
     // Check if this instance of the module is already running
     if (m_modules.find(uuid) != m_modules.end()) {
@@ -66,7 +71,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     return true;
 }
 
-bool ModuleManager::removeModule(std::string uuid) {
+bool ModuleManager::removeModule(const std::string& uuid) {
     auto it = m_modules.find(uuid);
     if (it == m_modules.end())
         return false;
@@ -78,20 +83,44 @@ bool ModuleManager::removeModule(std::string uuid) {
     return true;
 }
 
-void ModuleManager::removeAll() {
+bool ModuleManager::removeAll() {
+    bool result = true;
     while (m_modules.size()) {
         auto it = m_modules.begin();
-        removeModule(it->first);
+        result &= removeModule(it->first);
     }
+    return result;
 }
 
 void ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {
-    //!@todo This will seg fault if bad uuid is passed
+    if (m_modules.find(uuid) == m_modules.end()) {
+        error("Attempt to set param %u on unknown module '%s'\n", param, uuid.c_str());
+        return;
+    }
     m_modules[uuid]->setParam(param, value);
 }
 
 float ModuleManager::getParam(const std::string& uuid, uint32_t param) {
+    if (m_modules.find(uuid) == m_modules.end())
+        return 0.0;
     return m_modules[uuid]->getParam(param);
+}
+
+const std::string& ModuleManager::getParamName(const std::string& uuid, uint32_t param) {
+    static const std::string empty = "";
+    auto it = m_modules.find(uuid);
+    if (it == m_modules.end() || !it->second) {
+        return empty;
+    }
+    return it->second->getParamName(param);
+}
+
+uint32_t ModuleManager::getParamCount(const std::string& uuid) {
+    auto it = m_modules.find(uuid);
+    if (it == m_modules.end() || !it->second) {
+        return 0;
+    }
+    return it->second->getParamCount();
 }
 
 void ModuleManager::setPolyphony(uint8_t poly) {

@@ -20,6 +20,7 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 
+//!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.
 struct ModuleInfo {
     std::string name = "default";
     std::vector<std::string> inputs;
@@ -131,7 +132,7 @@ class Module {
         */
         uint32_t getNumOutputs() { return m_output.size(); }
 
-        /** @brief  Gets the value of a parameter
+        /** @brief  Get the value of a parameter
             @param  param Index of parameter
             @retval float Parameter value
         */
@@ -147,10 +148,30 @@ class Module {
             @retval bool True on success
         */
         virtual bool setParam(uint32_t param, float val) {
-            if (param >= m_param.size())
+            if (param >= m_param.size()) {
+                error("Attempt to set wrong parameter %u on module %s\n", param, m_info.name.c_str());
                 return false;
+            }
             m_param[param] = val;
             return true;
+        }
+
+        /** @brief  Get name of a parameter
+            @param  param Index of parameter
+            @retval const std::string* Name of parameter or empty string for invalid parameter
+        */
+        const std::string& getParamName(uint32_t param) {
+            if (param < m_info.params.size())
+                return m_info.params[param];
+            static const std::string empty = "";
+            return empty;
+        }
+
+        /** @brief  Get quantity of parameters
+            @retval uint32_t Quantity of parameters
+        */
+        uint32_t getParamCount() {
+            return m_info.params.size();
         }
 
         void setPolyphony(uint8_t poly) {

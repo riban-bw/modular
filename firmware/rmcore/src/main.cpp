@@ -25,12 +25,13 @@
 #include <iostream> // Provides stream operations like <<
 #include <string> // Provides std::string
 #include <iomanip> // Provides std::setw
+#include <fcntl.h> // Provides file control constants
+#include <readline/readline.h> // Provides readline CLI
+#include <readline/history.h> // Provides history in readline CLI
+#include <sys/select.h> // Provides select for non-blocking input
+#include <algorithm> // Provides std::transform
 
-#include <iostream>
-#include <termios.h>
-#include <unistd.h>
-#include <fcntl.h>
-
+static const char* historyFile = ".rmcore_cli_history";
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
@@ -67,6 +68,12 @@ const std::string g_panelTypes [] = {
         Adjust parameter values
         Periodic / event driven persistent state save
 */
+
+std::string toLower(std::string input) {
+    std::transform(input.begin(), input.end(), input.begin(),
+        [](unsigned char c) { return std::tolower(c); });
+    return input;
+}
 
 void print_version() {
     info("%s %s (%s) Copyright riban ltd 2023-%s\n", PROJECT_NAME, PROJECT_VERSION, BUILD_DATE, BUILD_YEAR);
@@ -117,9 +124,16 @@ bool parseCmdline(int argc, char** argv) {
 }
 
 // Function to save all the Jack connections to a file
-void saveJackConnectionsToFile(const std::string& filename) {
+void saveState(const std::string& filename) {
     // Open a file for writing the connections
     std::ofstream outFile(filename);
+
+    outFile << "[general]\n";
+
+    outFile << "[modules]\n";
+    for (auto it : ModuleManager::get().getModules()) {
+        outFile << it.second->getInfo().name << "=" << it.first << std::endl;
+    }
 
     // Get all the audio ports (input and output)
     const char **audioPorts = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
@@ -135,6 +149,7 @@ void saveJackConnectionsToFile(const std::string& filename) {
         for (int i = 0; midiPorts[i] != NULL; ++i) {
             all_ports.push_back(midiPorts[i]);
         }
+    outFile << "[routes]\n";
     // Iterate over the ports and check connections
     for (const auto& portName : all_ports) {
         // Get the list of connected ports to this port
@@ -143,7 +158,7 @@ void saveJackConnectionsToFile(const std::string& filename) {
             continue;
         for (int j = 0; connected_ports[j] != NULL; ++j) {
             // Write the connected port pair to the file
-            outFile << portName << "," << connected_ports[j] << std::endl;
+            outFile << portName << "=" << connected_ports[j] << std::endl;
         }
     }
 
@@ -153,31 +168,50 @@ void saveJackConnectionsToFile(const std::string& filename) {
 }
 
 // Function to reload and restore Jack connections from a file
-void restoreJackConnectionsFromFile(const std::string& filename) {
+void loadState(const std::string& filename) {
     std::ifstream inFile(filename);    
     if (!inFile.is_open()) {
         error("Opening file for reading!\n");
         return;
     }
     std::string line;
+    std::string section = "None";
     while (std::getline(inFile, line)) {
         std::stringstream ss(line);
-        std::string sourcePort;
-        std::string destinationPort;
-        
-        // Parse the line in the format: "sourcePort -> destinationPort"
-        if (std::getline(ss, sourcePort, ',') && std::getline(ss, destinationPort)) {
-            
-            // Get the source and destination Jack ports
-            jack_port_t* source = jack_port_by_name(g_jackClient, sourcePort.c_str());
-            jack_port_t* destination = jack_port_by_name(g_jackClient, destinationPort.c_str());
+        std::string param;
+        std::string value;
 
-            // Check if the ports are valid
-            if (source && destination) {
-                // Reconnect the ports
-                jack_connect(g_jackClient, sourcePort.c_str(), destinationPort.c_str());
-            } else {
-                std::cerr << "Invalid port names: " << sourcePort << " or " << destinationPort << std::endl;
+        if (line == "[general]") {
+            section = "general";
+            continue;
+        }
+        else if (line == "[modules]") {
+            section = "modules";
+            continue;
+        }
+        else if (line == "[routes]") {
+            section = "routes";
+            continue;
+        } else if (section == "general") {
+        } else if (section == "modules") {
+            ModuleManager& mm = ModuleManager::get();
+            if (std::getline(ss, param, '=') && std::getline(ss, value))
+                mm.addModule(toLower(param), value);
+        } else if (section == "routes") {
+            // Parse the line in the format: "param -> value"
+            if (std::getline(ss, param, '=') && std::getline(ss, value)) {
+                
+                // Get the source and destination Jack ports
+                jack_port_t* source = jack_port_by_name(g_jackClient, param.c_str());
+                jack_port_t* destination = jack_port_by_name(g_jackClient, value.c_str());
+
+                // Check if the ports are valid
+                if (source && destination) {
+                    // Reconnect the ports
+                    jack_connect(g_jackClient, param.c_str(), value.c_str());
+                } else {
+                    std::cerr << "Invalid port names: " << param << " or " << value << std::endl;
+                }
             }
         }
     }
@@ -185,39 +219,29 @@ void restoreJackConnectionsFromFile(const std::string& filename) {
     info("Connections restored from %s\n", filename.c_str());
 }
 
-void setNonBlocking(bool enable) {
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, enable ? flags | O_NONBLOCK : flags & ~O_NONBLOCK);
+void setNonBlocking(int fd, bool enable) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, enable ? flags | O_NONBLOCK : flags & ~O_NONBLOCK);
 }
 
-void setBufferedInput(bool enable) {
-    static struct termios oldt, newt;
-    if (!enable) {
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    } else {
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    }
-}
-
-void signalHandler(int signal) {
+void handleSignal(int signal) {
     if (signal == SIGINT) {
-        setBufferedInput(true);
-        saveJackConnectionsToFile("last_state.rmstate");
+        rl_callback_handler_remove();
+        saveState("last_state.rmstate");
         ModuleManager::get().removeAll();
         if (g_jackClient) {
             jack_deactivate(g_jackClient);
             jack_client_close(g_jackClient);
         }
         info("Exit rmcore\n");
+        write_history(historyFile);
         std::exit(0);
     }
 }
 
 int handleJackXrun(void *arg) {
-    info("xrun %u\n", ++g_xruns);
+    ++g_xruns;
+    //info("xrun %u\n", g_xruns);
     return 0;
 }
 
@@ -264,13 +288,139 @@ bool addPanel(uint32_t type, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
     return ModuleManager::get().addModule(g_panelTypes[type], uuid);
 }
 
+void handleCli(char* line) {
+    if (!line) {
+        // ctrl+d
+        handleSignal(SIGINT);
+        return;
+    }
+    std::string msg = line;
+    free(line);
+    if (!msg.empty()) {
+        add_history(msg.c_str());
+        if (msg == "quit" || msg == "exit") {
+            handleSignal(SIGINT);
+            return;
+        } else if (msg == "help") {
+            info("Close application (without saving): exit\n");
+            info("Save state: .S<optional filename>");
+            info("Add module: .a<type>,<uuid>\n");
+            info("Remove modules: .r<uuid>\n");
+            info("Remove all modules: .r*\n");
+            info("Set parameter value: .s<module uuid>,<param index>,<value>\n");
+            info("Get parameter value: .g<module uuid>,<param index>\n");
+            info("Get parameter name: .n<module uuid>,<param index>\n");
+            info("Get quantity of parameters: .p<module uuid>\n");
+            info("Connect ports: .c<module uuid>,<output>,<module uuid>,<input>\n");
+            info("Disconnect ports: .d<module uuid>,<output>,<module uuid>,<input>\n");
+        } else if (msg.size() > 1 && msg[0] == '.' ) {
+            std::vector<std::string> pars;
+            std::stringstream ss(msg.substr(2));
+            std::string token;
+            while (std::getline(ss, token, ','))
+                pars.push_back(token);
+            switch (msg[1]) {
+                case 's':
+                    if (pars.size() < 3)
+                        error(".s requires 3 parameters\n");
+                    else {
+                        // Set parameter
+                        //debug("CLI params: '%s' '%s' '%s'\n", pars[0], pars[1], pars[2]);
+                        debug("Set module %s parameter %u to value %f\n", pars[0].c_str(), std::stoi(pars[1]), std::stof(pars[2]));
+                        ModuleManager::get().setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]));
+                    }
+                    break;
+                case 'g':
+                    if (pars.size() < 2)
+                        error(".g requires 2 parameters\n");
+                    else if (std::stoi(pars[1]) >= ModuleManager::get().getParamCount(pars[0]))
+                        error("Module '%s' only has %u parameters\n", pars[0].c_str(), ModuleManager::get().getParamCount(pars[0]));
+                    else {
+                        debug("Request module %s parameter %u\n", pars[0].c_str(), std::stoi(pars[1]));
+                        info("%f\n", ModuleManager::get().getParam(pars[0], std::stoi(pars[1])));
+                    }
+                    break;
+                case 'n':
+                    if (pars.size() < 2)
+                        error(".n requires 2 parameters\n");
+                    else {
+                        debug("Request module %s parameter name %u\n", pars[0].c_str(), std::stoi(pars[1]));
+                        info("%s\n", ModuleManager::get().getParamName(pars[0], std::stoi(pars[1])).c_str());
+                    }
+                    break;
+                case 'p':
+                    if (pars.size() < 1)
+                        error(".p requires 1 parameters\n");
+                    else {
+                        debug("Request module %s parameter count\n", pars[0].c_str());
+                        info("%u\n", ModuleManager::get().getParamCount(pars[0]));
+                    }
+                    break;
+                case 'a':
+                    if (pars.size() < 2)
+                        error(".s requires 2 parameters\n");
+                    else {
+                        debug("Add module type %s uuid %s\n", pars[0], pars[1]);
+                        info("%s\n", ModuleManager::get().addModule(pars[0], pars[1]) ? "Success" : "Fail");
+                    }
+                    break;
+                case 'r':
+                    if (pars.size() < 1)
+                        error(".s requires 1 parameters\n");
+                    else {
+                        debug("Remove module uuid %s\n", pars[0]);
+                        if (pars[0] == "*")
+                            info("%s\n", ModuleManager::get().removeAll() ? "Success" : "Fail");
+                        else
+                            info("%s\n", ModuleManager::get().removeModule(pars[0]) ? "Success" : "Fail");
+                    }
+                    break;
+                case 'S':
+                    if (pars.size() < 1)
+                        pars.push_back("last_state.rmstate");
+                    saveState(pars[0]);
+                    info("Saved file to %s\n", pars[0].c_str());
+                    break;
+                case 'c':
+                    if (pars.size() < 4)
+                        error(".c requires 4 parameters\n");
+                    else {
+                        std::string src = pars[0] + ":" + pars[1];
+                        std::string dst = pars[2] + ":" + pars[3];
+                        debug("Connect module uuid %s to uuid %s\n", src.c_str(), dst.c_str());
+                        //!@todo Connect poly
+                        jack_connect(g_jackClient, src.c_str(), dst.c_str());
+                        }
+                    break;
+                case 'd':
+                    if (pars.size() < 4)
+                        error(".d requires 4 parameters\n");
+                    else {
+                        std::string src = pars[0] + ":" + pars[1];
+                        std::string dst = pars[2] + ":" + pars[3];
+                        debug("Disconnect module uuid %s to uuid %s\n", src.c_str(), dst.c_str());
+                        //!@todo Connect poly
+                        jack_disconnect(g_jackClient, src.c_str(), dst.c_str());
+                        }
+                    break;
+                default:
+                    info("Invalid command. Type 'help' for usage.\n");
+                    break;
+            }
+        }
+    }
+    rl_callback_handler_install("rmcore> ", handleCli);
+}
+
 int main(int argc, char** argv) {
-    std::signal(SIGINT, signalHandler);
+    std::signal(SIGINT, handleSignal);
     if(parseCmdline(argc, argv)) {
         // Error parsing command line
         return -1;
     }
     info("Starting riban modular core with polyphony %u\n", g_poly);
+    read_history(historyFile);
+    rl_callback_handler_install("rmcore> ", handleCli);
 
     char* serverName = nullptr;
     g_jackClient = jack_client_open("rmcore", JackNoStartServer, 0, serverName);
@@ -278,15 +428,14 @@ int main(int argc, char** argv) {
         error("Failed to open JACK client\n");
         std::exit(-1);
     }
-
     jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
     jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
     jack_activate(g_jackClient);
 
-
     ModuleManager& moduleManager = ModuleManager::get();
     moduleManager.setPolyphony(g_poly);
     //addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
+    /*
     moduleManager.addModule("midi", "MIDI2CV");
     moduleManager.addModule("vco", "lfo");
     moduleManager.setParam("lfo", 0, -6.0); // Set LFO frequency
@@ -302,7 +451,8 @@ int main(int argc, char** argv) {
     moduleManager.addModule("mixer", "mixer");
     moduleManager.addModule("random", "SH");
     moduleManager.addModule("sequencer", "Step");
-    restoreJackConnectionsFromFile("last_state.rmstate");
+    */
+    loadState("last_state.rmstate");
 
     /*@todo
         Start background panel detection
@@ -313,49 +463,16 @@ int main(int argc, char** argv) {
         Start audio processing
     */
 
-    // Console input
-    setBufferedInput(false);
-    setNonBlocking(true);
-    info("Select filter type [1..8]\n");
-    char ch;
     while (true) {
-        if (read(STDIN_FILENO, &ch, 1) > 0) {
-            moduleManager.setPolyphony(ch - '1');
-            switch (ch) {
-                case '1':
-                    moduleManager.setParam("vcf", 2, 0);  //FILTER_TYPE_LOW_PASS
-                    info("Low pass\n");
-                    break;
-                case '2':
-                    moduleManager.setParam("vcf", 2, 1);  //FILTER_TYPE_HIGH_PASS
-                    info("High pass\n");
-                    break;
-                case '3':
-                    moduleManager.setParam("vcf", 2, 2);  //FILTER_TYPE_BAND_PASS
-                    info("Band pass\n");
-                    break;
-                case '4':
-                    moduleManager.setParam("vcf", 2, 3);  //FILTER_TYPE_NOTCH
-                    info("Notch\n");
-                    break;
-                case '5':
-                    moduleManager.setParam("vcf", 2, 4);  //FILTER_TYPE_ALL_PASS
-                    info("All pass\n");
-                    break;
-                case '6':
-                    moduleManager.setParam("vcf", 2, 5);  //FILTER_TYPE_PEAK
-                    info("Peaking\n");
-                    break;
-                case '7':
-                    moduleManager.setParam("vcf", 2, 6);  //FILTER_TYPE_LOW_SHELF
-                    info("Low shelfing\n");
-                    break;
-                case '8':
-                    moduleManager.setParam("vcf", 2, 7);  //FILTER_TYPE_HIGH_SHELF
-                    info("High shelfing\n");
-                    break;
-            }
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+        timeval timeout = {0, 100000};  // 100ms
+        int ret = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &timeout);
+        if (ret > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
+            rl_callback_read_char();  // Non-blocking input processing
         }
+
         usleep(1000); // 1ms sleep to avoid tight loop
     }
 
