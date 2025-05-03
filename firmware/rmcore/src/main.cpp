@@ -30,6 +30,7 @@
 #include <readline/history.h> // Provides history in readline CLI
 #include <sys/select.h> // Provides select for non-blocking input
 #include <algorithm> // Provides std::transform
+#include <ctime> // Provides time & date
 
 static const char* historyFile = ".rmcore_cli_history";
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
@@ -37,6 +38,7 @@ bool g_running = true; // False to stop processing
 uint8_t g_poly = 1; // Current polyphony
 jack_client_t* g_jackClient;
 uint32_t g_xruns = 0;
+std::string g_stateName;
 
 // Map panel type uuid to module type uuid
 const std::string g_panelTypes [] = {
@@ -83,55 +85,28 @@ void print_help() {
     print_version();
     info("Usage: rmcore <options>\n");
     info("\t-p --poly\tSet the polyphony (1..%u)\n", MAX_POLY);
+    info("\t-s --snapshot\tLoad a snapshot state from file\n");
     info("\t-v --version\tShow version\n");
     info("\t-V --verbose\tSet verbose level (0:silent, 1:error, 2:info, 3:debug\n");
     info("\t-h --help\tShow this help\n");
 }
 
-bool parseCmdline(int argc, char** argv) {
-    static struct option long_options[] = {
-        {"poly", no_argument, 0, 'p'},
-        {"verbose", no_argument, 0, 'V'},
-        {"version", no_argument, 0, 'v'},
-        {"help", no_argument, 0, 'h'},
-        {0, 0, 0, 0}
-    };
-    int opt, option_index;
-    while ((opt = getopt_long (argc, argv, "hvp:V:w:?", long_options, &option_index)) != -1) {
-        switch (opt) {
-            case 'V': 
-                if (optarg)
-                    g_verbose = atoi(optarg);
-                break;
-            case 'p': {
-                uint8_t poly = atoi(optarg);
-                if (poly < 1) {
-                    g_poly = 1;
-                    info("Minimum polyphony is 1\n");
-                } else if (poly > MAX_POLY) {
-                    g_poly = MAX_POLY;
-                    info("Maximum polyphony is %u\n", MAX_POLY);
-                } else
-                    g_poly = poly;
-                break;
-            }
-            case '?':
-            case 'h': print_help(); return true;
-            case 'v': print_version(); return true;
-        }
-    }
-    return false;
-}
-
 // Function to save all the Jack connections to a file
 void saveState(const std::string& filename) {
+    ModuleManager& mm = ModuleManager::get();
     // Open a file for writing the connections
     std::ofstream outFile(filename);
 
     outFile << "[general]\n";
+    std::time_t now = std::time(nullptr);
+    std::tm* t = std::localtime(&now);  // or use std::gmtime(&now) for UTC
+    char buf[25];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
+    outFile << "timestamp=" << buf << std::endl;
+    outFile << "polyphony=" << std::to_string(g_poly) << std::endl;
 
     outFile << "[modules]\n";
-    for (auto it : ModuleManager::get().getModules()) {
+    for (auto it : mm.getModules()) {
         outFile << it.second->getInfo().name << "=" << it.first << std::endl;
     }
 
@@ -149,6 +124,19 @@ void saveState(const std::string& filename) {
         for (int i = 0; midiPorts[i] != NULL; ++i) {
             all_ports.push_back(midiPorts[i]);
         }
+
+    outFile << "[params]\n";
+    for (auto it : mm.getModules()) {
+        uint32_t count = mm.getParamCount(it.first);
+        while (count > 0) {
+            --count;
+            std::string paramName = mm.getParamName(it.first, count);
+            std::string key = it.first + ":" + std::to_string(count);
+            std::string value = std::to_string(it.second->getParam(count));
+            outFile << key << "=" << value << std::endl;
+        }
+    }
+
     outFile << "[routes]\n";
     // Iterate over the ports and check connections
     for (const auto& portName : all_ports) {
@@ -169,9 +157,10 @@ void saveState(const std::string& filename) {
 
 // Function to reload and restore Jack connections from a file
 void loadState(const std::string& filename) {
-    std::ifstream inFile(filename);    
+    std::ifstream inFile(filename);
+    ModuleManager& mm = ModuleManager::get();
     if (!inFile.is_open()) {
-        error("Opening file for reading!\n");
+        error("Opening file %s for reading!\n", filename.c_str());
         return;
     }
     std::string line;
@@ -181,30 +170,25 @@ void loadState(const std::string& filename) {
         std::string param;
         std::string value;
 
-        if (line == "[general]") {
-            section = "general";
-            continue;
-        }
-        else if (line == "[modules]") {
-            section = "modules";
-            continue;
-        }
-        else if (line == "[routes]") {
-            section = "routes";
-            continue;
-        } else if (section == "general") {
-        } else if (section == "modules") {
-            ModuleManager& mm = ModuleManager::get();
-            if (std::getline(ss, param, '=') && std::getline(ss, value))
+        // Detect section or get key=value pair
+        if (line.size() >= 2 && line.front() == '[' && line.back() == ']') {
+            section = line.substr(1, line.size() - 2);
+        } else if (std::getline(ss, param, '=') && std::getline(ss, value)) {
+            if (section == "general") {
+            } else if (section == "modules") {
                 mm.addModule(toLower(param), value);
-        } else if (section == "routes") {
-            // Parse the line in the format: "param -> value"
-            if (std::getline(ss, param, '=') && std::getline(ss, value)) {
-                
+            } else if (section == "params") {
+                std::stringstream ssKey(param);
+                std::string p, uuid;
+                std::getline(ssKey, uuid, ':') && std::getline(ssKey, p);
+                float f = std::stof(value);
+                uint32_t i = std::stoi(p);
+                //debug("Setting %s %u to %f\n", uuid.c_str(), i, f);
+                mm.setParam(uuid, i, f);
+            } else if (section == "routes") {
                 // Get the source and destination Jack ports
                 jack_port_t* source = jack_port_by_name(g_jackClient, param.c_str());
                 jack_port_t* destination = jack_port_by_name(g_jackClient, value.c_str());
-
                 // Check if the ports are valid
                 if (source && destination) {
                     // Reconnect the ports
@@ -216,7 +200,47 @@ void loadState(const std::string& filename) {
         }
     }
     inFile.close();
-    info("Connections restored from %s\n", filename.c_str());
+    info("State restored from %s\n", filename.c_str());
+}
+
+bool parseCmdline(int argc, char** argv) {
+    static struct option long_options[] = {
+        {"poly", no_argument, 0, 'p'},
+        {"snapshot", no_argument, 0, 's'},
+        {"verbose", no_argument, 0, 'V'},
+        {"version", no_argument, 0, 'v'},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}
+    };
+    int opt, option_index;
+    while ((opt = getopt_long (argc, argv, "hvp:s:V:w:?", long_options, &option_index)) != -1) {
+        switch (opt) {
+            case 'V': 
+                if (optarg)
+                    g_verbose = atoi(optarg);
+                break;
+            case 'p': {
+                uint8_t poly = atoi(optarg);
+                if (poly < 1) {
+                    g_poly = 1;
+                    info("Minimum polyphony is 1\n");
+                } else if (poly > MAX_POLY) {
+                    g_poly = MAX_POLY;
+                    info("Maximum polyphony is %u\n", MAX_POLY);
+                } else
+                    g_poly = poly;
+                break;
+            }
+            case 's':
+                if (optarg)
+                    g_stateName = optarg;
+                break;
+            case '?':
+            case 'h': print_help(); return true;
+            case 'v': print_version(); return true;
+        }
+    }
+    return false;
 }
 
 void setNonBlocking(int fd, bool enable) {
@@ -249,7 +273,7 @@ void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *ar
     jack_port_t* portA = jack_port_by_id(g_jackClient, a);
     jack_port_t* portB = jack_port_by_id(g_jackClient, b);
     if (portA && portB)
-        info("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portB));
+        debug("%s %s %s\n", jack_port_name(portA), connect ? "connected to" : "disconnected from", jack_port_name(portB));
 }
 
 // Create uuid from uint32_t - fixed 24 char width
@@ -452,7 +476,10 @@ int main(int argc, char** argv) {
     moduleManager.addModule("random", "SH");
     moduleManager.addModule("sequencer", "Step");
     */
-    loadState("last_state.rmstate");
+    if (g_stateName.empty())
+        loadState("last_state.rmstate");
+    else
+        loadState(g_stateName);
 
     /*@todo
         Start background panel detection
