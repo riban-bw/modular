@@ -39,21 +39,12 @@ uint8_t g_poly = 1; // Current polyphony
 jack_client_t* g_jackClient;
 uint32_t g_xruns = 0;
 std::string g_stateName;
+std::map<uint32_t,std::string> g_panel2module;
+std::time_t g_nextSaveTime = 0;
+bool g_dirty = false;
+USART g_usart("/dev/ttyS0", B1152000);
 
-// Map panel type uuid to module type uuid
-const std::string g_panelTypes [] = {
-    "generic",
-    "brain",
-    "midi",
-    "vco",
-    "vca",
-    "eg",
-    "vcf",
-    "noise",
-    "mixer",
-    "random",
-    "sequencer"
-};
+static const std::string CONFIG_PATH = std::getenv("HOME") + std::string("/modular/config");
 
 /*  TODO
     Initialise display
@@ -91,11 +82,19 @@ void print_help() {
     info("\t-h --help\tShow this help\n");
 }
 
+// Function to scan CAN bus for new modules
+void detectModules() {
+    //!@todo Implement detectModules
+    g_usart.txCmd(HOST_CMD_PNL_INFO);
+
+}
+
 // Function to save all the Jack connections to a file
 void saveState(const std::string& filename) {
+    std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
     ModuleManager& mm = ModuleManager::get();
     // Open a file for writing the connections
-    std::ofstream outFile(filename);
+    std::ofstream outFile(path);
 
     outFile << "[general]\n";
     std::time_t now = std::time(nullptr);
@@ -152,15 +151,18 @@ void saveState(const std::string& filename) {
 
     // Close the file after writing
     outFile.close();
-    info("Connections saved to %s\n", filename.c_str());
+    debug("Connections saved to %s\n", path.c_str());
 }
 
-// Function to reload and restore Jack connections from a file
+// Function to load a model state
 void loadState(const std::string& filename) {
-    std::ifstream inFile(filename);
+    std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
+    std::ifstream inFile(path);
     ModuleManager& mm = ModuleManager::get();
+    mm.removeAll();
+    detectModules();
     if (!inFile.is_open()) {
-        error("Opening file %s for reading!\n", filename.c_str());
+        error("Opening file %s for reading!\n", path.c_str());
         return;
     }
     std::string line;
@@ -200,7 +202,40 @@ void loadState(const std::string& filename) {
         }
     }
     inFile.close();
-    info("State restored from %s\n", filename.c_str());
+    g_dirty = false;
+    info("State restored from %s\n", path.c_str());
+}
+
+// Function to load configurationfrom a file
+void loadConfig() {
+    /* Could use standard linux config file location
+    std::string getUserConfigPath("rmcore");
+    const char* xdgConfigHome = std::getenv("XDG_CONFIG_HOME");
+    std::string base = xdgConfigHome ? xdgConfigHome : std::getenv("HOME") + std::string("/.config");    
+    */
+
+    std::string path = CONFIG_PATH + std::string("/config.ini");
+    std::ifstream inFile(path);
+    if (!inFile.is_open()) {
+        error("Failed to open configuration %s.\n", path.c_str());
+        return;
+    }
+
+    std::string line;
+    std::string section = "None";
+    while (std::getline(inFile, line)) {
+        std::stringstream ss(line);
+        std::string param;
+        std::string value;
+        // Detect section or get key=value pair
+        if (line.size() >= 2 && line.front() == '[' && line.back() == ']') {
+            section = line.substr(1, line.size() - 2);
+        } else if (std::getline(ss, param, '=') && std::getline(ss, value)) {
+            if (section == "panel2module")
+                g_panel2module[std::stoi(param)] = value;
+        }
+    }
+    info("Loaded config. %u panels\n", g_panel2module.size());
 }
 
 bool parseCmdline(int argc, char** argv) {
@@ -243,15 +278,10 @@ bool parseCmdline(int argc, char** argv) {
     return false;
 }
 
-void setNonBlocking(int fd, bool enable) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, enable ? flags | O_NONBLOCK : flags & ~O_NONBLOCK);
-}
-
 void handleSignal(int signal) {
     if (signal == SIGINT) {
         rl_callback_handler_remove();
-        saveState("last_state.rmstate");
+        saveState("last_state");
         ModuleManager::get().removeAll();
         if (g_jackClient) {
             jack_deactivate(g_jackClient);
@@ -305,11 +335,13 @@ std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
     return ss.str();
 }
 
-bool addPanel(uint32_t type, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
-    if (type >= sizeof(g_panelTypes))
+bool addPanel(uint32_t id, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
+    if (id >= sizeof(g_panel2module))
         return false;
     std::string uuid = toHex96(uuid0, uuid1, uuid2);
-    return ModuleManager::get().addModule(g_panelTypes[type], uuid);
+    bool success = ModuleManager::get().addModule(g_panel2module[id], uuid);
+    g_dirty |= success;
+    return success;
 }
 
 void handleCli(char* line) {
@@ -326,18 +358,25 @@ void handleCli(char* line) {
             handleSignal(SIGINT);
             return;
         } else if (msg == "help") {
-            info("Close application (without saving): exit\n");
-            info("Save state: .S<optional filename>");
-            info("Add module: .a<type>,<uuid>\n");
-            info("Remove modules: .r<uuid>\n");
-            info("Remove all modules: .r*\n");
-            info("Set parameter value: .s<module uuid>,<param index>,<value>\n");
-            info("Get parameter value: .g<module uuid>,<param index>\n");
-            info("Get parameter name: .n<module uuid>,<param index>\n");
-            info("Get quantity of parameters: .p<module uuid>\n");
-            info("Connect ports: .c<module uuid>,<output>,<module uuid>,<input>\n");
-            info("Disconnect ports: .d<module uuid>,<output>,<module uuid>,<input>\n");
+            info("\nHelp\n====\n");
+            info("exit\t\t\t Close application\n");
+            info("\nDot commands\n============\n");
+            info(".S<optional filename>\t\t\t\tSave state to file\n");
+            info(".L<optional filename>\t\t\t\tLoad state from file\n");
+            info(".a<type>,<uuid>\t\t\t\t\tAdd a module\n");
+            info(".p<id>,<uuid0>,<uuid1>,<uuid2>\t\t\tAdd a panel\n");
+            info(".l\t\t\t\t\t\tList installed modules\n");
+            info(".A\t\t\t\t\t\tList available modules\n");
+            info(".r<uuid>\t\t\t\t\tRemove a module\n");
+            info(".r*\t\t\t\t\t\tRemove all modules\n");
+            info(".s<module uuid>,<param index>,<value>\t\tSet a module parameter value\n");
+            info(".g<module uuid>,<param index>\t\t\tGet a module parameter value\n");
+            info(".n<module uuid>,<param index>\t\t\tGet a module parameter name\n");
+            info(".P<module uuid>\t\t\t\t\tGet quantity of parameters for a module\n");
+            info(".c<module uuid>,<output>,<module uuid>,<input>\tConnect ports\n");
+            info(".d<module uuid>,<output>,<module uuid>,<input>\tDisconnect ports\n");
         } else if (msg.size() > 1 && msg[0] == '.' ) {
+            ModuleManager& mm = ModuleManager::get();
             std::vector<std::string> pars;
             std::stringstream ss(msg.substr(2));
             std::string token;
@@ -351,41 +390,70 @@ void handleCli(char* line) {
                         // Set parameter
                         //debug("CLI params: '%s' '%s' '%s'\n", pars[0], pars[1], pars[2]);
                         debug("Set module %s parameter %u to value %f\n", pars[0].c_str(), std::stoi(pars[1]), std::stof(pars[2]));
-                        ModuleManager::get().setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]));
+                        mm.setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]));
+                        g_dirty = true;
                     }
                     break;
                 case 'g':
                     if (pars.size() < 2)
                         error(".g requires 2 parameters\n");
-                    else if (std::stoi(pars[1]) >= ModuleManager::get().getParamCount(pars[0]))
-                        error("Module '%s' only has %u parameters\n", pars[0].c_str(), ModuleManager::get().getParamCount(pars[0]));
+                    else if (std::stoi(pars[1]) >= mm.getParamCount(pars[0]))
+                        error("Module '%s' only has %u parameters\n", pars[0].c_str(), mm.getParamCount(pars[0]));
                     else {
                         debug("Request module %s parameter %u\n", pars[0].c_str(), std::stoi(pars[1]));
-                        info("%f\n", ModuleManager::get().getParam(pars[0], std::stoi(pars[1])));
+                        info("%f\n", mm.getParam(pars[0], std::stoi(pars[1])));
                     }
+                    break;
+                case 'l':
+                    for (auto it : mm.getModules()) {
+                        info("%s (%s)\n", it.first.c_str(), it.second->getInfo().name.c_str());
+                    }
+                    break;
+                case 'A':
+                {
+                    auto avail = mm.getAvailableModules();
+                    info("Panel\tModule\n=====\t======\n");
+                    for (auto it : g_panel2module)
+                        if (std::find(avail.begin(), avail.end(), it.second) != avail.end())
+                            info("%03u\t%s\n", it.first, it.second.c_str());
+                }
                     break;
                 case 'n':
                     if (pars.size() < 2)
                         error(".n requires 2 parameters\n");
                     else {
                         debug("Request module %s parameter name %u\n", pars[0].c_str(), std::stoi(pars[1]));
-                        info("%s\n", ModuleManager::get().getParamName(pars[0], std::stoi(pars[1])).c_str());
+                        info("%s\n", mm.getParamName(pars[0], std::stoi(pars[1])).c_str());
                     }
                     break;
-                case 'p':
+                case 'P':
                     if (pars.size() < 1)
-                        error(".p requires 1 parameters\n");
+                        error(".P requires 1 parameters\n");
                     else {
                         debug("Request module %s parameter count\n", pars[0].c_str());
-                        info("%u\n", ModuleManager::get().getParamCount(pars[0]));
+                        info("%u\n", mm.getParamCount(pars[0]));
                     }
                     break;
                 case 'a':
                     if (pars.size() < 2)
-                        error(".s requires 2 parameters\n");
+                        error(".a requires 2 parameters\n");
                     else {
                         debug("Add module type %s uuid %s\n", pars[0], pars[1]);
-                        info("%s\n", ModuleManager::get().addModule(pars[0], pars[1]) ? "Success" : "Fail");
+                        info("%s\n", mm.addModule(pars[0], pars[1]) ? "Success" : "Fail");
+                        g_dirty = true;
+                    }
+                    break;
+                case 'p':
+                    if (pars.size() < 4)
+                        error(".p requires 4 parameters. %u given.\n", pars.size());
+                    else {
+                        debug("Add panel type %s uuid %s %s %s\n", pars[0], pars[1], pars[2], pars[3]);
+                        info("%s\n", addPanel(
+                            std::stoi(pars[0]),
+                            std::stoi(pars[1]),
+                            std::stoi(pars[2]),
+                            std::stoi(pars[3])
+                            ) ? "Success" : "Fail");
                     }
                     break;
                 case 'r':
@@ -393,38 +461,91 @@ void handleCli(char* line) {
                         error(".s requires 1 parameters\n");
                     else {
                         debug("Remove module uuid %s\n", pars[0]);
+                        bool success;
                         if (pars[0] == "*")
-                            info("%s\n", ModuleManager::get().removeAll() ? "Success" : "Fail");
+                            success = mm.removeAll();
                         else
-                            info("%s\n", ModuleManager::get().removeModule(pars[0]) ? "Success" : "Fail");
+                            success = mm.removeModule(pars[0]);
+                        info("%s\n", success ? "Success" : "Fail");
+                        g_dirty |= success;
                     }
                     break;
                 case 'S':
                     if (pars.size() < 1)
-                        pars.push_back("last_state.rmstate");
+                        pars.push_back("last_state");
                     saveState(pars[0]);
                     info("Saved file to %s\n", pars[0].c_str());
+                    break;
+                case 'L':
+                    if (pars.size() < 1)
+                        pars.push_back("last_state");
+                    loadState(pars[0]);
+                    info("Loaded file to %s\n", pars[0].c_str());
                     break;
                 case 'c':
                     if (pars.size() < 4)
                         error(".c requires 4 parameters\n");
                     else {
-                        std::string src = pars[0] + ":" + pars[1];
-                        std::string dst = pars[2] + ":" + pars[3];
-                        debug("Connect module uuid %s to uuid %s\n", src.c_str(), dst.c_str());
-                        //!@todo Connect poly
-                        jack_connect(g_jackClient, src.c_str(), dst.c_str());
+                        std::string src = pars[0] + ":" + pars[1] + "(\\[[0-9]+\\])?$";
+                        std::string dst = pars[2] + ":" + pars[3] + "(\\[[0-9]+\\])?$";
+                        const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
+                        const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
+                        if (!srcPorts) {
+                            error("Source port(s) not found when searching for %s\n", src.c_str());
+                            break;
                         }
+                        if (!dstPorts) {
+                            error("Destination port(s) not found when searching for %s\n", src.c_str());
+                            break;
+                        }
+                        bool srcEnd = false, dstEnd = false;
+                        const char *srcPort, *dstPort;
+                        for (uint8_t poly = 0; poly < g_poly; ++poly) {
+                            if (srcEnd == false) {
+                                srcPort = srcPorts[poly];
+                                srcEnd = srcPorts[poly + 1] == NULL;
+                            }
+                            if (dstEnd == false) {
+                                dstPort = dstPorts[poly];
+                                dstEnd = dstPorts[poly + 1] == NULL;
+                            }
+                            g_dirty |= (0 == jack_connect(g_jackClient, srcPort, dstPort));
+                        }
+                        jack_free(srcPorts);
+                        jack_free(dstPorts);
+                    }
                     break;
                 case 'd':
                     if (pars.size() < 4)
                         error(".d requires 4 parameters\n");
                     else {
-                        std::string src = pars[0] + ":" + pars[1];
-                        std::string dst = pars[2] + ":" + pars[3];
-                        debug("Disconnect module uuid %s to uuid %s\n", src.c_str(), dst.c_str());
-                        //!@todo Connect poly
-                        jack_disconnect(g_jackClient, src.c_str(), dst.c_str());
+                        std::string src = pars[0] + ":" + pars[1] + "(\\[[0-9]+\\])?$";
+                        std::string dst = pars[2] + ":" + pars[3] + "(\\[[0-9]+\\])?$";
+                        const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
+                        const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
+                        if (!srcPorts) {
+                            error("Source port(s) not found when searching for %s\n", src.c_str());
+                            break;
+                        }
+                        if (!dstPorts) {
+                            error("Destination port(s) not found when searching for %s\n", src.c_str());
+                            break;
+                        }
+                        bool srcEnd = false, dstEnd = false;
+                        const char *srcPort, *dstPort;
+                        for (uint8_t poly = 0; poly < g_poly; ++poly) {
+                            if (srcEnd == false) {
+                                srcPort = srcPorts[poly];
+                                srcEnd = srcPorts[poly + 1] == NULL;
+                            }
+                            if (dstEnd == false) {
+                                dstPort = dstPorts[poly];
+                                dstEnd = dstPorts[poly + 1] == NULL;
+                            }
+                            g_dirty |= (0 == jack_disconnect(g_jackClient, srcPort, dstPort));
+                        }
+                        jack_free(srcPorts);
+                        jack_free(dstPorts);
                         }
                     break;
                 default:
@@ -436,16 +557,74 @@ void handleCli(char* line) {
     rl_callback_handler_install("rmcore> ", handleCli);
 }
 
-int main(int argc, char** argv) {
-    std::signal(SIGINT, handleSignal);
-    if(parseCmdline(argc, argv)) {
-        // Error parsing command line
-        return -1;
+bool processPanels() {
+    uint8_t txData[8];
+    double value;
+    int rxLen;
+
+    rxLen = g_usart.rx();
+    if (rxLen > 0) {
+        switch (g_usart.getRxId() & 0x0f) {
+            case CAN_MSG_ADC:
+                value = (g_usart.rxData[2] | (g_usart.rxData[3] << 8)) / 1019.0;
+                //printf("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
+                txData[0] = g_usart.rxData[1];
+                txData[1] = LED_MODE_ON;
+                txData[2] = int(255.0 * value);
+                txData[3] = int(255.0 * value);
+                txData[4] = int(255.0 * value);
+                g_usart.txCAN(g_usart.rxData[0], CAN_MSG_LED, txData, 5);
+                break;
+            case CAN_MSG_SWITCH:
+                if (g_usart.rxData[2] < 6)
+                    info("Panel %u Switch %u: %s\n", g_usart.rxData[0], g_usart.rxData[1] + 1, swState[g_usart.rxData[2]]);
+                txData[0] = g_usart.rxData[1];
+                switch(g_usart.rxData[2]) {
+                    case 0:
+                        //release
+                        txData[1] = 0;
+                        break;
+                    case 1:
+                        //press
+                        txData[1] = 1;
+                        break;
+                    case 2:
+                        //bold
+                        txData[1] = 6;
+                        break;
+                    case 3:
+                    case 5:
+                        //long
+                        txData[1] = 2;
+                        break;
+                }
+                g_usart.txCAN(g_usart.rxData[0], CAN_MSG_LED, txData, 2);
+                break;
+            case CAN_MSG_QUADENC:
+                info("Panel %u Encoder %u: %d\n", g_usart.rxData[0], g_usart.rxData[1] + 1, g_usart.rxData[2]);
+                break;
+        }
+        return true;
     }
+    return false;
+}
+
+int main(int argc, char** argv) {
+    // Add signal handler, e.g. for ctrl+c
+    std::signal(SIGINT, handleSignal);
+
+    if(parseCmdline(argc, argv))
+        return -1;
+
     info("Starting riban modular core with polyphony %u\n", g_poly);
+    loadConfig();
+
+    // Initialise CLI
     read_history(historyFile);
     rl_callback_handler_install("rmcore> ", handleCli);
+    fd_set fds;
 
+    // Start jack client
     char* serverName = nullptr;
     g_jackClient = jack_client_open("rmcore", JackNoStartServer, 0, serverName);
     if (!g_jackClient) {
@@ -458,40 +637,21 @@ int main(int argc, char** argv) {
 
     ModuleManager& moduleManager = ModuleManager::get();
     moduleManager.setPolyphony(g_poly);
-    //addPanel(2, 0xffff, 0xffff, 0xffff); // MIDI
-    /*
-    moduleManager.addModule("midi", "MIDI2CV");
-    moduleManager.addModule("vco", "lfo");
-    moduleManager.setParam("lfo", 0, -6.0); // Set LFO frequency
-    moduleManager.setParam("lfo", 1, 0); // Set LFO waveform
-    moduleManager.setParam("lfo", 3, 2); // Set LFO depth
-    moduleManager.addModule("vco", "vco");
-    moduleManager.setParam("vco", 2, 0);  //OSC_PARAM_PWM
-    moduleManager.addModule("vca", "vca");
-    moduleManager.addModule("eg", "ADSR");
-    moduleManager.addModule("noise", "noise");
-    moduleManager.setParam("noise", 0, 0.1);
-    moduleManager.addModule("vcf", "vcf");
-    moduleManager.addModule("mixer", "mixer");
-    moduleManager.addModule("random", "SH");
-    moduleManager.addModule("sequencer", "Step");
-    */
+
+    // Load state (either requested by command line or last state)
     if (g_stateName.empty())
-        loadState("last_state.rmstate");
+        loadState("last_state");
     else
         loadState(g_stateName);
 
     /*@todo
-        Start background panel detection
-        Connect audio interface
-        Start module manager (add/remove modules, update module state)
-        Start connection manager 
-        Start config manager (persistent configuration storage)
-        Start audio processing
+        Background panel detection
+        Background panel monitoring
     */
 
+    // Main program loop
     while (true) {
-        fd_set fds;
+        // Handle CLI
         FD_ZERO(&fds);
         FD_SET(STDIN_FILENO, &fds);
         timeval timeout = {0, 100000};  // 100ms
@@ -500,66 +660,17 @@ int main(int argc, char** argv) {
             rl_callback_read_char();  // Non-blocking input processing
         }
 
+        if (g_dirty && std::time(nullptr) > g_nextSaveTime) {
+            saveState("last_state");
+            g_dirty = false;
+            std::time_t g_nextSaveTime = std::time(nullptr) + 60;
+        }
+
+        if (g_usart.isOpen())
+            processPanels();
+
         usleep(1000); // 1ms sleep to avoid tight loop
     }
 
-    uint8_t txData[8];
-    double value;
-    int rxLen;
-    USART usart("/dev/ttyS0", B1152000);
-    if (!usart.isOpen()) {
-//        return -1;
-    }
-    usart.txCmd(HOST_CMD_PNL_INFO);
-
-    // Main program loop
-    while(g_running) {
-        rxLen = usart.rx();
-        if (rxLen > 0) {
-            switch (usart.getRxId() & 0x0f) {
-                case CAN_MSG_ADC:
-                    value = (usart.rxData[2] | (usart.rxData[3] << 8)) / 1019.0;
-                    //printf("Panel %u ADC %u: %0.03f - %u\n", usart.rxData[0], usart.rxData[1] + 1, value, int(value * 255.0));
-                    txData[0] = usart.rxData[1];
-                    txData[1] = LED_MODE_ON;
-                    txData[2] = int(255.0 * value);
-                    txData[3] = int(255.0 * value);
-                    txData[4] = int(255.0 * value);
-                    usart.txCAN(usart.rxData[0], CAN_MSG_LED, txData, 5);
-                    break;
-                case CAN_MSG_SWITCH:
-                    if (usart.rxData[2] < 6)
-                        info("Panel %u Switch %u: %s\n", usart.rxData[0], usart.rxData[1] + 1, swState[usart.rxData[2]]);
-                    txData[0] = usart.rxData[1];
-                    switch(usart.rxData[2]) {
-                        case 0:
-                            //release
-                            txData[1] = 0;
-                            break;
-                        case 1:
-                            //press
-                            txData[1] = 1;
-                            break;
-                        case 2:
-                            //bold
-                            txData[1] = 6;
-                            break;
-                        case 3:
-                        case 5:
-                            //long
-                            txData[1] = 2;
-                            break;
-                    }
-                    usart.txCAN(usart.rxData[0], CAN_MSG_LED, txData, 2);
-                    break;
-                case CAN_MSG_QUADENC:
-                    info("Panel %u Encoder %u: %d\n", usart.rxData[0], usart.rxData[1] + 1, usart.rxData[2]);
-                    break;
-            }
-        } else {
-            usleep(1000); // 1ms sleep to avoid tight loop
-        }
-    }
-
-    return 0;
+    return 0; // We never get here but compiler needs to be apeased.
 }

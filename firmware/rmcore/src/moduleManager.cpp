@@ -25,6 +25,28 @@ const std::map<const std::string, Module*>& ModuleManager::getModules() {
     return m_modules;
 }
 
+Module* ModuleManager::getModule(std::string uuid) {
+    if (m_modules.find(uuid) == m_modules.end())
+        return nullptr;
+    return m_modules[uuid];
+}
+
+
+std::vector<std::string> ModuleManager::getAvailableModules() {
+    std::vector<std::string> soFiles;
+    for (const auto& entry : fs::directory_iterator("./plugins")) {
+        if (entry.is_regular_file() && entry.path().extension() == ".so") {
+            std::string name = entry.path().string();
+            if (name.rfind("./plugins/lib", 0) != 0)
+                continue;
+            if (name.size() < 3 || name.compare(name.size() - 3, 3, ".so") != 0)
+                continue;
+            name = name.substr(13, name.size() - 16);
+            soFiles.push_back(name);
+        }
+    }
+    return soFiles;
+}
 
 bool ModuleManager::addModule(const std::string& type, const std::string& uuid) {
     // Check if this instance of the module is already running

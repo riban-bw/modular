@@ -17,7 +17,7 @@ DEFINE_PLUGIN(Sequencer)
 #define CV_ALPHA 0.01 // CV smoothing filter factor
 
 Sequencer::Sequencer() {
-    m_info.name = "Step Sequencer";
+    m_info.description = "Step sequencer";
     m_info.inputs = {
         "clock",
         "reset"

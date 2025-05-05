@@ -9,7 +9,7 @@
     Envelope class implementation.
 */
 
-#include "eg.h"
+#include "envelope.h"
 #include "global.h"
 
 DEFINE_PLUGIN(Envelope) 
@@ -17,7 +17,7 @@ DEFINE_PLUGIN(Envelope)
 #define CV_ALPHA 0.01
 
 Envelope::Envelope() {
-    m_info.name = "EG";
+    m_info.description = "Envelope generator";
     m_info.polyInputs = {
     "gate", // > 0.5 to trigger ADS phases. < 0.5 to trigger R phase
     "gain" // Normalised 0..1

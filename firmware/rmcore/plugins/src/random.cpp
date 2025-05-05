@@ -17,7 +17,7 @@
 DEFINE_PLUGIN(Random)
 
 Random::Random() {
-    m_info.name ="S&H";
+    m_info.description ="Sample and hold generator";
     m_info.inputs = {
         "gate"
     };

@@ -29,6 +29,17 @@ class ModuleManager {
         */
         const std::map<const std::string, Module*>& getModules();
 
+        /** @brief  Get pointer to module
+            @param  uuid UUID of the module
+            @retval Module* Pointer to module or NULL if not found
+        */
+        Module* getModule(std::string uuid);
+
+        /** @brief  Get list of available modules that may be instantiated
+            @retval vector List of plugin names
+        */
+        std::vector<std::string> getAvailableModules();
+
         /** @brief  Add a module to the graph
             @param  type Module type
             @param  uuid Module UUID

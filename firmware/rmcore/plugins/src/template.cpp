@@ -19,7 +19,7 @@ DEFINE_PLUGIN(Template) // Defines the plugin create function
 #define CV_ALPHA 0.01 // CV smoothing filter factor
 
 Template::Template() {
-    m_info.name = "Template"; // Module name (used for jack client)
+    m_info.description = "Template"; // Module description (may be used for accessibility)
     m_info.inputs = {
         // List of common jack input names
         "param cv 1"

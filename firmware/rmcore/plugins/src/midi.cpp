@@ -18,7 +18,7 @@
 DEFINE_PLUGIN(Midi)
 
 Midi::Midi() {
-    m_info.name = "MIDI2CV";
+    m_info.description = "MIDI to CV";
     m_info.outputs = {
             "cc1",
             "cc2",

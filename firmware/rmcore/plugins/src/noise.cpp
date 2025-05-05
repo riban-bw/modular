@@ -16,7 +16,7 @@
 DEFINE_PLUGIN(Noise)
 
 Noise::Noise() {
-    m_info.name = "Noise";
+    m_info.description = "Noise generator";
     m_info.outputs = {
         "out" // Audio output
     };

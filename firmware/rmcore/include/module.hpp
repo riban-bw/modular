@@ -19,15 +19,18 @@
 #include <stdlib.h>
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
+#include <typeinfo> // Provides typeid
+#include <cxxabi.h>
 
 //!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.
 struct ModuleInfo {
     std::string name = "default";
-    std::vector<std::string> inputs;
-    std::vector<std::string> polyInputs;
-    std::vector<std::string> outputs;
-    std::vector<std::string> polyOutputs;
-    std::vector<std::string> params;
+    std::string description = "default"; // Description of module may be used for accessibility
+    std::vector<std::string> inputs; // List of CV input names
+    std::vector<std::string> polyInputs; // List of polyphonic CV input names
+    std::vector<std::string> outputs; // List of CV output names
+    std::vector<std::string> polyOutputs; // List of polyphonic CV output names
+    std::vector<std::string> params; // List of parameter names
     bool midi = false;
 };
 
@@ -45,6 +48,12 @@ class Module {
         /** @brief  Initialise a module object
         */
         bool _init(const std::string& uuid, void* handle, uint8_t poly, uint8_t verbose) {
+
+            // Demangle for GCC/Clang; safe fallback for others
+            int status = 0;
+            char* name = abi::__cxa_demangle(typeid(*this).name(), nullptr, nullptr, &status);
+            m_info.name = name;
+            free(name);
             m_handle = handle;
             g_verbose = verbose;
             if (poly > 0 && poly <= MAX_POLY)

@@ -19,7 +19,7 @@
 DEFINE_PLUGIN(VCF)
 
 VCF::VCF() {
-    m_info.name = "VCF";
+    m_info.description = "VCF";
     m_info.inputs = {
         "freq cv",
         "res cv"

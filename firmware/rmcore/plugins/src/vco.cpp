@@ -19,7 +19,7 @@ DEFINE_PLUGIN(VCO)
 #define CV_ALPHA 0.01
 
 VCO::VCO() {
-    m_info.name = "VCO";
+    m_info.description = "VCO";
     m_info.inputs =  {
         "pwm", // Pulse width (0..1) square wave only
         "waveform" // Normalised waveform selector / morph (0..3)

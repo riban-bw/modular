@@ -17,7 +17,7 @@ DEFINE_PLUGIN(VCA)
 #define CV_ALPHA 0.01
 
 VCA::VCA() {
-    m_info.name = "VCA";
+    m_info.description = "VCA";
     m_info.polyInputs = {
         "input",
         "cv"

@@ -18,7 +18,7 @@ DEFINE_PLUGIN(Mixer)
 #define CV_ALPHA 0.01f // CV smoothing filter factor
 
 Mixer::Mixer() {
-    m_info.name = "Mixer";
+    m_info.description = "Mixer";
     m_info.inputs = {
         "input 1",
         "input 2",
