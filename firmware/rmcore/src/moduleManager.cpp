@@ -58,7 +58,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     std::string path = "./plugins/lib" + type + ".so";
     void* handle = dlopen(path.c_str(), RTLD_LAZY);
     if (!handle) {
-        error("%s\n", dlerror());
+        error("Failed to open instance of plugin %s: %s\n", path.c_str(), dlerror());
         return false;
     }
 
@@ -79,7 +79,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     }
     m_modules[uuid] = module;
     ModuleInfo modInfo = module->getInfo();
-    info("Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params %s\n",
+    info("Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params %u LEDs %s\n",
         type.c_str(),
         modInfo.name.c_str(),
         uuid.c_str(),
@@ -88,6 +88,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
         modInfo.outputs.size(),
         modInfo.polyOutputs.size(),
         modInfo.params.size(),
+        modInfo.leds.size(),
         modInfo.midi ? "MIDI input" : ""
     );
     return true;
@@ -143,6 +144,13 @@ uint32_t ModuleManager::getParamCount(const std::string& uuid) {
         return 0;
     }
     return it->second->getParamCount();
+}
+
+uint32_t ModuleManager::getDirtyLed(const std::string& uuid) {
+    auto it = m_modules.find(uuid);
+    if (it == m_modules.end() || !it->second)
+        return 0xffffffff;
+    return it->second->getDirtyLed();
 }
 
 void ModuleManager::setPolyphony(uint8_t poly) {

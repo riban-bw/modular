@@ -22,6 +22,11 @@
 #include <typeinfo> // Provides typeid
 #include <cxxabi.h> // Provides c++ name demangle
 
+struct LED {
+    bool dirty = false; // True if value changed since last cleared
+    uint32_t state = 0; // 4 bytes: [RGB2, RGB1, Mode, LED index]
+};
+
 //!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.
 struct ModuleInfo {
     std::string name = "default";
@@ -31,6 +36,7 @@ struct ModuleInfo {
     std::vector<std::string> outputs; // List of CV output names
     std::vector<std::string> polyOutputs; // List of polyphonic CV output names
     std::vector<std::string> params; // List of parameter names
+    std::vector<std::string> leds; // List of LED names
     bool midi = false;
 };
 
@@ -98,6 +104,9 @@ class Module {
             }
             for (uint32_t i = 0; i < m_info.params.size(); ++i) {
                 m_param.push_back(0.0f);
+            }
+            for (uint32_t i = 0; i < m_info.leds.size(); ++i) {
+                m_led.push_back(LED{});
             }
             if (m_info.midi) {
                 port = jack_port_register(m_jackClient, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
@@ -183,6 +192,19 @@ class Module {
             return m_info.params.size();
         }
 
+        /** @brief  Get the next LED that has changed state since last call
+            @retval uint32_t LED and value as 4 bytes [RGB2, RGB1, Mode, LED] or 0xffffffff for no dirty LEDs
+        */
+        uint32_t getDirtyLed() {
+            for (auto it : m_led) {
+                if (it.dirty) {
+                    it.dirty = false;
+                    return it.state;
+                }
+            }
+            return 0xffffffff;
+        }
+
         void setPolyphony(uint8_t poly) {
             uint8_t oldPoly = m_poly;
             if (poly < m_poly) {
@@ -234,6 +256,7 @@ class Module {
         std::vector<jack_port_t*> m_output; // Vector of output ports
         std::vector<jack_port_t*> m_polyOutput[MAX_POLY]; // Array of vector of polyphonic output ports
         std::vector<float> m_param; // Vector of parameter values
+        std::vector<LED> m_led; // Vector of LED structures
         jack_port_t* m_midiIn = nullptr; // MIDI input port
         jack_nframes_t m_samplerate = SAMPLERATE; // jack samplerate
 

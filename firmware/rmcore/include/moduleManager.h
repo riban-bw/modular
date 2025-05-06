@@ -76,7 +76,7 @@ class ModuleManager {
         /** @brief  Get name of a module parameter
             @param  module  Module UUID
             @param  param   Index of parameter
-            @retval const std::string&   Name or "" if invalid parameter
+            @retval const std::string& Name or "" if invalid parameter
         */
         const std::string& getParamName(const std::string& uuid, uint32_t param);
 
@@ -85,6 +85,12 @@ class ModuleManager {
             @retval uint32_t Quantity of parameters or 0 if invalid module
         */
         uint32_t getParamCount(const std::string& uuid);
+
+        /** @brief  Get the next LED that has changed state since last call
+            @param  uuid Module UUID
+            @retval uint32_t LED and value as 4 bytes [RGB2, RGB1, Mode, LED] or 0xffffffff for no dirty LEDs
+        */
+        uint32_t getDirtyLed(const std::string& uuid);
 
         /** @brief  Set polyphony
             @param  poly    Quantity of concurrent voices

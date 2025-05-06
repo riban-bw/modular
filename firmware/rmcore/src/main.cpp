@@ -32,6 +32,7 @@
 #include <algorithm> // Provides std::transform
 #include <ctime> // Provides time & date
 #include <nlohmann/json.hpp> // Provides json access
+#include <filesystem> // Provides create_directory
 
 using json = nlohmann::json;
 
@@ -96,8 +97,13 @@ void detectModules() {
 
 // Function to save all the Jack connections to a file
 void saveState(const std::string& filename) {
-    std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
+    std::string path = CONFIG_PATH + std::string("/snapshots/");
+    if (!std::filesystem::exists(path)) {
+        std::filesystem::create_directories(path);
+    }
+
     // Open a file for writing the connections
+    path +=  filename + std::string(".rms");
     std::ofstream outFile(path);
 
     outFile << "[general]\n";
@@ -244,7 +250,13 @@ void loadConfig() {
 
 // Function to save configuration to a file
 void saveConfig() {
-    std::string path = CONFIG_PATH + std::string("/config.json");
+    std::string path = CONFIG_PATH;
+    if (!std::filesystem::exists(path)) {
+        std::filesystem::create_directories(path);
+    }
+
+    // Open a file for writing the connections
+    path += std::string("/config.json");
     std::ofstream file("path");
     if (!file) {
         error("Failed to open configuration %s\n", path.c_str());
@@ -354,10 +366,12 @@ std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
 
 bool addPanel(uint32_t id, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
     const std::string& sid = std::to_string(id);
-    if (g_config[sid] == nullptr)
+    if (g_config["panels"][sid]["module"] == nullptr) {
+        error("%u does not define a valid panel\n", id);
         return false;
+    }
     std::string uuid = toHex96(uuid0, uuid1, uuid2);
-    bool success = ModuleManager::get().addModule(g_config[sid]["module"], uuid);
+    bool success = ModuleManager::get().addModule(g_config["panels"][sid]["module"], uuid);
     g_dirty |= success;
     return success;
 }
@@ -576,6 +590,7 @@ void handleCli(char* line) {
     rl_callback_handler_install("rmcore> ", handleCli);
 }
 
+// Function to read data from panels and update modules and routing
 bool processPanels() {
     uint8_t txData[8];
     uint32_t panelId, paramId;
@@ -662,6 +677,13 @@ bool processPanels() {
     return false;
 }
 
+// Function to read data from modules and update panels
+void processModules() {
+    for (auto it : g_panels) {
+
+    }
+}
+
 int main(int argc, char** argv) {
     // Add signal handler, e.g. for ctrl+c
     std::signal(SIGINT, handleSignal);
@@ -698,7 +720,6 @@ int main(int argc, char** argv) {
 
     /*@todo
         Background panel detection
-        Background panel monitoring
     */
 
     // Main program loop
@@ -718,11 +739,13 @@ int main(int argc, char** argv) {
             std::time_t g_nextSaveTime = std::time(nullptr) + 60;
         }
 
-        if (g_usart.isOpen())
+        if (g_usart.isOpen()) {
             processPanels();
+            processModules();
+        }
 
         usleep(1000); // 1ms sleep to avoid tight loop
     }
 
-    return 0; // We never get here but compiler needs to be apeased.
+    return 0; // We never get here but compiler needs to be appeased.
 }

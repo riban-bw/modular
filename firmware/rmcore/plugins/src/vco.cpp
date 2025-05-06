@@ -38,6 +38,9 @@ VCO::VCO() {
         "lfo", // Factor to adjust frequency for LFO mode (0.0 none, -9.0 minus 9 octaves)
         "linear" // >0.5 to enable linear frequency control. <0.5 to enable log frequency control
     };
+    m_info.leds = {
+        "lfo" // LFO mode selected
+    };
 }
 
 void VCO::init() {
