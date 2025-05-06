@@ -20,7 +20,7 @@
 #include <cstring> // Provides std::memcpy
 #include <stdio.h> // Provides sprintf
 #include <typeinfo> // Provides typeid
-#include <cxxabi.h>
+#include <cxxabi.h> // Provides c++ name demangle
 
 //!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.
 struct ModuleInfo {

@@ -57,9 +57,15 @@ class USART {
 
         /** @brief  Get CAN id of last received message
         *   @return CAN id
-        *   @note   Call after rx() returns positive value and use getRxData() to retrieve message payload
+        *   @note   Call after rx() returns positive value. Use getRxData() to retrieve message payload
         */
         uint8_t getRxId();
+
+        /** @brief  Get opcode of last received message
+        *   @return opcode
+        *   @note   Call after rx() returns positive value. Use getRxData() to retrieve message payload
+        */
+        uint8_t getRxOp();
 
         /** @brief Set mode of a panel's LED
          *  @param pnlId Panel id

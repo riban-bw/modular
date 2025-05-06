@@ -187,7 +187,11 @@ void USART::process()
 }
 
 uint8_t USART::getRxId() {
-  return (mRxBuffer[1] << 8) | mRxBuffer[2];
+  return mRxBuffer[1];
+}
+
+uint8_t USART::getRxOp() {
+  return mRxBuffer[2];
 }
 
 void USART::setLedMode(uint8_t pnlId, uint8_t led, uint8_t mode)

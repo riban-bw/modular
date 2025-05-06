@@ -1,0 +1,125 @@
+{
+    "global": {
+        "polyphony": 1
+    },
+    "panels": {
+        "1": {
+            "module": "midi",
+            "buttons": {
+                "0": {
+                    "type": 4,
+                    "index": 0
+                },
+                "1": {
+                    "type": 4,
+                    "index": 1
+                },
+                "2": {
+                    "type": 4,
+                    "index": 2
+                },
+                "3": {
+                    "type": 3,
+                    "index": 0
+                },
+                "4": {
+                    "type": 3,
+                    "index": 1
+                },
+                "5": {
+                    "type": 3,
+                    "index": 2
+                },
+                "6": {
+                    "type": 3,
+                    "index": 3
+                },
+                "7": {
+                    "type": 3,
+                    "index": 4
+                },
+                "8": {
+                    "type": 3,
+                    "index": 5
+                },
+                "9": {
+                    "type": 3,
+                    "index": 6
+                },
+                "10": {
+                    "type": 3,
+                    "index": 7
+                }
+            }
+        },
+        "2": {
+            "module": "vco",
+            "buttons": {
+                "0": {
+                    "type": 0,
+                    "index": 0
+                },
+                "1": {
+                    "type": 1,
+                    "index": 0
+                },
+                "2": {
+                    "type": 2,
+                    "index": 0
+                },
+                "3": {
+                    "type": 3,
+                    "index": 0
+                },
+                "4": {
+                    "type": 4,
+                    "index": 0
+                }
+            },
+            "leds": {
+                "inputs": {
+                    "0": 0
+                },
+                "poly inputs": {
+                    "0": 1
+                },
+                "outputs": {
+                    "0": 2
+                },
+                "poly outputs": {
+                    "0": 3
+                },
+                "param": {
+                    "0": 4
+                }
+            },
+            "adcs": {
+                "0": 0,
+                "1": 1,
+                "2": 2,
+                "3": 3
+            }
+        },
+        "3":{
+            "module": "vcf"
+        },
+        "4": {
+            "module": "vca"
+        },
+        "5": {
+            "module": "envelope"
+        },
+        "6": {
+            "module": "noise"
+        },
+        "7": {
+            "module": "mixer"
+        },
+        "8": {
+            "module": "sequencer"
+        },
+        "9": {
+            "module": "random"
+        }
+    }
+}
