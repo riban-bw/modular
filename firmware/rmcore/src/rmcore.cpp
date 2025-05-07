@@ -19,6 +19,7 @@
 #include <unistd.h> // Provides usleep
 #include <jack/jack.h> // Provides jack client
 #include <map> // Provides std::map
+#include <set> // Provides std::set
 #include <stdlib.h> // Provides atoi
 #include <csignal> // Provides signal
 #include <fstream> // Provies ofstream for saving files
@@ -33,6 +34,7 @@
 #include <ctime> // Provides time & date
 #include <nlohmann/json.hpp> // Provides json access
 #include <filesystem> // Provides create_directory
+#include <regex> // Provides regular expression manipulation
 
 using json = nlohmann::json;
 
@@ -107,6 +109,77 @@ void detectModules() {
 
 }
 
+// Function to strip [x] suffix from poly jack names
+std::string stripPolyName(const char* name) {
+    std::string str(name);
+    std::regex bracket_pattern(R"(\[\d+\]$)");
+    return std::regex_replace(str, bracket_pattern, "");
+}
+
+bool connect(std::string source, std::string destination) {
+    std::string src = source + "(\\[[0-9]+\\])?$";
+    std::string dst = destination + "(\\[[0-9]+\\])?$";
+    const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
+    const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
+    if (!srcPorts) {
+        error("Source port(s) not found when searching for %s\n", src.c_str());
+        return false;
+    }
+    if (!dstPorts) {
+        error("Destination port(s) not found when searching for %s\n", src.c_str());
+        return false;
+    }
+    bool srcEnd = false, dstEnd = false, success = false;
+    const char *srcPort, *dstPort;
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        if (srcEnd == false) {
+            srcPort = srcPorts[poly];
+            srcEnd = srcPorts[poly + 1] == NULL;
+        }
+        if (dstEnd == false) {
+            dstPort = dstPorts[poly];
+            dstEnd = dstPorts[poly + 1] == NULL;
+        }
+        success |= (0 == jack_connect(g_jackClient, srcPort, dstPort));
+    }
+    jack_free(srcPorts);
+    jack_free(dstPorts);
+    g_dirty |= success;
+    return success;
+}
+
+bool disconnect(std::string source, std::string destination) {
+    std::string src = source + "(\\[[0-9]+\\])?$";
+    std::string dst = destination + "(\\[[0-9]+\\])?$";
+    const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
+    const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
+    if (!srcPorts) {
+        error("Source port(s) not found when searching for %s\n", src.c_str());
+        return false;
+    }
+    if (!dstPorts) {
+        error("Destination port(s) not found when searching for %s\n", src.c_str());
+        return false;
+    }
+    bool srcEnd = false, dstEnd = false, success = false;
+    const char *srcPort, *dstPort;
+    for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        if (srcEnd == false) {
+            srcPort = srcPorts[poly];
+            srcEnd = srcPorts[poly + 1] == NULL;
+        }
+        if (dstEnd == false) {
+            dstPort = dstPorts[poly];
+            dstEnd = dstPorts[poly + 1] == NULL;
+        }
+        success |= (0 == jack_disconnect(g_jackClient, srcPort, dstPort));
+    }
+    jack_free(srcPorts);
+    jack_free(dstPorts);
+    g_dirty |= success;
+    return success;
+}
+
 // Function to save model state to a file
 void saveState(const std::string& filename) {
     std::string path = CONFIG_PATH + std::string("/snapshots/");
@@ -131,6 +204,18 @@ void saveState(const std::string& filename) {
         outFile << it.second->getInfo().name << "=" << it.first << std::endl;
     }
 
+    outFile << "[params]\n";
+    for (auto it : g_moduleManager.getModules()) {
+        uint32_t count = g_moduleManager.getParamCount(it.first);
+        while (count > 0) {
+            --count;
+            std::string paramName = g_moduleManager.getParamName(it.first, count);
+            std::string key = it.first + ":" + std::to_string(count);
+            std::string value = std::to_string(it.second->getParam(count));
+            outFile << key << "=" << value << std::endl;
+        }
+    }
+
     // Get all the audio ports (input and output)
     const char **audioPorts = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
     // Get all the MIDI ports (input and output)
@@ -145,20 +230,8 @@ void saveState(const std::string& filename) {
         for (int i = 0; midiPorts[i] != NULL; ++i) {
             all_ports.push_back(midiPorts[i]);
         }
-
-    outFile << "[params]\n";
-    for (auto it : g_moduleManager.getModules()) {
-        uint32_t count = g_moduleManager.getParamCount(it.first);
-        while (count > 0) {
-            --count;
-            std::string paramName = g_moduleManager.getParamName(it.first, count);
-            std::string key = it.first + ":" + std::to_string(count);
-            std::string value = std::to_string(it.second->getParam(count));
-            outFile << key << "=" << value << std::endl;
-        }
-    }
-
     outFile << "[routes]\n";
+    std::set<std::string> routes; // Store each route to avoid adding duplicates to snapshot file
     // Iterate over the ports and check connections
     for (const auto& portName : all_ports) {
         // Get the list of connected ports to this port
@@ -166,8 +239,12 @@ void saveState(const std::string& filename) {
         if (connected_ports == NULL)
             continue;
         for (int j = 0; connected_ports[j] != NULL; ++j) {
+            std::string srcName = stripPolyName(portName);
+            std::string dstName = stripPolyName(connected_ports[j]);
+            std::string s = srcName + ":" + dstName;
             // Write the connected port pair to the file
-            outFile << portName << "=" << connected_ports[j] << std::endl;
+            if (routes.insert(s).second) // Not a duplicate
+                outFile << srcName << "=" << dstName << std::endl;
         }
     }
 
@@ -210,16 +287,7 @@ void loadState(const std::string& filename) {
                 g_moduleManager.setParam(uuid, i, f);
             } else if (section == "routes") {
                 // Get the source and destination Jack ports
-                //!@todo Fix poly routes if saved file has lower poly setting
-                jack_port_t* source = jack_port_by_name(g_jackClient, param.c_str());
-                jack_port_t* destination = jack_port_by_name(g_jackClient, value.c_str());
-                // Check if the ports are valid
-                if (source && destination) {
-                    // Reconnect the ports
-                    jack_connect(g_jackClient, param.c_str(), value.c_str());
-                } else {
-                    std::cerr << "Invalid port names: " << param << " or " << value << std::endl;
-                }
+                connect(param, value);
             }
         }
     }
@@ -560,68 +628,14 @@ void handleCli(char* line) {
                 case 'c':
                     if (pars.size() < 4)
                         error(".c requires 4 parameters\n");
-                    else {
-                        std::string src = pars[0] + ":" + pars[1] + "(\\[[0-9]+\\])?$";
-                        std::string dst = pars[2] + ":" + pars[3] + "(\\[[0-9]+\\])?$";
-                        const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
-                        const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
-                        if (!srcPorts) {
-                            error("Source port(s) not found when searching for %s\n", src.c_str());
-                            break;
-                        }
-                        if (!dstPorts) {
-                            error("Destination port(s) not found when searching for %s\n", src.c_str());
-                            break;
-                        }
-                        bool srcEnd = false, dstEnd = false;
-                        const char *srcPort, *dstPort;
-                        for (uint8_t poly = 0; poly < g_poly; ++poly) {
-                            if (srcEnd == false) {
-                                srcPort = srcPorts[poly];
-                                srcEnd = srcPorts[poly + 1] == NULL;
-                            }
-                            if (dstEnd == false) {
-                                dstPort = dstPorts[poly];
-                                dstEnd = dstPorts[poly + 1] == NULL;
-                            }
-                            g_dirty |= (0 == jack_connect(g_jackClient, srcPort, dstPort));
-                        }
-                        jack_free(srcPorts);
-                        jack_free(dstPorts);
-                    }
+                    else
+                        connect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
                     break;
                 case 'd':
                     if (pars.size() < 4)
                         error(".d requires 4 parameters\n");
-                    else {
-                        std::string src = pars[0] + ":" + pars[1] + "(\\[[0-9]+\\])?$";
-                        std::string dst = pars[2] + ":" + pars[3] + "(\\[[0-9]+\\])?$";
-                        const char **srcPorts = jack_get_ports(g_jackClient, src.c_str(), NULL, JackPortIsOutput);
-                        const char **dstPorts = jack_get_ports(g_jackClient, dst.c_str(), NULL, JackPortIsInput);
-                        if (!srcPorts) {
-                            error("Source port(s) not found when searching for %s\n", src.c_str());
-                            break;
-                        }
-                        if (!dstPorts) {
-                            error("Destination port(s) not found when searching for %s\n", src.c_str());
-                            break;
-                        }
-                        bool srcEnd = false, dstEnd = false;
-                        const char *srcPort, *dstPort;
-                        for (uint8_t poly = 0; poly < g_poly; ++poly) {
-                            if (srcEnd == false) {
-                                srcPort = srcPorts[poly];
-                                srcEnd = srcPorts[poly + 1] == NULL;
-                            }
-                            if (dstEnd == false) {
-                                dstPort = dstPorts[poly];
-                                dstEnd = dstPorts[poly + 1] == NULL;
-                            }
-                            g_dirty |= (0 == jack_disconnect(g_jackClient, srcPort, dstPort));
-                        }
-                        jack_free(srcPorts);
-                        jack_free(dstPorts);
-                        }
+                    else
+                        disconnect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
                     break;
                 default:
                     info("Invalid command. Type 'help' for usage.\n");
