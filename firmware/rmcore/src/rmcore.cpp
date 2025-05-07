@@ -102,13 +102,6 @@ void print_help() {
     info("\t-h --help\tShow this help\n");
 }
 
-// Function to scan CAN bus for new modules
-void detectModules() {
-    //!@todo Implement detectModules
-    g_usart.txCmd(HOST_CMD_PNL_INFO);
-
-}
-
 // Function to strip [x] suffix from poly jack names
 std::string stripPolyName(const char* name) {
     std::string str(name);
@@ -116,6 +109,7 @@ std::string stripPolyName(const char* name) {
     return std::regex_replace(str, bracket_pattern, "");
 }
 
+// Function to connect jack ports
 bool connect(std::string source, std::string destination) {
     std::string src = source + "(\\[[0-9]+\\])?$";
     std::string dst = destination + "(\\[[0-9]+\\])?$";
@@ -148,6 +142,7 @@ bool connect(std::string source, std::string destination) {
     return success;
 }
 
+// Function to disconnect jack ports
 bool disconnect(std::string source, std::string destination) {
     std::string src = source + "(\\[[0-9]+\\])?$";
     std::string dst = destination + "(\\[[0-9]+\\])?$";
@@ -258,7 +253,6 @@ void loadState(const std::string& filename) {
     std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
     std::ifstream inFile(path);
     g_moduleManager.removeAll();
-    detectModules();
     if (!inFile.is_open()) {
         error("Opening file %s for reading!\n", path.c_str());
         return;
@@ -450,7 +444,6 @@ std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
 
 // Function to add a panel and corresponding module to model
 bool addPanel(const PANEL_T& panel) {
-    //!@todo Allow multiple modules per panel
     const std::string& stype = std::to_string(panel.type);
     if (g_config["panels"][stype]["module"] == nullptr) {
         error("%s does not define a valid panel\n", stype.c_str());
@@ -762,14 +755,6 @@ bool processPanels() {
     return false;
 }
 
-// Function to read data from modules and update panels
-void processModules() {
-    for (auto it : g_panels) {
-
-
-    }
-}
-
 // Function to update LEDs
 void processLeds() {
     uint8_t led;
@@ -818,9 +803,7 @@ int main(int argc, char** argv) {
     else
         loadState(g_stateName);
 
-    /*@todo
-        Background panel detection
-    */
+    g_usart.txCmd(HOST_CMD_RESET);
 
     // Main program loop
     while (true) {
@@ -841,7 +824,6 @@ int main(int argc, char** argv) {
 
         if (g_usart.isOpen()) {
             processPanels();
-            processModules();
             processLeds();
         }
 
