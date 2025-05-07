@@ -68,21 +68,29 @@ Brain to panel (B→P) CAN ID: bit [0] = 0, bits [1:7] = panel id (1..63), bits 
 
 Panel to Brain (B←P) CAN ID: bits [0:7] = 0, bits [8:11] = opcode.
 
-Brain to rmcore splits messages into whole bytes, i.e. CAN ID[1], opcode[1], data[3].
+Brain to rmcore splits messages into whole bytes, i.e. CAN ID[1], opcode[1], data[8].
+
+rmcore can send messages to the Brain by setting first byte to 0xFF or to a panel by setting first byte to panel (CAN) id.
 
 CAN payload may have varying length (0..8 bytes) depending on message type.
 
 Brain always listens for panel messages and may request values with appropriate commands. This is asynchronous.
 
+Host (RPi) communicates with Brain via serial port, mostly using same CAN protocol, i.e. the Brain passes through the CAN messages. An exception is for panel detection which the Brain handles locally and passes a single message to the host after detecting each panel.
+
 |B↔P| ID       | OpCode | Payload                                   | Purpose|
 |---|----------|--------|-------------------------------------------|---------------------------|
-|B→P| LED      | 0x01   | Index [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]| Set LED type and mode. RGB colours are both optional |
-|B←P| ADC      | 0x02   | PanelId [0:7] Index [0:7] Value [0:15]    | ADC value|
-|B←P| SW       | 0x03   | PanelId [0:7] Index[0:7] EventType [0:7]  | See below for event types |
-|B←P| ENC      | 0x04   | PanelId [0:7] Index [0:7] Value [0:7]     | Encoder value +/- |
-|B←P| PNL_DUMP | 0xF1   | PanelId [0:7]                             | Request panel to send its parameter values |
-|B←P| ALIVE    | 0x0E   |                                           | Sent periodically if no other data sent to support watchdog |
-|B→P| RESET    | 0x0F   |                                           | Request panel to reset to detection mode |
+|B→P| LED      | 0x01   | Index [0:7] Mode [0:7] RGB1 [0:23] RGB2 [0:23]   | Set LED type and mode. RGB colours are both optional |
+|B←P| ADC      | 0x02   | PanelId [0:7] Index [0:7] Value [0:15]           | ADC value|
+|B←P| SW       | 0x03   | PanelId [0:7] Index[0:7] EventType [0:7]         | See below for event types |
+|B←P| ENC      | 0x04   | PanelId [0:7] Index [0:7] Value [0:7]            | Encoder value +/- |
+|B←P| PNL_DUMP | 0xF1   | PanelId [0:7]                                    | Request panel to send its parameter values |
+|B←P| ALIVE    | 0x0E   |                                                  | Sent periodically if no other data sent to support watchdog |
+|B→P| RESET    | 0x0F   |                                                  | Request panel to reset to detection mode |
+|B←H| NUM_PNL  | 0x01   |                                                  | Request quantity of detected panels
+|B→H| NUM_PNL  | 0x01   | NumPanels [0:5]                                  | Quantity of panels
+|B←H| PNL_INFO | 0x02   |                                                  | Request type of all panels
+|B→H| PNL_INFO | 0x02   | PanelId [0:5] Type [0:31] UUID [0:95] Ver [0:31] | Panel type (sent when new panel detected or PNL_INFO requested)
 
 ##### LED Modes
 |Value|Mode|

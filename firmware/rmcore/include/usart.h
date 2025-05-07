@@ -47,7 +47,7 @@ class USART {
 
         /** @brief  Receive pending messages
         *   @return Quantity of bytes in received message, 0 if no message received, -1 on error
-        *   @note   Call regularly and rapidly to capture all data
+        *   @note   Use getRx... functions to inspect received data. Call regularly and rapidly to capture all data.
         */
         int rx();
 
@@ -85,6 +85,10 @@ class USART {
          */
         void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r, uint8_t g, uint8_t b);
         void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2);
+
+        void setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1, const uint8_t* colour2);
+
+
         void testLeds(uint8_t pnlCount);
 
         /*  Pointer to last received CAN message data payload */

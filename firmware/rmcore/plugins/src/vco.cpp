@@ -56,6 +56,17 @@ void VCO::init() {
     setParam(VCO_PARAM_LFO, 0.0);
 }
 
+bool VCO::setParam(uint32_t param, float val) {
+    if (!Module::setParam(param, val))
+        return false;
+    switch (param) {
+        case VCO_PARAM_LFO:
+            setLed(VCO_LED_LFO, val > 0.5 ? LED_MODE_ON : LED_MODE_OFF, COLOUR_PARAM_ON, COLOUR_PARAM_ON);
+            break;
+    }
+    return true;
+}
+
 int VCO::process(jack_nframes_t frames) {
     double freq;
     jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_PORT_PWM], frames);

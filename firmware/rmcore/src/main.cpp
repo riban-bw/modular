@@ -36,6 +36,18 @@
 
 using json = nlohmann::json;
 
+// Structure representing a detected panel
+struct PANEL_T {
+    uint8_t id; // CAN id of panel
+    uint32_t type; // Panel type defined in config.json
+    uint32_t uuid1; // Panel UUID [0..31]
+    uint32_t uuid2; // Panel UUID [32..63]
+    uint32_t uuid3; // Panel UUID [64..95]
+    uint32_t version; // Panel firmware version
+    uint32_t ts = 0; // Timestamp of last rx message (used to detect panel removal)
+    Module* module; // Pointers to module object todo convert this to vector of modules
+};
+
 static const char* historyFile = ".rmcore_cli_history";
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
 bool g_running = true; // False to stop processing
@@ -47,7 +59,7 @@ std::time_t g_nextSaveTime = 0;
 bool g_dirty = false;
 USART g_usart("/dev/ttyS0", B1152000);
 json g_config;
-std::vector <uint32_t> g_panels; // List of detected panel IDs
+std::map <uint8_t, PANEL_T> g_panels; // Map of panel uuid indexed by panel id
 ModuleManager& g_moduleManager = ModuleManager::get();
 
 static const std::string CONFIG_PATH = std::getenv("HOME") + std::string("/modular/config");
@@ -95,7 +107,7 @@ void detectModules() {
 
 }
 
-// Function to save all the Jack connections to a file
+// Function to save model state to a file
 void saveState(const std::string& filename) {
     std::string path = CONFIG_PATH + std::string("/snapshots/");
     if (!std::filesystem::exists(path)) {
@@ -164,7 +176,7 @@ void saveState(const std::string& filename) {
     debug("Connections saved to %s\n", path.c_str());
 }
 
-// Function to load a model state
+// Function to load a model state from a file
 void loadState(const std::string& filename) {
     std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
     std::ifstream inFile(path);
@@ -308,6 +320,7 @@ bool parseCmdline(int argc, char** argv) {
 
 void handleSignal(int signal) {
     if (signal == SIGINT) {
+        // Clean up before exit
         rl_callback_handler_remove();
         saveState("last_state");
         saveConfig();
@@ -329,6 +342,7 @@ int handleJackXrun(void *arg) {
 }
 
 void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
+    //!@todo We probably don't need this
     jack_port_t* portA = jack_port_by_id(g_jackClient, a);
     jack_port_t* portB = jack_port_by_id(g_jackClient, b);
     if (portA && portB)
@@ -347,6 +361,7 @@ std::string toHex96(uint32_t high, uint32_t mid, uint32_t low) {
 
 // Create uuid from uint32_t - variable (up to 24) char width
 std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
+    //!@todo Choose whther to use compact of fixed width and lose other function
     std::stringstream ss;
     ss << std::hex; // hex output, no fixed width
     if (high != 0) {
@@ -364,18 +379,27 @@ std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
     return ss.str();
 }
 
-bool addPanel(uint32_t id, uint32_t uuid0, uint32_t uuid1, uint32_t uuid2) {
-    const std::string& sid = std::to_string(id);
-    if (g_config["panels"][sid]["module"] == nullptr) {
-        error("%u does not define a valid panel\n", id);
+// Function to add a panel and corresponding module to model
+bool addPanel(const PANEL_T& panel) {
+    //!@todo Allow multiple modules per panel
+    const std::string& stype = std::to_string(panel.type);
+    if (g_config["panels"][stype]["module"] == nullptr) {
+        error("%s does not define a valid panel\n", stype.c_str());
         return false;
     }
-    std::string uuid = toHex96(uuid0, uuid1, uuid2);
-    bool success = ModuleManager::get().addModule(g_config["panels"][sid]["module"], uuid);
-    g_dirty |= success;
-    return success;
+    std::string uuid = toHex96(panel.uuid1, panel.uuid2, panel.uuid3);
+    Module* module = ModuleManager::get().addModule(g_config["panels"][stype]["module"], uuid);
+    if (module) {
+        g_dirty = true;
+        g_panels[panel.id]; // Create instance of panel in table
+        std::memcpy(&g_panels[panel.id], &panel, 21);
+        g_panels[panel.id].module = module;
+        return true;
+    }
+    return false;
 }
 
+// Function to handle command line interface (mostly for testing)
 void handleCli(char* line) {
     if (!line) {
         // ctrl+d
@@ -393,10 +417,8 @@ void handleCli(char* line) {
             info("\nHelp\n====\n");
             info("exit\t\t\t Close application\n");
             info("\nDot commands\n============\n");
-            info(".S<optional filename>\t\t\t\tSave state to file\n");
-            info(".L<optional filename>\t\t\t\tLoad state from file\n");
             info(".a<type>,<uuid>\t\t\t\t\tAdd a module\n");
-            info(".p<id>,<uuid0>,<uuid1>,<uuid2>\t\t\tAdd a panel\n");
+            info(".p<id>,<type>,<uuid1>,<uuid2>,<uuid3>\t\tAdd a panel\n");
             info(".l\t\t\t\t\t\tList installed modules\n");
             info(".A\t\t\t\t\t\tList available modules\n");
             info(".r<uuid>\t\t\t\t\tRemove a module\n");
@@ -407,6 +429,8 @@ void handleCli(char* line) {
             info(".P<module uuid>\t\t\t\t\tGet quantity of parameters for a module\n");
             info(".c<module uuid>,<output>,<module uuid>,<input>\tConnect ports\n");
             info(".d<module uuid>,<output>,<module uuid>,<input>\tDisconnect ports\n");
+            info(".S<optional filename>\t\t\t\tSave state to file\n");
+            info(".L<optional filename>\t\t\t\tLoad state from file\n");
         } else if (msg.size() > 1 && msg[0] == '.' ) {
             std::vector<std::string> pars;
             std::stringstream ss(msg.substr(2));
@@ -477,16 +501,17 @@ void handleCli(char* line) {
                     }
                     break;
                 case 'p':
-                    if (pars.size() < 4)
-                        error(".p requires 4 parameters. %u given.\n", pars.size());
+                    if (pars.size() < 5)
+                        error(".p requires 5 parameters. %u given.\n", pars.size());
                     else {
-                        debug("Add panel type %s uuid %s %s %s\n", pars[0], pars[1], pars[2], pars[3]);
-                        info("%s\n", addPanel(
-                            std::stoi(pars[0]),
-                            std::stoi(pars[1]),
-                            std::stoi(pars[2]),
-                            std::stoi(pars[3])
-                            ) ? "Success" : "Fail");
+                        PANEL_T panel;
+                        panel.id = std::stoi(pars[0]);
+                        panel.type = std::stoi(pars[1]);
+                        panel.uuid1 = std::stoi(pars[2]);
+                        panel.uuid2 = std::stoi(pars[3]);
+                        panel.uuid3 = std::stoi(pars[4]);
+                        debug("Add panel id: %u type %u uuid %08x%08x%08x\n", panel.id, panel.type, panel.uuid1, panel.uuid2, panel.uuid3);
+                        info("%s\n", addPanel(panel) ? "Success" : "Fail");
                     }
                     break;
                 case 'r':
@@ -495,10 +520,26 @@ void handleCli(char* line) {
                     else {
                         debug("Remove module uuid %s\n", pars[0]);
                         bool success;
-                        if (pars[0] == "*")
+                        if (pars[0] == "*") {
                             success = g_moduleManager.removeAll();
-                        else
+                            if (success)
+                                g_panels.clear();
+                        }
+                        else {
+                            Module* module = g_moduleManager.getModule(pars[0]);
+                            if (!module)
+                                break;
+                            uint8_t id = 0xff;
+                            for (auto& [pnlid, panel] : g_panels) {
+                                if (panel.module == module) {
+                                    id = pnlid;
+                                    break;
+                                }
+                            }
                             success = g_moduleManager.removeModule(pars[0]);
+                            if (success && id != 0xff)
+                                g_panels.erase(id);
+                        }
                         info("%s\n", success ? "Success" : "Fail");
                         g_dirty |= success;
                     }
@@ -592,48 +633,77 @@ void handleCli(char* line) {
 
 // Function to read data from panels and update modules and routing
 bool processPanels() {
-    uint8_t txData[8];
-    uint32_t panelId, paramId;
-    uint8_t panelIdx;
-    uint8_t opcode, paramIdx;
+    std::string uuid;
+    uint32_t paramId;
     double value;
-    int rxLen;
     std::string controlIdx;
 
-    rxLen = g_usart.rx();
+    int rxLen = g_usart.rx();
     if (rxLen > 0) {
 
         // Got a CAN message. Look up panel ID
-        if (g_usart.rxData[0] > g_panels.size()) {
+        uint8_t panelId = g_usart.getRxId();
+        uint8_t opcode = g_usart.getRxOp();
+        if (panelId == HOST_CMD) {
+            // Message from Brain
+            switch(opcode) {
+                case HOST_CMD_NUM_PNLS:
+                    //!@todo Handle quantity of panels
+                    // numPanels = g_usart.rxData[0];
+                    break;
+                case HOST_CMD_PNL_INFO:
+                    //!@todo Handle new panel info
+                    if (rxLen < 23) {
+                        error("Malformed HOST_CMD_INFO message. Too short.\n");
+                        return false;
+                    }
+                    panelId = g_usart.rxData[0];
+                    if (g_panels.find(panelId) == g_panels.end()) {
+                        PANEL_T panel;
+                        memcpy(&panel, g_usart.rxData, 23);
+                        addPanel(panel);
+                    } else {
+                        error("Tried adding existin panel %u\n", panelId);
+                        return false;
+                    }
+                    break;
+                case HOST_CMD_RESET:
+                    //!@todo Handle reset
+                    break;
+            }
+        } else if (g_panels.find(panelId) == g_panels.end()) {
             //!@todo Handle unknown panels
             return false;
         }
-        uint8_t panelIdx = g_usart.getRxId();
-        panelId = g_panels[g_usart.rxData[0]];
-        const std::string& panelSid = std::to_string(panelId);
+        Module* module = g_panels[panelId].module;
+        if (!module) {
+            error("Panel %u points to non-existing module\n", panelId);
+            return false;
+        }
+        const std::string& moduleName = module->getInfo().name;
 
         // Check message type
         switch (g_usart.getRxOp()) {
             case CAN_MSG_ADC: {
-                debug("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
                 controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][panelSid]["adcs"][controlIdx] == nullptr) {
-                    error("Bad knob index %u on panel %u.\n", panelId, g_usart.rxData[1]);
+                if (g_config["panels"][moduleName]["adcs"][controlIdx] == nullptr) {
+                    error("Bad knob index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
                     return false;
                 }
-                paramId = g_config["panels"][panelSid]["adcs"][controlIdx];
+                paramId = g_config["panels"][moduleName]["adcs"][controlIdx];
                 value = (g_usart.rxData[2] | (g_usart.rxData[3] << 8)) / 1019.0;
-                g_moduleManager.setParam(panelSid, paramId, value);
+                debug("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
+                g_moduleManager.setParam(uuid, paramId, value);
                 break;
             }
             case CAN_MSG_SWITCH: {
                 controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][panelSid]["buttons"][controlIdx] == nullptr) {
-                    error("Bad button index %u on panel %u.\n", panelId, g_usart.rxData[1]);
+                if (g_config["panels"][moduleName]["buttons"][controlIdx] == nullptr) {
+                    error("Bad button index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
                     return false;
                 }
-                uint8_t type = g_config["panels"][panelSid]["buttons"][controlIdx]["type"];
-                paramId = g_config["panels"][panelSid]["buttons"][controlIdx]["index"];
+                uint8_t type = g_config["panels"][moduleName]["buttons"][controlIdx]["type"];
+                paramId = g_config["panels"][moduleName]["buttons"][controlIdx]["index"];
                 value = g_usart.rxData[2];
                 switch(type) {
                     case 0:
@@ -654,7 +724,7 @@ bool processPanels() {
                         break;
                     case 4:
                         // Param
-                        g_moduleManager.setParam(panelSid, paramId, value);
+                        g_moduleManager.setParam(uuid, paramId, value);
                         break;
                 }
                 break;
@@ -662,13 +732,13 @@ bool processPanels() {
             case CAN_MSG_QUADENC: {
                 debug("Panel %u encoder %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
                 controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][panelSid]["encs"][controlIdx] == nullptr) {
-                    error("Bad encoder index %u on panel %u.\n", panelId, g_usart.rxData[1]);
+                if (g_config["panels"][moduleName]["encs"][controlIdx] == nullptr) {
+                    error("Bad encoder index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
                     return false;
                 }
-                paramId = g_config["panels"][panelSid]["encs"][controlIdx];
+                paramId = g_config["panels"][moduleName]["encs"][controlIdx];
                 int8_t val = g_usart.rxData[2];
-                g_moduleManager.setParam(panelSid, paramId, val);
+                g_moduleManager.setParam(uuid, paramId, val);
                 break;
             }
         }
@@ -681,6 +751,21 @@ bool processPanels() {
 void processModules() {
     for (auto it : g_panels) {
 
+
+    }
+}
+
+// Function to update LEDs
+void processLeds() {
+    uint8_t led;
+    for (auto& [pnlId, panel] : g_panels) {
+        led = panel.module->getDirtyLed();
+        if (led == 0xff)
+            continue;
+        auto l = panel.module->getLedState(led);
+        if (l == nullptr)
+            continue;
+        g_usart.setLed(pnlId, led, l->mode, l->colour1, l->colour2);
     }
 }
 
@@ -742,6 +827,7 @@ int main(int argc, char** argv) {
         if (g_usart.isOpen()) {
             processPanels();
             processModules();
+            processLeds();
         }
 
         usleep(1000); // 1ms sleep to avoid tight loop

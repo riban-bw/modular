@@ -22,9 +22,13 @@
 #include <typeinfo> // Provides typeid
 #include <cxxabi.h> // Provides c++ name demangle
 
+
 struct LED {
     bool dirty = false; // True if value changed since last cleared
-    uint32_t state = 0; // 4 bytes: [RGB2, RGB1, Mode, LED index]
+    uint32_t state = LED_MODE_OFF; // 4 bytes: [RGB2, RGB1, Mode, LED index]
+    uint8_t mode = 0; // See LED_MODE
+    uint8_t colour1[3] = {0, 0, 0}; // Colour 1
+    uint8_t colour2[3] = {0, 0, 0}; // Colour 2
 };
 
 //!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.
@@ -192,17 +196,46 @@ class Module {
             return m_info.params.size();
         }
 
-        /** @brief  Get the next LED that has changed state since last call
-            @retval uint32_t LED and value as 4 bytes [RGB2, RGB1, Mode, LED] or 0xffffffff for no dirty LEDs
+        /** @brief  Set LED state
+            @param  led Index of LED
+            @param  mode Mode (see LED_MODE)
         */
-        uint32_t getDirtyLed() {
-            for (auto it : m_led) {
-                if (it.dirty) {
-                    it.dirty = false;
-                    return it.state;
+        void setLedMode(uint8_t led, uint8_t mode) {
+            if (led >= m_led.size() || mode == m_led[led].mode)
+                return;
+            m_led[led].mode = mode;
+            m_led[led].dirty = true;
+        }
+
+        /** @brief  Get the next LED that has changed state since last call
+            @retval uint8_t LED index or 0xff if none dirty
+        */
+        uint8_t getDirtyLed() {
+            for (uint8_t i = m_nextLed; i < m_led.size(); ++i) {
+                if (m_led[i].dirty) {
+                    m_led[i].dirty = false;
+                    m_nextLed = i + 1;
+                    return i;
                 }
             }
-            return 0xffffffff;
+            for (uint8_t i = 0; i < m_nextLed; ++i) {
+                if (m_led[i].dirty) {
+                    m_led[i].dirty = false;
+                    m_nextLed = i + 1;
+                    return i;
+                }
+            }
+            return 0xff;
+        }
+
+        /** @brief  Get LED state
+            @param  led Index of LED
+            @retval LED* Pointer to LED state structure or null if invalid index
+        */
+        LED* getLedState(uint8_t led) {
+            if (led >= m_led.size())
+                return nullptr;
+            return &(m_led[led]);
         }
 
         void setPolyphony(uint8_t poly) {
@@ -247,6 +280,22 @@ class Module {
         }
 
     protected:
+        /** @brief  Set LED state
+            @param  led Index of LED
+            @param  mode LED mode (see LED_MODE)
+            @param  colour1 LED colour 1 as 3-byte array [r,g,b]
+            @param  colour2 LED colour 2 as 3-byte array [r,g,b]
+            @note   Module should call this to update its internal state
+        */
+        void setLed(uint8_t led, uint8_t mode, const uint8_t* colour1, const uint8_t* colour2) {
+            if (led >= m_led.size() || mode == m_led[led].mode && (std::memcmp(colour1, m_led[led].colour1, 3) == 0) && (std::memcmp(colour2, m_led[led].colour2, 3) == 0))
+                return;
+            m_led[led].mode = mode;
+            std::memcpy(m_led[led].colour1, colour1, 3);
+            std::memcpy(m_led[led].colour2, colour2, 3);
+            m_led[led].dirty = true;
+        }
+
         struct ModuleInfo m_info; // Module info
         uint8_t m_poly = 1; // Polyphony
         void* m_handle; // Handle of shared lib (from dlopen)
@@ -261,6 +310,7 @@ class Module {
         jack_nframes_t m_samplerate = SAMPLERATE; // jack samplerate
 
     private:
+        uint8_t m_nextLed = 0; // Next LED to be checked for dirty
 };
 
 // Macro to define plugin create

@@ -22,10 +22,10 @@
 struct PANEL_T
 {
   uint32_t type = 0; // Panel type
-  uint32_t version = 0; // Panel firmware version
   uint32_t uuid0 = 0; // Panel UID [0:31]
   uint32_t uuid1 = 0; // Panel UID [32:63]
   uint32_t uuid2 = 0; // Panel UID [64:95]
+  uint32_t version = 0; // Panel firmware version
   uint8_t switches[32];
   uint16_t adcs[16];
   uint32_t lastUpdate = 0; // Time of last CAN message
@@ -38,7 +38,7 @@ uint8_t numPanels = 0;            // Quantity of detected and configured panels
 uint8_t usartRxBuffer[MAX_USART_MSG_LEN]; // Buffer holding data received from USART
 uint8_t usartRxLen = 0;           // Length of usartRxBuffer
 static CAN_message_t canMsg;      // CAN message object used to send and receive
-PANEL_T panels[MAX_PANELS];       // Array of panel configurations
+PANEL_T panels[MAX_PANELS];       // Array of panel configurations (0 used for detection)
 uint8_t detecting = RUN_MODE_INIT; // Panel detection mode
 HardwareSerial Serial1(PA10, PA9); // USART for communication with host
 
@@ -281,10 +281,12 @@ void loop()
           panels[0].type = canMsg.data.low;
           panels[0].version = canMsg.data.high;
           panels[0].lastUpdate = now;
-          panels[canMsg.id & 0xFF] = panels[0];
+          panelId = canMsg.id & 0x3F;
+          memcpy(panels[panelId], panels[0], sizeof(PANEL_T));
           // Inform host of new panel
-          uint8_t data[] = {0xFF, 0x01, uint8_t(canMsg.id), canMsg.data.bytes[0], canMsg.data.bytes[1], canMsg.data.bytes[2], canMsg.data.bytes[3], 0};
-          usartTx(data, 7);
+          uint8_t data[23] = {0xFF, HOST_CMD_PNL_INFO, panelId};
+          memcpy(data + 2, 20, panels[panelId]);
+          usartTx(data, 23);
           detecting = RUN_MODE_READY;
         }
         break;

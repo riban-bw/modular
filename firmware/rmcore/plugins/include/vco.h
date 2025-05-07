@@ -27,6 +27,10 @@ enum VCO_PARAM {
     VCO_PARAM_LIN
 };
 
+enum VCO_LED {
+    VCO_LED_LFO     = 0
+};
+
 enum WAVEFORM {
     WAVEFORM_SIN    = 0,
     WAVEFORM_TRI    = 1,
@@ -44,6 +48,8 @@ class VCO : public Module {
         /*  @brief  Initalise the module
         */
         void init();
+
+        bool setParam(uint32_t param, float val);
 
         /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period

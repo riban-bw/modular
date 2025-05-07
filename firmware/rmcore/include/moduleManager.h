@@ -43,9 +43,9 @@ class ModuleManager {
         /** @brief  Add a module to the graph
             @param  type Module type
             @param  uuid Module UUID
-            @retval bool True on success
+            @retval Module* Pointer to module or null on failure
         */
-        bool addModule(const std::string& type, const std::string& uuid);
+        Module* addModule(const std::string& type, const std::string& uuid);
 
         /** @brief  Remove a module from the graph
             @param  type Module type
@@ -88,9 +88,16 @@ class ModuleManager {
 
         /** @brief  Get the next LED that has changed state since last call
             @param  uuid Module UUID
-            @retval uint32_t LED and value as 4 bytes [RGB2, RGB1, Mode, LED] or 0xffffffff for no dirty LEDs
+            @retval uint8_t Index of dirty LED or 0xff if none found
         */
-        uint32_t getDirtyLed(const std::string& uuid);
+        uint8_t getDirtyLed(const std::string& uuid);
+
+        /** @brief  Get LED state
+            @param  uuid Module UUID
+            @param  led LED index
+            @retval LED* Pointer to LED state structure or null if invalid uuid or index
+        */
+        LED* getLedState(const std::string& uuid, uint8_t led);
 
         /** @brief  Set polyphony
             @param  poly    Quantity of concurrent voices

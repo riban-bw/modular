@@ -48,18 +48,18 @@ std::vector<std::string> ModuleManager::getAvailableModules() {
     return soFiles;
 }
 
-bool ModuleManager::addModule(const std::string& type, const std::string& uuid) {
+Module* ModuleManager::addModule(const std::string& type, const std::string& uuid) {
     // Check if this instance of the module is already running
     if (m_modules.find(uuid) != m_modules.end()) {
         error("Module %s already exists\n", uuid.c_str());
-        return false;
+        return nullptr;
     }
     // Try to open an instance of this plugin from its shared lib
     std::string path = "./plugins/lib" + type + ".so";
     void* handle = dlopen(path.c_str(), RTLD_LAZY);
     if (!handle) {
         error("Failed to open instance of plugin %s: %s\n", path.c_str(), dlerror());
-        return false;
+        return nullptr;
     }
 
     auto create = (Module* (*)())dlsym(handle, "createPlugin");
@@ -67,7 +67,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
     if (!create) {
         error("Failed to load factory symbols\n");
         dlclose(handle);
-        return false;
+        return nullptr;
     }
 
     auto module = create();
@@ -75,7 +75,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
         error("Failed to add module %s\n", type);
         delete module;
         dlclose(handle);
-        return false;
+        return nullptr;
     }
     m_modules[uuid] = module;
     ModuleInfo modInfo = module->getInfo();
@@ -91,7 +91,7 @@ bool ModuleManager::addModule(const std::string& type, const std::string& uuid) 
         modInfo.leds.size(),
         modInfo.midi ? "MIDI input" : ""
     );
-    return true;
+    return module;
 }
 
 bool ModuleManager::removeModule(const std::string& uuid) {
@@ -146,12 +146,20 @@ uint32_t ModuleManager::getParamCount(const std::string& uuid) {
     return it->second->getParamCount();
 }
 
-uint32_t ModuleManager::getDirtyLed(const std::string& uuid) {
+uint8_t ModuleManager::getDirtyLed(const std::string& uuid) {
     auto it = m_modules.find(uuid);
     if (it == m_modules.end() || !it->second)
-        return 0xffffffff;
+        return 0xff;
     return it->second->getDirtyLed();
 }
+
+LED* ModuleManager::getLedState(const std::string& uuid, uint8_t led) {
+    auto it = m_modules.find(uuid);
+    if (it == m_modules.end() || !it->second)
+        return nullptr;
+    return it->second->getLedState(led);
+}
+
 
 void ModuleManager::setPolyphony(uint8_t poly) {
     if (poly < 1 || poly > MAX_POLY)

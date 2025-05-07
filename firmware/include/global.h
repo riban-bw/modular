@@ -25,6 +25,10 @@
 #define FRAMES 256
 #define MAX_POLY 16 // Maximum quantity of concurrent notes
 
+// Define some LED colours
+static const uint8_t COLOUR_OFF[] = {0, 0, 0};
+static const uint8_t COLOUR_PARAM_ON[] = {100, 100, 0};
+
 // Enumerations
 enum RUN_MODE {
     RUN_MODE_INIT,       // Not started detect process
@@ -45,13 +49,13 @@ enum HOST_CMD {
 };
 
 enum LED_MODE {
-    LED_MODE_OFF        = 0,
-    LED_MODE_ON         = 1,
-    LED_MODE_ON_2       = 2,
-    LED_MODE_FLASH      = 3,
-    LED_MODE_FLASH_FAST = 4,
-    LED_MODE_PULSE      = 5,
-    LED_MODE_PULSE_FAST = 6
+    LED_MODE_OFF        = 0, // LED off
+    LED_MODE_ON         = 1, // Show colour 1
+    LED_MODE_ON_2       = 2, // Show colour 2
+    LED_MODE_FLASH      = 3, // Flash slowly betwen colours 1 & 2
+    LED_MODE_FLASH_FAST = 4, // Flash quickly between colours 1 & 2
+    LED_MODE_PULSE      = 5, // Pulse slowly between colours 1 & 2
+    LED_MODE_PULSE_FAST = 6 // Pulse quickly between colours 1 & 2
 };
 
 // Structures

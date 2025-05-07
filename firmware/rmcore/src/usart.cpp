@@ -215,6 +215,11 @@ void USART::setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uin
     txCAN(pnlId, 1, data, 8);
 }
 
+void USART::setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1, const uint8_t* colour2) {
+    uint8_t data[] = {led, mode, colour1[0], colour1[1], colour1[2], colour2[0], colour2[1], colour2[2]};
+    txCAN(pnlId, 1, data, 8);
+}
+
 void USART::testLeds(uint8_t pnlCount) {
     for (uint8_t mode = 0; mode < 8; ++mode) {
         for (uint8_t i = 0; i < pnlCount; ++i) {
