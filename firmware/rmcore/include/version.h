@@ -14,7 +14,7 @@
 
 #define PROJECT_NAME "riban modular"
 #define PROJECT_VERSION "0.0.2"
-#define BUILD_DATE "2025-05-03"
+#define BUILD_DATE "2025-05-07"
 #define BUILD_YEAR "2025"
 
 #endif // VERSION_H

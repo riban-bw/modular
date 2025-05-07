@@ -30,7 +30,7 @@ add_custom_target(generate_wavetable DEPENDS ${WAVETABLE_HEADER})
 
 # Add rmcore sources
 add_executable(rmcore
-    src/main.cpp
+    src/rmcore.cpp
     src/usart.cpp
     src/moduleManager.cpp
     src/util.cpp
