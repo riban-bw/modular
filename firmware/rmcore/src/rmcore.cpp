@@ -210,6 +210,7 @@ void loadState(const std::string& filename) {
                 g_moduleManager.setParam(uuid, i, f);
             } else if (section == "routes") {
                 // Get the source and destination Jack ports
+                //!@todo Fix poly routes if saved file has lower poly setting
                 jack_port_t* source = jack_port_by_name(g_jackClient, param.c_str());
                 jack_port_t* destination = jack_port_by_name(g_jackClient, value.c_str());
                 // Check if the ports are valid

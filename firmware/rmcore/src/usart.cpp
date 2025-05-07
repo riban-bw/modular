@@ -10,6 +10,7 @@
 */
 
 #include "usart.h"
+#include "global.h"
 // C library headers
 #include <stdio.h> // Provides fprintf
 #include <string.h> // Provides strerro
@@ -194,36 +195,32 @@ uint8_t USART::getRxOp() {
   return mRxBuffer[2];
 }
 
-void USART::setLedMode(uint8_t pnlId, uint8_t led, uint8_t mode)
-{
-    if (mode > 7)
-        return;
-    uint8_t data[] = {led, mode};
+
+void USART::setLed(uint8_t pnlId, uint8_t led, uint8_t mode) {
+  if (mode > LED_MODE_PULSE_FAST)
+    return;
+  uint8_t data[] = {led, mode};
     txCAN(pnlId, 1, data, 2);
 }
 
-void USART::setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1)
-{
-    uint8_t mode = 1; //!@todo Need to allow setting colour without changing mode
-    uint8_t data[] = {led, mode, r1, g1, b1};
+void USART::setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1) {
+  if (mode > LED_MODE_PULSE_FAST)
+    return;
+  uint8_t data[] = {led, mode, colour1[0], colour1[1], colour1[2]};
     txCAN(pnlId, 1, data, 5);
 }
 
-void USART::setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2) {
-    uint8_t mode = 1; //!@todo Need to allow setting colour without changing mode
-    uint8_t data[] = {led, mode, r1, g1, b1, r2, g2, b2};
-    txCAN(pnlId, 1, data, 8);
-}
-
 void USART::setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1, const uint8_t* colour2) {
-    uint8_t data[] = {led, mode, colour1[0], colour1[1], colour1[2], colour2[0], colour2[1], colour2[2]};
+  if (mode > LED_MODE_PULSE_FAST)
+    return;
+  uint8_t data[] = {led, mode, colour1[0], colour1[1], colour1[2], colour2[0], colour2[1], colour2[2]};
     txCAN(pnlId, 1, data, 8);
 }
 
 void USART::testLeds(uint8_t pnlCount) {
     for (uint8_t mode = 0; mode < 8; ++mode) {
         for (uint8_t i = 0; i < pnlCount; ++i) {
-            setLedMode(1, i, mode);
+            setLed(1, i, mode);
         }
         usleep(2000000);
     }

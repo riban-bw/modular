@@ -67,27 +67,17 @@ class USART {
         */
         uint8_t getRxOp();
 
-        /** @brief Set mode of a panel's LED
-         *  @param pnlId Panel id
-         *  @param led LED index
-         *  @param mode LED mode
-         *  @returns True on success
-         */
-        void setLedMode(uint8_t pnlId, uint8_t led, uint8_t mode);
-
-        /** @brief Set colour of a panel's LED
-         *  @param pnlId Panel id
-         *  @param led LED index
-         *  @param r Red intensity
-         *  @param g Green intensity
-         *  @param b Blue intensity
-         *  @returns True on success
-         */
-        void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r, uint8_t g, uint8_t b);
-        void setLedColour(uint8_t pnlId, uint8_t led, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2);
-
+        /** @brief  Set LED state
+            @param  pnlId Panel id
+            @param  led LED index
+            @param  mode LED mode (see LED_MODE)
+            @param  colour1 Primary LED colour (optional)
+            @param  colour2 Secondary LED colour (optional)
+            @note   Sending optional parameters increases CAN traffic
+        */
+        void setLed(uint8_t pnlId, uint8_t led, uint8_t mode);
+        void setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1);
         void setLed(uint8_t pnlId, uint8_t led, uint8_t mode, const uint8_t* colour1, const uint8_t* colour2);
-
 
         void testLeds(uint8_t pnlCount);
 
