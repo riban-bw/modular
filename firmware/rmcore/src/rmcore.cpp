@@ -46,7 +46,7 @@ struct PANEL_T {
     uint32_t uuid3; // Panel UUID [64..95]
     uint32_t version; // Panel firmware version
     uint32_t ts = 0; // Timestamp of last rx message (used to detect panel removal) seconds
-    Module* module; // Pointers to module object todo convert this to vector of modules
+    Module* module; // Pointer to module object
 };
 
 static const char* historyFile = ".rmcore_cli_history";
@@ -70,17 +70,11 @@ static const std::string CONFIG_PATH = std::getenv("HOME") + std::string("/modul
 /*  TODO
     Initialise display
     Initialise audio: check for audio interfaces (may be USB) and mute outputs 
-    Obtain list of panels
     Initialise each panel: Get info, check firmware version, show status via panel LEDs
-    Instantiate modules based on connected hardware panels
     Unmute outputs
     Show info on display, e.g. firmware updates available, current patch name, etc.
-    Start program loop:
-        Check CAN message queue
-        Add / remove panels / modules
+    In program loop:
         Adjust signal routing
-        Adjust parameter values
-        Periodic / event driven persistent state save
 */
 
 std::string toLower(std::string input) {
@@ -421,26 +415,6 @@ std::string toHex96(uint32_t high, uint32_t mid, uint32_t low) {
     return ss.str();
 }
 
-// Create uuid from uint32_t - variable (up to 24) char width
-std::string toHex96Compact(uint32_t high, uint32_t mid, uint32_t low) {
-    //!@todo Choose whther to use compact of fixed width and lose other function
-    std::stringstream ss;
-    ss << std::hex; // hex output, no fixed width
-    if (high != 0) {
-        ss << high;
-        ss << std::setw(8) << std::setfill('0') << mid;
-        ss << std::setw(8) << std::setfill('0') << low;
-    }
-    else if (mid != 0) {
-        ss << mid;
-        ss << std::setw(8) << std::setfill('0') << low;
-    }
-    else {
-        ss << low;
-    }
-    return ss.str();
-}
-
 // Function to add a panel and corresponding module to model
 bool addPanel(const PANEL_T& panel) {
     const std::string& stype = std::to_string(panel.type);
@@ -459,6 +433,7 @@ bool addPanel(const PANEL_T& panel) {
     }
     return false;
 }
+
 // Function to remove a panel and corresponding module from model
 bool removePanel(const uint8_t& id) {
     if (g_panels.find(id) == g_panels.end()) {
@@ -467,7 +442,7 @@ bool removePanel(const uint8_t& id) {
     }
     std::string uuid = toHex96(g_panels[id].uuid1, g_panels[id].uuid2, g_panels[id].uuid3);
     if (!g_moduleManager.removeModule(uuid)) {
-        debug("Faile to remove module %s.\n", uuid.c_str());
+        debug("Failed to remove module %s.\n", uuid.c_str());
         return false;
     }
     g_panels.erase(id);
@@ -493,7 +468,6 @@ void handleCli(char* line) {
             info("exit\t\t\t Close application\n");
             info("\nDot commands\n============\n");
             info(".a<type>,<uuid>\t\t\t\t\tAdd a module\n");
-            info(".p<id>,<type>,<uuid1>,<uuid2>,<uuid3>\t\tAdd a panel\n");
             info(".l\t\t\t\t\t\tList installed modules\n");
             info(".A\t\t\t\t\t\tList available modules\n");
             info(".r<uuid>\t\t\t\t\tRemove a module\n");
@@ -574,20 +548,6 @@ void handleCli(char* line) {
                         debug("Add module type %s uuid %s\n", pars[0], pars[1]);
                         info("%s\n", g_moduleManager.addModule(pars[0], pars[1]) ? "Success" : "Fail");
                         g_dirty = true;
-                    }
-                    break;
-                case 'p': // Add panel - the panel is immediately removed by lack of CAN messages!
-                    if (pars.size() < 5)
-                        error(".p requires 5 parameters. %u given.\n", pars.size());
-                    else {
-                        PANEL_T panel;
-                        panel.id = std::stoi(pars[0]);
-                        panel.type = std::stoi(pars[1]);
-                        panel.uuid1 = std::stoi(pars[2]);
-                        panel.uuid2 = std::stoi(pars[3]);
-                        panel.uuid3 = std::stoi(pars[4]);
-                        debug("Add panel id: %u type %u uuid %08x%08x%08x\n", panel.id, panel.type, panel.uuid1, panel.uuid2, panel.uuid3);
-                        info("%s\n", addPanel(panel) ? "Success" : "Fail");
                     }
                     break;
                 case 'r': // Remove module
