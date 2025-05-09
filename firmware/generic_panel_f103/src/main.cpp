@@ -95,6 +95,7 @@ void loop()
   static uint32_t nextRefresh = 0;
   static uint32_t nextSec = 0;
   static uint32_t nextSensorScan = 0;
+  static uint32_t nextAlive = -1;
   static uint8_t led = 0, mode = 1;
 
   now = millis();
@@ -110,6 +111,17 @@ void loop()
       {
         // 1s actions
         nextSec = now + 1000;
+        if (now > nextAlive) {
+          canMsg.id = CAN_MSG_ALIVE;
+          canMsg.dlc = 0;
+          canMsg.ide = IDStd;
+          canMsg.data.bytes[0] = panelInfo.id;
+          canMsg.data.s1 = adcs[i].value;
+          if(Can1.write(canMsg))
+            nextAlive = now + 2000;
+          else
+            ; // error
+        }
       }
     }
 
@@ -125,8 +137,10 @@ void loop()
           canMsg.data.bytes[0] = panelInfo.id;
           canMsg.data.bytes[1] = i;
           canMsg.data.s1 = adcs[i].value;
-          if(!Can1.write(canMsg))
-            ; // Error
+          if(Can1.write(canMsg))
+            nextAlive = now + 2000;
+          else
+            ; // error
         }
         adcChanged >>= 1;
         ++i;
@@ -140,7 +154,9 @@ void loop()
           canMsg.data.bytes[0] = panelInfo.id;
           canMsg.data.bytes[1] = i;
           canMsg.data.bytes[2] = switches[i].state;
-          if(!Can1.write(canMsg))
+          if(Can1.write(canMsg))
+            nextAlive = now + 2000;
+          else
             ; // Error
         }
       }
@@ -200,8 +216,10 @@ void loop()
         break;
       case RUN_MODE_READY:
         if (canMsg.id == CAN_MSG_BROADCAST) {
-          if (canMsg.data.bytes[0] == CAN_BROADCAST_RUN)
+          if (canMsg.data.bytes[0] == CAN_BROADCAST_RUN) {
             setRunMode(RUN_MODE_RUN);
+            nextAlive = now + 2000;
+          }
           else if (canMsg.data.bytes[0] == CAN_BROADCAST_RESET)
             HAL_NVIC_SystemReset();
         }
@@ -311,6 +329,7 @@ void setRunMode(uint8_t mode)
       // Extinguise all LEDs - will be illuminated by config messages
       for (uint8_t led = 0; led < ledCount; ++led)
         setLedState(led, LED_STATE_OFF);
+
       break;
     case RUN_MODE_INIT:
       Can1.setFilter(

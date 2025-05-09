@@ -28,7 +28,7 @@ class USART {
         ~USART();
 
         /** @param Check if USART port is open
-        *   @returns true if port open
+        *   @retval bool True if port open
         */
         bool isOpen();
 
@@ -50,10 +50,6 @@ class USART {
         *   @note   Use getRx... functions to inspect received data. Call regularly and rapidly to capture all data.
         */
         int rx();
-
-        /** @brief Process incoming CAN messages
-        */
-        void process();
 
         /** @brief  Get CAN id of last received message
         *   @return CAN id

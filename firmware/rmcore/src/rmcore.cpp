@@ -16,7 +16,6 @@
 #include "version.h"
 
 #include <getopt.h> // Provides getopt_long for command line parsing
-#include <unistd.h> // Provides usleep
 #include <jack/jack.h> // Provides jack client
 #include <map> // Provides std::map
 #include <set> // Provides std::set
@@ -46,7 +45,7 @@ struct PANEL_T {
     uint32_t uuid2; // Panel UUID [32..63]
     uint32_t uuid3; // Panel UUID [64..95]
     uint32_t version; // Panel firmware version
-    uint32_t ts = 0; // Timestamp of last rx message (used to detect panel removal)
+    uint32_t ts = 0; // Timestamp of last rx message (used to detect panel removal) seconds
     Module* module; // Pointers to module object todo convert this to vector of modules
 };
 
@@ -63,6 +62,8 @@ USART g_usart("/dev/ttyS0", B1152000);
 json g_config;
 std::map <uint8_t, PANEL_T> g_panels; // Map of panel uuid indexed by panel id
 ModuleManager& g_moduleManager = ModuleManager::get();
+std::time_t g_now = 0; // Current time stamp
+std::time_t g_panelStart = 0; // Scheduled time to set modules to run mode
 
 static const std::string CONFIG_PATH = std::getenv("HOME") + std::string("/modular/config");
 
@@ -187,8 +188,7 @@ void saveState(const std::string& filename) {
     std::ofstream outFile(path);
 
     outFile << "[general]\n";
-    std::time_t now = std::time(nullptr);
-    std::tm* t = std::localtime(&now);  // or use std::gmtime(&now) for UTC
+    std::tm* t = std::localtime(&g_now);  // or use std::gmtime(&now) for UTC
     char buf[25];
     std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
     outFile << "timestamp=" << buf << std::endl;
@@ -405,7 +405,6 @@ int handleJackXrun(void *arg) {
 }
 
 void handleJackConnect(jack_port_id_t a, jack_port_id_t b, int connect, void *arg) {
-    //!@todo We probably don't need this
     jack_port_t* portA = jack_port_by_id(g_jackClient, a);
     jack_port_t* portB = jack_port_by_id(g_jackClient, b);
     if (portA && portB)
@@ -460,6 +459,20 @@ bool addPanel(const PANEL_T& panel) {
     }
     return false;
 }
+// Function to remove a panel and corresponding module from model
+bool removePanel(const uint8_t& id) {
+    if (g_panels.find(id) == g_panels.end()) {
+        debug("Failed to remove panel %u. Panel not found.\n", id);
+        return false;
+    }
+    std::string uuid = toHex96(g_panels[id].uuid1, g_panels[id].uuid2, g_panels[id].uuid3);
+    if (!g_moduleManager.removeModule(uuid)) {
+        debug("Faile to remove module %s.\n", uuid.c_str());
+        return false;
+    }
+    g_panels.erase(id);
+    return true;
+}
 
 // Function to handle command line interface (mostly for testing)
 void handleCli(char* line) {
@@ -475,7 +488,7 @@ void handleCli(char* line) {
         if (msg == "quit" || msg == "exit") {
             handleSignal(SIGINT);
             return;
-        } else if (msg == "help") {
+        } else if (msg == "help" || msg == ".?") {
             info("\nHelp\n====\n");
             info("exit\t\t\t Close application\n");
             info("\nDot commands\n============\n");
@@ -493,6 +506,7 @@ void handleCli(char* line) {
             info(".d<module uuid>,<output>,<module uuid>,<input>\tDisconnect ports\n");
             info(".S<optional filename>\t\t\t\tSave state to file\n");
             info(".L<optional filename>\t\t\t\tLoad state from file\n");
+            info(".?\t\t\t\t\t\tShow this help\n");
         } else if (msg.size() > 1 && msg[0] == '.' ) {
             std::vector<std::string> pars;
             std::stringstream ss(msg.substr(2));
@@ -500,7 +514,7 @@ void handleCli(char* line) {
             while (std::getline(ss, token, ','))
                 pars.push_back(token);
             switch (msg[1]) {
-                case 's':
+                case 's': // Set paramter value
                     if (pars.size() < 3)
                         error(".s requires 3 parameters\n");
                     else {
@@ -511,7 +525,7 @@ void handleCli(char* line) {
                         g_dirty = true;
                     }
                     break;
-                case 'g':
+                case 'g': // Get parameter value
                     if (pars.size() < 2)
                         error(".g requires 2 parameters\n");
                     else if (std::stoi(pars[1]) >= g_moduleManager.getParamCount(pars[0]))
@@ -521,12 +535,12 @@ void handleCli(char* line) {
                         info("%f\n", g_moduleManager.getParam(pars[0], std::stoi(pars[1])));
                     }
                     break;
-                case 'l':
+                case 'l': // List installed modules
                     for (auto it : g_moduleManager.getModules()) {
                         info("%s (%s)\n", it.first.c_str(), it.second->getInfo().name.c_str());
                     }
                     break;
-                case 'A':
+                case 'A': // List available modules
                 {
                     auto avail = g_moduleManager.getAvailableModules();
                     info("Panel\tModule\n=====\t======\n");
@@ -537,7 +551,7 @@ void handleCli(char* line) {
                     }
                 }
                     break;
-                case 'n':
+                case 'n': // Get parameter name
                     if (pars.size() < 2)
                         error(".n requires 2 parameters\n");
                     else {
@@ -545,7 +559,7 @@ void handleCli(char* line) {
                         info("%s\n", g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str());
                     }
                     break;
-                case 'P':
+                case 'P': // Get quantity of parameters
                     if (pars.size() < 1)
                         error(".P requires 1 parameters\n");
                     else {
@@ -553,7 +567,7 @@ void handleCli(char* line) {
                         info("%u\n", g_moduleManager.getParamCount(pars[0]));
                     }
                     break;
-                case 'a':
+                case 'a': // Add module
                     if (pars.size() < 2)
                         error(".a requires 2 parameters\n");
                     else {
@@ -562,7 +576,7 @@ void handleCli(char* line) {
                         g_dirty = true;
                     }
                     break;
-                case 'p':
+                case 'p': // Add panel - the panel is immediately removed by lack of CAN messages!
                     if (pars.size() < 5)
                         error(".p requires 5 parameters. %u given.\n", pars.size());
                     else {
@@ -576,7 +590,7 @@ void handleCli(char* line) {
                         info("%s\n", addPanel(panel) ? "Success" : "Fail");
                     }
                     break;
-                case 'r':
+                case 'r': // Remove module
                     if (pars.size() < 1)
                         error(".s requires 1 parameters\n");
                     else {
@@ -606,25 +620,25 @@ void handleCli(char* line) {
                         g_dirty |= success;
                     }
                     break;
-                case 'S':
+                case 'S': // Save snapshot
                     if (pars.size() < 1)
                         pars.push_back("last_state");
                     saveState(pars[0]);
                     info("Saved file to %s\n", pars[0].c_str());
                     break;
-                case 'L':
+                case 'L': // Load snapshot
                     if (pars.size() < 1)
                         pars.push_back("last_state");
                     loadState(pars[0]);
                     info("Loaded file to %s\n", pars[0].c_str());
                     break;
-                case 'c':
+                case 'c': // Connect ports
                     if (pars.size() < 4)
                         error(".c requires 4 parameters\n");
                     else
                         connect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
                     break;
-                case 'd':
+                case 'd': // Disconnect ports
                     if (pars.size() < 4)
                         error(".d requires 4 parameters\n");
                     else
@@ -655,14 +669,9 @@ bool processPanels() {
         if (panelId == HOST_CMD) {
             // Message from Brain
             switch(opcode) {
-                case HOST_CMD_NUM_PNLS:
-                    //!@todo Handle quantity of panels
-                    // numPanels = g_usart.rxData[0];
-                    break;
                 case HOST_CMD_PNL_INFO:
-                    //!@todo Handle new panel info
                     if (rxLen < 23) {
-                        error("Malformed HOST_CMD_INFO message. Too short.\n");
+                        error("Malformed HOST_CMD_INFO message. Too short (%u).\n", rxLen);
                         return false;
                     }
                     panelId = g_usart.rxData[0];
@@ -671,8 +680,26 @@ bool processPanels() {
                         memcpy(&panel, g_usart.rxData, 23);
                         addPanel(panel);
                     } else {
-                        error("Tried adding existin panel %u\n", panelId);
+                        error("Tried adding existing panel %u\n", panelId);
                         return false;
+                    }
+                    g_panelStart = g_now + 1; // Panel added so schedule run mode
+                    break;
+                case HOST_CMD_PNL_REMOVED:
+                    if (rxLen < 13) {
+                        error("Malformed HOST_CMD_PNL_REMOVED message. Too short (%u).\n", rxLen);
+                    }
+                    panelId = g_usart.rxData[0];
+                    if (g_panels.find(panelId) == g_panels.end()) {
+                        error("Tried removeing non-existing panel %u.\n", panelId);
+                        return false;
+                    } else {
+                        if (std::memcmp(g_usart.rxData + 1, &(g_panels[panelId].uuid1) + 5, 12) != 0) {
+                            //!@todo Check for data packing ^^^ might not be correct offset
+                            error("Remove panel %u has different uuid.\n", panelId);
+                            return false;
+                        }
+                        removePanel(panelId);
                     }
                     break;
                 case HOST_CMD_RESET:
@@ -680,9 +707,10 @@ bool processPanels() {
                     break;
             }
         } else if (g_panels.find(panelId) == g_panels.end()) {
-            //!@todo Handle unknown panels
+            error("CAN message from unknown panel %u.\n", panelId);
             return false;
         }
+        g_panels[panelId].ts = g_now;
         Module* module = g_panels[panelId].module;
         if (!module) {
             error("Panel %u points to non-existing module\n", panelId);
@@ -769,6 +797,18 @@ void processLeds() {
     }
 }
 
+// Function to check for stale panels
+void checkPanels() {
+    std::vector<uint8_t> stale;
+    for (auto& [id, panel] : g_panels) {
+        if (panel.ts + 5 < g_now)
+            stale.push_back(id);
+    }
+    for (auto id : stale) {
+        removePanel(id);
+    }
+}
+
 int main(int argc, char** argv) {
     // Add signal handler, e.g. for ctrl+c
     std::signal(SIGINT, handleSignal);
@@ -791,7 +831,8 @@ int main(int argc, char** argv) {
         error("Failed to open JACK client\n");
         std::exit(-1);
     }
-    jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
+    if (g_verbose >= VERBOSE_DEBUG)
+        jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
     jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
     jack_activate(g_jackClient);
 
@@ -807,27 +848,35 @@ int main(int argc, char** argv) {
 
     // Main program loop
     while (true) {
+        std::time_t now = std::time(nullptr);
+        if (now != g_now) {
+            // 1s events
+            g_now = now;
+            if (g_panelStart && g_panelStart < now)
+                // At least 1s since last panel detected so set all panels to run mode
+                g_usart.txCmd(HOST_CMD_PNL_RUN);
+            checkPanels(); // Check for removed panels
+
+            if (g_dirty && now > g_nextSaveTime) {
+                saveState("last_state");
+                g_dirty = false;
+                g_nextSaveTime = now + 60;
+            }
+        }
+
         // Handle CLI
         FD_ZERO(&fds);
         FD_SET(STDIN_FILENO, &fds);
-        timeval timeout = {0, 100000};  // 100ms
+        timeval timeout = {0, 100};  // 100us timeout used to avoid tight loop
         int ret = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &timeout);
         if (ret > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
             rl_callback_read_char();  // Non-blocking input processing
-        }
-
-        if (g_dirty && std::time(nullptr) > g_nextSaveTime) {
-            saveState("last_state");
-            g_dirty = false;
-            std::time_t g_nextSaveTime = std::time(nullptr) + 60;
         }
 
         if (g_usart.isOpen()) {
             processPanels();
             processLeds();
         }
-
-        usleep(1000); // 1ms sleep to avoid tight loop
     }
 
     return 0; // We never get here but compiler needs to be appeased.

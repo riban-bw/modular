@@ -88,9 +88,10 @@ Host (RPi) communicates with Brain via serial port, mostly using same CAN protoc
 |B←P| ALIVE    | 0x0E   |                                                  | Sent periodically if no other data sent to support watchdog |
 |B→P| RESET    | 0x0F   |                                                  | Request panel to reset to detection mode |
 |B←H| NUM_PNL  | 0x01   |                                                  | Request quantity of detected panels
-|B→H| NUM_PNL  | 0x01   | NumPanels [0:5]                                  | Quantity of panels
-|B←H| PNL_INFO | 0x02   |                                                  | Request type of all panels
-|B→H| PNL_INFO | 0x02   | PanelId [0:5] Type [0:31] UUID [0:95] Ver [0:31] | Panel type (sent when new panel detected or PNL_INFO requested)
+|B←H| PNL_INFO | 0x01   |                                                  | Request type of all panels
+|B→H| PNL_INFO | 0x01   | PanelId [0:5] Type [0:31] UUID [0:95] Ver [0:31] | Panel type (sent when new panel detected or PNL_INFO requested)
+|B→H| PNL_REMOVED | 0x02 | PanelId [0:5] UUID [0:95]                       |
+|B←H| PNL_RUN  | 0x03 |                                                    | Request all panels go to run mode
 
 ##### LED Modes
 |Value|Mode|

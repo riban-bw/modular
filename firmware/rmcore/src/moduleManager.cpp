@@ -31,7 +31,6 @@ Module* ModuleManager::getModule(std::string uuid) {
     return m_modules[uuid];
 }
 
-
 std::vector<std::string> ModuleManager::getAvailableModules() {
     std::vector<std::string> soFiles;
     for (const auto& entry : fs::directory_iterator("./plugins")) {
@@ -159,7 +158,6 @@ LED* ModuleManager::getLedState(const std::string& uuid, uint8_t led) {
         return nullptr;
     return it->second->getLedState(led);
 }
-
 
 void ModuleManager::setPolyphony(uint8_t poly) {
     if (poly < 1 || poly > MAX_POLY)

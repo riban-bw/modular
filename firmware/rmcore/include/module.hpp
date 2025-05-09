@@ -113,6 +113,7 @@ class Module {
                 m_led.push_back(LED{});
             }
             if (m_info.midi) {
+                //!@todo This is only used by the MIDI module so maybe should be implemented elsewhere, e.g. within rmcore
                 port = jack_port_register(m_jackClient, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
                 if (port)
                     m_midiIn = port;

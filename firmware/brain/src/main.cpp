@@ -291,9 +291,7 @@ void loop()
         }
         break;
       }
-    }
-    else
-    {
+    } else {
       // Send all standard CAN messages to host via USART
       uint8_t buffer[11];
       buffer[0] = canMsg.id >> 8;
@@ -338,16 +336,11 @@ void processUsart() {
       usartRxLen -= 2;
 
       // Data starts at usartRxBuffer[1]
-      if (usartRxBuffer[1] == 0xff) {
+      if (usartRxBuffer[1] == HOST_CMD) {
         // Host command, not CAN message
         uint8_t data[8];
         data[0] = HOST_CMD;
         switch (usartRxBuffer[2]) {
-          case HOST_CMD_NUM_PNLS:
-            data[1] = HOST_CMD_NUM_PNLS;
-            data[2] = numPanels;
-            usartTx(data, 2);
-            break;
           case HOST_CMD_PNL_INFO:
             // Request all panels info
             data[1] = HOST_CMD_PNL_INFO;
@@ -361,6 +354,19 @@ void processUsart() {
                 usartTx(data, 7);
               }
             }
+            break;
+          case HOST_CMD_RESET:
+            canMsg.id = CAN_MSG_BROADCAST;
+            canMsg.dlc = 1;
+            canMsg.ide = IDExt;
+            canMsg.data.bytes[0] = CAN_BROADCAST_RESET;
+            break;
+          case HOST_CMD_PNL_RUN:
+            //!@todo Set all panels to run mode
+            canMsg.id = CAN_MSG_BROADCAST;
+            canMsg.dlc = 1;
+            canMsg.ide = IDExt;
+            canMsg.data.bytes[0] = CAN_BROADCAST_RUN;
             break;
           default:
             break;

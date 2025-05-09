@@ -21,7 +21,6 @@
 #include <termios.h> // Contains POSIX terminal control definitions
 #include <unistd.h> // write(), read(), close()
 
-
 USART::USART(const char* dev, speed_t baud) {
     rxData = mRxBuffer + 3;
     // Configure serial port - much info from https://blog.mbedded.ninja/programming/operating-systems/linux/linux-serial-ports-using-c-cpp
@@ -171,22 +170,6 @@ int USART::rx() {
   return rxCount;
 }
 
-void USART::process()
-{
-    int count = rx();
-    if (count < 6)
-      return;
-    switch (mRxBuffer[1])
-    {
-    case 2:
-        printf("Panel %d ADC %d %d\n", mRxBuffer[2], mRxBuffer[3] + 1, mRxBuffer[4] + mRxBuffer[5] << 8);
-        break;
-    case 3:
-        printf("Panel %d Switch %d %d\n", mRxBuffer[2], mRxBuffer[3] + 1, mRxBuffer[4]);
-        break;
-    }
-}
-
 uint8_t USART::getRxId() {
   return mRxBuffer[1];
 }
@@ -194,7 +177,6 @@ uint8_t USART::getRxId() {
 uint8_t USART::getRxOp() {
   return mRxBuffer[2];
 }
-
 
 void USART::setLed(uint8_t pnlId, uint8_t led, uint8_t mode) {
   if (mode > LED_MODE_PULSE_FAST)

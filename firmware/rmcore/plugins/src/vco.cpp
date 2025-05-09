@@ -34,7 +34,7 @@ VCO::VCO() {
         "frequency", // Frequency in octaves 0=C4 (261.63Hz)
         "waveform", // Morphing waveform selection (0:sin, 1:tri, 2:saw 3:square, 4:noise)
         "pwm", // Pulse width (0..1) square wave only
-        "amplitude" // Output level (normalised 1=unitiy gain)
+        "amplitude", // Output level (normalised 1=unitiy gain)
         "lfo", // Factor to adjust frequency for LFO mode (0.0 none, -9.0 minus 9 octaves)
         "linear" // >0.5 to enable linear frequency control. <0.5 to enable log frequency control
     };
@@ -57,13 +57,16 @@ void VCO::init() {
 }
 
 bool VCO::setParam(uint32_t param, float val) {
+    debug("VCO::setParam(%u, %f)\n", param, val);
     if (!Module::setParam(param, val))
         return false;
+    debug("  setParam succeded.\n");
     switch (param) {
         case VCO_PARAM_LFO:
             setLed(VCO_LED_LFO, val > 0.5 ? LED_MODE_ON : LED_MODE_OFF, COLOUR_PARAM_ON, COLOUR_PARAM_ON);
             break;
     }
+    debug("  done!\n");
     return true;
 }
 
@@ -77,9 +80,9 @@ int VCO::process(jack_nframes_t frames) {
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][VCO_PORT_OUT], frames);
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCO_PORT_CV], frames);
         
-        while (m_waveformPos[poly] >= m_wavetableSize)
-            m_waveformPos[poly] -= m_wavetableSize;
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            while (m_waveformPos[poly] >= m_wavetableSize)
+                m_waveformPos[poly] -= m_wavetableSize;
             //!@todo Do we need to adjust frequency every frame or can it be slewed from a change every period?
             if (m_param[VCO_PARAM_LIN])
                 if (m_param[VCO_PARAM_LFO])
@@ -115,9 +118,6 @@ int VCO::process(jack_nframes_t frames) {
                 outBuffer[frame] += waveform2 * WAVETABLE[baseWaveform + 1][(uint32_t)m_waveformPos[poly]] * m_param[VCO_PARAM_AMP];
             }
             m_waveformPos[poly] += m_waveformStep[poly];
-
-            if (m_waveformPos[poly] >= m_wavetableSize)
-                m_waveformPos[poly] -= m_wavetableSize;
         }
     }
     return 0;

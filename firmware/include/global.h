@@ -37,15 +37,16 @@ enum RUN_MODE {
     RUN_MODE_PENDING_3,  // Sent DETECT_2, pending DETECT_3
     RUN_MODE_PENDING_4,  // Sent DETECT_3, pending DETECT_4
     RUN_MODE_RUN,        // Received SET_ID - detection complete
-    RUN_MODE_READY,       // Configured awaiting run command
+    RUN_MODE_READY,      // Configured awaiting run command
     RUN_MODE_FIRMWARE,   // Firmware update in progress
 };
 
 enum HOST_CMD {
-    HOST_CMD_NUM_PNLS = 0x01,
-    HOST_CMD_PNL_INFO = 0x02,
-    HOST_CMD_RESET = 0xff,
-    HOST_CMD = 0xff,
+    HOST_CMD_PNL_INFO       = 0x01, // Request all / inform each installed panel
+    HOST_CMD_PNL_REMOVED    = 0x02, // Inform a panel removed
+    HOST_CMD_PNL_RUN        = 0x03, // Inform all panels to enter run mode
+    HOST_CMD_RESET          = 0xff, // Request reset all panels
+    HOST_CMD                = 0xff  // Panel ID for host/brain commands
 };
 
 enum LED_MODE {
@@ -123,7 +124,10 @@ enum CAN_MESSAGE_ID {
     CAN_MSG_LED                 = 0x001,
     CAN_MSG_ADC                 = 0x002,
     CAN_MSG_SWITCH              = 0x003,
-    CAN_MSG_QUADENC             = 0x004
+    CAN_MSG_QUADENC             = 0x004,
+    CAN_MSG_ALIVE               = 0x00e,
+    CAN_MSG_RESET               = 0x00f,
+    CAN_MSG_DUMP                = 0x0f1
 };
 
 enum CAN_BROADCAST_CODE {
