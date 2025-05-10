@@ -172,6 +172,7 @@ bool disconnect(std::string source, std::string destination) {
 
 // Function to save model state to a file
 void saveState(const std::string& filename) {
+
     std::string path = CONFIG_PATH + std::string("/snapshots/");
     if (!std::filesystem::exists(path)) {
         std::filesystem::create_directories(path);
@@ -179,29 +180,30 @@ void saveState(const std::string& filename) {
 
     // Open a file for writing the connections
     path +=  filename + std::string(".rms");
-    std::ofstream outFile(path);
+    std::ofstream file(path);
+    if (!file) {
+        error("Failed to open snapshot %s\n", path.c_str());
+        return;
+    }
 
-    outFile << "[general]\n";
+    json state;
+    state["general"] = {};
     std::tm* t = std::localtime(&g_now);  // or use std::gmtime(&now) for UTC
     char buf[25];
     std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
-    outFile << "timestamp=" << buf << std::endl;
-    outFile << "polyphony=" << std::to_string(g_poly) << std::endl;
+    state["general"]["timestamp"] = buf;
+    state["general"]["polyphony"] = g_poly;
 
-    outFile << "[modules]\n";
+    state["modules"] = {};
     for (auto it : g_moduleManager.getModules()) {
-        outFile << it.second->getInfo().name << "=" << it.first << std::endl;
-    }
+        state["modules"][it.first] = {};
+        state["modules"][it.first]["type"] = it.second->getInfo().name;
+        //state["modules"][it.first]["params"] = {};
+        state["modules"][it.first]["params"] = json::array();
 
-    outFile << "[params]\n";
-    for (auto it : g_moduleManager.getModules()) {
-        uint32_t count = g_moduleManager.getParamCount(it.first);
-        while (count > 0) {
-            --count;
-            std::string paramName = g_moduleManager.getParamName(it.first, count);
-            std::string key = it.first + ":" + std::to_string(count);
-            std::string value = std::to_string(it.second->getParam(count));
-            outFile << key << "=" << value << std::endl;
+        for(uint32_t count = 0; count < g_moduleManager.getParamCount(it.first); ++count) {
+            //state["modules"][it.first]["params"][g_moduleManager.getParamName(it.first, count)] = it.second->getParam(count);
+            state["modules"][it.first]["params"].push_back(it.second->getParam(count));
         }
     }
 
@@ -219,8 +221,9 @@ void saveState(const std::string& filename) {
         for (int i = 0; midiPorts[i] != NULL; ++i) {
             all_ports.push_back(midiPorts[i]);
         }
-    outFile << "[routes]\n";
+
     std::set<std::string> routes; // Store each route to avoid adding duplicates to snapshot file
+    state["routes"] = {};
     // Iterate over the ports and check connections
     for (const auto& portName : all_ports) {
         // Get the list of connected ports to this port
@@ -233,53 +236,56 @@ void saveState(const std::string& filename) {
             std::string s = srcName + ":" + dstName;
             // Write the connected port pair to the file
             if (routes.insert(s).second) // Not a duplicate
-                outFile << srcName << "=" << dstName << std::endl;
+                state["routes"][srcName] = dstName;
         }
     }
 
-    // Close the file after writing
-    outFile.close();
+    file << state.dump(4);  // 4 = pretty print with 4-space indent
     debug("Connections saved to %s\n", path.c_str());
 }
 
 // Function to load a model state from a file
 void loadState(const std::string& filename) {
     std::string path = CONFIG_PATH + std::string("/snapshots/") + filename + std::string(".rms");
-    std::ifstream inFile(path);
-    g_moduleManager.removeAll();
-    if (!inFile.is_open()) {
-        error("Opening file %s for reading!\n", path.c_str());
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        error("Failed to open snapshot file %s!\n", path.c_str());
         return;
     }
-    std::string line;
-    std::string section = "None";
-    while (std::getline(inFile, line)) {
-        std::stringstream ss(line);
-        std::string param;
-        std::string value;
+    g_moduleManager.removeAll();
 
-        // Detect section or get key=value pair
-        if (line.size() >= 2 && line.front() == '[' && line.back() == ']') {
-            section = line.substr(1, line.size() - 2);
-        } else if (std::getline(ss, param, '=') && std::getline(ss, value)) {
-            if (section == "general") {
-            } else if (section == "modules") {
-                g_moduleManager.addModule(toLower(param), value);
-            } else if (section == "params") {
-                std::stringstream ssKey(param);
-                std::string p, uuid;
-                std::getline(ssKey, uuid, ':') && std::getline(ssKey, p);
-                float f = std::stof(value);
-                uint32_t i = std::stoi(p);
-                //debug("Setting %s %u to %f\n", uuid.c_str(), i, f);
-                g_moduleManager.setParam(uuid, i, f);
-            } else if (section == "routes") {
-                // Get the source and destination Jack ports
-                connect(param, value);
+    json state = json::parse(file);
+
+    if (state["general"]["polyphony"] != nullptr) {
+        unsigned int poly = state["general"]["polyphony"];
+        g_poly = std::clamp(poly, 1U, 16U);
+    }
+
+    if (state["modules"] != nullptr) {
+        for (auto& [uuid, cfg] : state["modules"].items()) {
+            if (cfg["type"] == nullptr)
+                continue;
+            const std::string& type = cfg["type"]; 
+            g_moduleManager.addModule(toLower(type), uuid);
+            if (cfg["params"] != nullptr) {
+                uint8_t i = 0;
+                for (auto& val : cfg["params"]) {
+                    g_moduleManager.setParam(uuid, i, val);
+                    ++i;
+                }
             }
         }
     }
-    inFile.close();
+
+    if (state["routes"] != nullptr) {
+        for (auto& [s, d] : state["routes"].items()) {
+            std::string src = s;
+            std::string dst = d;
+            connect(src, dst);
+        }
+    }
+
+    file.close();
     g_dirty = false;
     info("State restored from %s\n", path.c_str());
 }
@@ -310,7 +316,7 @@ void loadConfig() {
 
     for (auto& [id, cfg] : g_config["panels"].items()) {
         if (cfg["module"] == nullptr) {
-            const std::string& name = "FIXME!";
+            const std::string& name = "FIXME!"; //!@todo Fix this!!!
             cfg["module"] = name;
             continue;
         }
