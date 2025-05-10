@@ -87,7 +87,7 @@ During initialisation, an instance of a singleton class `ModuleManager` is creat
 
 ## State snapshot management
 
-The runtime model state is stored to and recalled from _snapshot_ files with filename extenstion ".rms" (riban modular state (or snapshot)). This is an _ini_ style file format. (Maybe it should be refactored to json.) Snapshots are stored in the "snapshot" subdirectory of the "config" directory. `void loadState(const std::string& filename)` opens the file and iterates each line, looking for "[section]" and "param=value" entries, populating the runtime state. Similarly, `void saveState(const std::string& filename)` iterates the runtime state, storing these entries in the file.
+The runtime model state is stored to and recalled from _snapshot_ files with filename extenstion ".rms" (riban modular snapshot (or state)). This is in the _json_ format. Snapshots are stored in the "snapshot" subdirectory of the "config" directory. `void loadState(const std::string& filename)` opens the file and iterates each line, looking for "[section]" and "param=value" entries, populating the runtime state. Similarly, `void saveState(const std::string& filename)` iterates the runtime state, storing these entries in the file.
 
 ## Core / Brain interface
 
