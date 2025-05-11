@@ -21,9 +21,11 @@ _rmcore_ is a command line application writeen in C++. It has a `int main(int ar
 
 At initialisation, a handler is defined for signals. This allows capture of signals like SIGINT, allowing clean exit from the main program loop.
 
+The command line is parsed for options.
+
 A configuration file in json format is loaded and parsed by `loadConfig()` function.
 
-The command line is then parsed for options. This allows command line parameters to override entires in the configuration file.
+`g_poly` is checked to allow it to be set by config or command line.
 
 The command line interface (CLI) is initialised, including loading previous sessions' history.
 

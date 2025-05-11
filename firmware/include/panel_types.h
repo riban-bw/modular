@@ -76,13 +76,10 @@ PC15|   |   |     |
 // MIDI
 #define SCL_PIN PB10
 #define SDA_PIN PB11
-#define DETECT_PIN PB1
+#define DETECT_PIN PB1 // No longer required???
 #define WSLEDS {0, 1, 2, 3, 4, 5, 6, 7}
 #define ADC_PINS {}
 #define SWITCH_PINS {PA3, PA4, PA5, PA6}
-#define BRAND "riban"
-#define PLUGIN "riban"
-#define MODEL "MIDI"
 #endif // PANEL_TYPE 2
 
 #if PANEL_TYPE==11
@@ -121,9 +118,6 @@ PC15|   |   |     |
 //#define WSLEDS {2, 3, 1, 4, 5, 7}
 #define ADC_PINS {PA7, PA6, PA5, PA4, PA3, PA0, PA2, PA1}
 #define SWITCH_PINS {PB13, PB14, PA9, PA10, PB11, PB12, PA11, PA12}
-#define BRAND "Bogaudio"
-#define PLUGIN "Bogaudio"
-#define MODEL "ADSR"
 #endif // PANEL_TYPE 14
 
 #if PANEL_TYPE==15

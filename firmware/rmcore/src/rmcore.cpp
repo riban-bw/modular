@@ -51,19 +51,20 @@ struct PANEL_T {
 
 static const char* historyFile = ".rmcore_cli_history";
 const char* swState[] = {"Release", "Press", "Bold", "Long", "", "Long"};
-bool g_running = true; // False to stop processing
-uint8_t g_poly = 1; // Current polyphony
+uint8_t g_poly = 0xff; // Current polyphony
 jack_client_t* g_jackClient;
 uint32_t g_xruns = 0;
 std::string g_stateName;
 std::time_t g_nextSaveTime = 0;
 bool g_dirty = false;
 USART g_usart("/dev/ttyS0", B1152000);
-json g_config;
-std::map <uint8_t, PANEL_T> g_panels; // Map of panel uuid indexed by panel id
+json g_config; // Global configuration, stored as json structure
+std::map <uint8_t, PANEL_T> g_panels; // Map of panel structures indexed by panel id
 ModuleManager& g_moduleManager = ModuleManager::get();
 std::time_t g_now = 0; // Current time stamp
 std::time_t g_panelStart = 0; // Scheduled time to set modules to run mode
+int g_exitCode = 0; // Program exit code. Set before calling handleSignal
+bool g_run = true; // False to exit main loop
 
 static const std::string CONFIG_PATH = std::getenv("HOME") + std::string("/modular/config");
 
@@ -186,61 +187,65 @@ void saveState(const std::string& filename) {
         return;
     }
 
-    json state;
-    state["general"] = {};
-    std::tm* t = std::localtime(&g_now);  // or use std::gmtime(&now) for UTC
-    char buf[25];
-    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
-    state["general"]["timestamp"] = buf;
-    state["general"]["polyphony"] = g_poly;
+    try {
+        json state;
+        state["general"] = {};
+        std::tm* t = std::localtime(&g_now);  // or use std::gmtime(&now) for UTC
+        char buf[25];
+        std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
+        state["general"]["timestamp"] = buf;
+        state["general"]["polyphony"] = g_poly;
 
-    state["modules"] = {};
-    for (auto it : g_moduleManager.getModules()) {
-        state["modules"][it.first] = {};
-        state["modules"][it.first]["type"] = it.second->getInfo().name;
-        //state["modules"][it.first]["params"] = {};
-        state["modules"][it.first]["params"] = json::array();
+        state["modules"] = {};
+        for (auto it : g_moduleManager.getModules()) {
+            state["modules"][it.first] = {};
+            state["modules"][it.first]["type"] = it.second->getInfo().name;
+            //state["modules"][it.first]["params"] = {};
+            state["modules"][it.first]["params"] = json::array();
 
-        for(uint32_t count = 0; count < g_moduleManager.getParamCount(it.first); ++count) {
-            //state["modules"][it.first]["params"][g_moduleManager.getParamName(it.first, count)] = it.second->getParam(count);
-            state["modules"][it.first]["params"].push_back(it.second->getParam(count));
+            for(uint32_t count = 0; count < g_moduleManager.getParamCount(it.first); ++count) {
+                //state["modules"][it.first]["params"][g_moduleManager.getParamName(it.first, count)] = it.second->getParam(count);
+                state["modules"][it.first]["params"].push_back(it.second->getParam(count));
+            }
         }
+
+        // Get all the audio ports (input and output)
+        const char **audioPorts = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
+        // Get all the MIDI ports (input and output)
+        const char **midiPorts = jack_get_ports(g_jackClient, NULL, "midi", JackPortIsOutput);
+        // Combine both audio and MIDI ports into one list
+        std::vector<const char*> all_ports;
+        if (audioPorts)
+            for (int i = 0; audioPorts[i] != NULL; ++i) {
+                all_ports.push_back(audioPorts[i]);
+            }
+        if (midiPorts)
+            for (int i = 0; midiPorts[i] != NULL; ++i) {
+                all_ports.push_back(midiPorts[i]);
+            }
+
+        std::set<std::string> routes; // Store each route to avoid adding duplicates to snapshot file
+        state["routes"] = {};
+        // Iterate over the ports and check connections
+        for (const auto& portName : all_ports) {
+            // Get the list of connected ports to this port
+            const char** connected_ports = jack_port_get_connections(jack_port_by_name(g_jackClient, portName));
+            if (connected_ports == NULL)
+                continue;
+            for (int j = 0; connected_ports[j] != NULL; ++j) {
+                std::string srcName = stripPolyName(portName);
+                std::string dstName = stripPolyName(connected_ports[j]);
+                std::string s = srcName + ":" + dstName;
+                // Write the connected port pair to the file
+                if (routes.insert(s).second) // Not a duplicate
+                    state["routes"][srcName] = dstName;
+            }
+        }
+        file << state.dump(4);  // 4 = pretty print with 4-space indent
+    } catch (const json::exception& e) {
+        error("JSON error in snapshot file %s: %s\n", path.c_str(), e.what());
     }
-
-    // Get all the audio ports (input and output)
-    const char **audioPorts = jack_get_ports(g_jackClient, NULL, NULL,  JackPortIsOutput);
-    // Get all the MIDI ports (input and output)
-    const char **midiPorts = jack_get_ports(g_jackClient, NULL, "midi", JackPortIsOutput);
-    // Combine both audio and MIDI ports into one list
-    std::vector<const char*> all_ports;
-    if (audioPorts)
-        for (int i = 0; audioPorts[i] != NULL; ++i) {
-            all_ports.push_back(audioPorts[i]);
-        }
-    if (midiPorts)
-        for (int i = 0; midiPorts[i] != NULL; ++i) {
-            all_ports.push_back(midiPorts[i]);
-        }
-
-    std::set<std::string> routes; // Store each route to avoid adding duplicates to snapshot file
-    state["routes"] = {};
-    // Iterate over the ports and check connections
-    for (const auto& portName : all_ports) {
-        // Get the list of connected ports to this port
-        const char** connected_ports = jack_port_get_connections(jack_port_by_name(g_jackClient, portName));
-        if (connected_ports == NULL)
-            continue;
-        for (int j = 0; connected_ports[j] != NULL; ++j) {
-            std::string srcName = stripPolyName(portName);
-            std::string dstName = stripPolyName(connected_ports[j]);
-            std::string s = srcName + ":" + dstName;
-            // Write the connected port pair to the file
-            if (routes.insert(s).second) // Not a duplicate
-                state["routes"][srcName] = dstName;
-        }
-    }
-
-    file << state.dump(4);  // 4 = pretty print with 4-space indent
+    file.close();
     debug("Connections saved to %s\n", path.c_str());
 }
 
@@ -254,35 +259,39 @@ void loadState(const std::string& filename) {
     }
     g_moduleManager.removeAll();
 
-    json state = json::parse(file);
+    try {
+        json state = json::parse(file);
 
-    if (state["general"]["polyphony"] != nullptr) {
-        unsigned int poly = state["general"]["polyphony"];
-        g_poly = std::clamp(poly, 1U, 16U);
-    }
+        if (state["general"]["polyphony"] != nullptr) {
+            unsigned int poly = state["general"]["polyphony"];
+            g_poly = std::clamp(poly, 1U, 16U);
+        }
 
-    if (state["modules"] != nullptr) {
-        for (auto& [uuid, cfg] : state["modules"].items()) {
-            if (cfg["type"] == nullptr)
-                continue;
-            const std::string& type = cfg["type"]; 
-            g_moduleManager.addModule(toLower(type), uuid);
-            if (cfg["params"] != nullptr) {
-                uint8_t i = 0;
-                for (auto& val : cfg["params"]) {
-                    g_moduleManager.setParam(uuid, i, val);
-                    ++i;
+        if (state["modules"] != nullptr) {
+            for (auto& [uuid, cfg] : state["modules"].items()) {
+                if (cfg["type"] == nullptr)
+                    continue;
+                const std::string& type = cfg["type"];
+                g_moduleManager.addModule(toLower(type), uuid);
+                if (cfg["params"] != nullptr) {
+                    uint8_t i = 0;
+                    for (auto& val : cfg["params"]) {
+                        g_moduleManager.setParam(uuid, i, val);
+                        ++i;
+                    }
                 }
             }
         }
-    }
 
-    if (state["routes"] != nullptr) {
-        for (auto& [s, d] : state["routes"].items()) {
-            std::string src = s;
-            std::string dst = d;
-            connect(src, dst);
+        if (state["routes"] != nullptr) {
+            for (auto& [s, d] : state["routes"].items()) {
+                std::string src = s;
+                std::string dst = d;
+                connect(src, dst);
+            }
         }
+    } catch (const json::exception& e) {
+        error("JSON error in snapshot file %s: %s\n", path.c_str(), e.what());
     }
 
     file.close();
@@ -298,6 +307,8 @@ void loadConfig() {
     std::string base = xdgConfigHome ? xdgConfigHome : std::getenv("HOME") + std::string("/.config");    
     */
 
+    debug("Load Configuration\n");
+
     std::string path = CONFIG_PATH + std::string("/config.json");
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -305,22 +316,31 @@ void loadConfig() {
         return;
     }
 
-    g_config = json::parse(file);
+    try {
+        g_config = json::parse(file);
 
-    if (g_config["global"]["polyphony"] != nullptr) {
-        unsigned int poly = g_config["global"]["polyphony"];
-        g_poly = std::clamp(poly, 1U, 16U);
-    }
-    if (g_config["panels"] == nullptr)
-        g_config["panels"] = {};
-
-    for (auto& [id, cfg] : g_config["panels"].items()) {
-        if (cfg["module"] == nullptr) {
-            const std::string& name = "FIXME!"; //!@todo Fix this!!!
-            cfg["module"] = name;
-            continue;
+        if (g_config["global"]["polyphony"] != nullptr && g_poly == 0xff) {
+            //!@todo This is defined in config, snapshot, command line option and default - overkill?
+            unsigned int poly = g_config["global"]["polyphony"];
+            g_poly = std::clamp(poly, 1U, 16U);
         }
+        if (g_config["panels"] == nullptr)
+            g_config["panels"] = {};
+
+        for (auto& [id, cfg] : g_config["panels"].items()) {
+            //!@todo It may be more efficient to convert the json config to simpler data structures.
+            if (cfg["module"] == nullptr) {
+                // Invalid config without a module
+                error("invalid panel configuration for %s - no module defined\n", id.c_str());
+            } else {
+                std::string module = cfg["module"];
+                debug("Panel %s configured for %s\n", id.c_str(), module.c_str());
+            }
+        }
+    } catch (const json::exception& e) {
+        error("JSON error in configuration file %s: %s\n", path.c_str(), e.what());
     }
+    file.close();
 }
 
 // Function to save configuration to a file
@@ -339,6 +359,7 @@ void saveConfig() {
     }
 
     file << g_config.dump(4);  // 4 = pretty print with 4-space indent
+    file.close();
 }
 
 bool parseCmdline(int argc, char** argv) {
@@ -381,21 +402,30 @@ bool parseCmdline(int argc, char** argv) {
     return false;
 }
 
+void cleanup() {
+    rl_callback_handler_remove();
+    ModuleManager::get().removeAll();
+    if (g_jackClient) {
+        jack_deactivate(g_jackClient);
+        jack_client_close(g_jackClient);
+    }
+}
+
 void handleSignal(int signal) {
     if (signal == SIGINT) {
-        // Clean up before exit
-        rl_callback_handler_remove();
         saveState("last_state");
         saveConfig();
-        ModuleManager::get().removeAll();
-        if (g_jackClient) {
-            jack_deactivate(g_jackClient);
-            jack_client_close(g_jackClient);
-        }
-        info("Exit rmcore\n");
+        cleanup();
         write_history(historyFile);
-        std::exit(0);
+        info("Exit rmcore\n");
+        std::exit(g_exitCode);
     }
+}
+
+void handleJackShutdown(jack_status_t code, const char* reason, void* arg) {
+    error("Jack has closed (%s) - I can't go on...\n", reason);
+    g_exitCode = 2;
+    g_run = false;
 }
 
 int handleJackXrun(void *arg) {
@@ -423,19 +453,23 @@ std::string toHex96(uint32_t high, uint32_t mid, uint32_t low) {
 
 // Function to add a panel and corresponding module to model
 bool addPanel(const PANEL_T& panel) {
-    const std::string& stype = std::to_string(panel.type);
-    if (g_config["panels"][stype]["module"] == nullptr) {
-        error("%s does not define a valid panel\n", stype.c_str());
-        return false;
-    }
-    std::string uuid = toHex96(panel.uuid1, panel.uuid2, panel.uuid3);
-    Module* module = ModuleManager::get().addModule(g_config["panels"][stype]["module"], uuid);
-    if (module) {
-        g_dirty = true;
-        g_panels[panel.id]; // Create instance of panel in table
-        std::memcpy(&g_panels[panel.id], &panel, 21);
-        g_panels[panel.id].module = module;
-        return true;
+    try {
+        const std::string& stype = std::to_string(panel.type);
+        if (g_config["panels"][stype]["module"] == nullptr) {
+            error("%s does not define a valid panel\n", stype.c_str());
+            return false;
+        }
+        std::string uuid = toHex96(panel.uuid1, panel.uuid2, panel.uuid3);
+        Module* module = ModuleManager::get().addModule(g_config["panels"][stype]["module"], uuid);
+        if (module) {
+            g_dirty = true;
+            g_panels[panel.id]; // Create instance of panel in table
+            std::memcpy(&g_panels[panel.id], &panel, 21);
+            g_panels[panel.id].module = module;
+            return true;
+        }
+    } catch (const json::exception& e) {
+        error("JSON error adding panel: %s\n", e.what());
     }
     return false;
 }
@@ -524,10 +558,14 @@ void handleCli(char* line) {
                 {
                     auto avail = g_moduleManager.getAvailableModules();
                     info("Panel\tModule\n=====\t======\n");
-                    for (auto& [id, cfg] : g_config["panels"].items()) {
-                        const std::string& module = cfg["module"];
-                        if (std::find(avail.begin(), avail.end(), module) != avail.end())
-                            info("%s\t%s\n", id.c_str(), module.c_str());
+                    try {
+                        for (auto& [id, cfg] : g_config["panels"].items()) {
+                            const std::string& module = cfg["module"];
+                            if (std::find(avail.begin(), avail.end(), module) != avail.end())
+                                info("%s\t%s\n", id.c_str(), module.c_str());
+                        }
+                    } catch (const json::exception& e) {
+                        error("JSON error getting list of available modules: %s\n", e.what());
                     }
                 }
                     break;
@@ -624,7 +662,7 @@ bool processPanels() {
     std::string uuid;
     uint32_t paramId;
     double value;
-    std::string controlIdx;
+    uint8_t controlIdx;
 
     int rxLen = g_usart.rx();
     if (rxLen > 0) {
@@ -682,67 +720,72 @@ bool processPanels() {
             error("Panel %u points to non-existing module\n", panelId);
             return false;
         }
-        const std::string& moduleName = module->getInfo().name;
+        //const std::string& moduleName = module->getInfo().name;
+        const std::string& panelType = std::to_string(g_panels[panelId].type);
 
         // Check message type
-        switch (g_usart.getRxOp()) {
-            case CAN_MSG_ADC: {
-                controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][moduleName]["adcs"][controlIdx] == nullptr) {
-                    error("Bad knob index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
-                    return false;
+        try {
+            switch (g_usart.getRxOp()) {
+                case CAN_MSG_ADC: {
+                    controlIdx = g_usart.rxData[1];
+                    if (g_config["panels"][panelType]["adcs"][controlIdx] == nullptr) {
+                        error("Bad knob index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        return false;
+                    }
+                    paramId = g_config["panels"][panelType]["adcs"][controlIdx];
+                    value = (g_usart.rxData[2] | (g_usart.rxData[3] << 8)) / 1019.0;
+                    debug("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
+                    g_moduleManager.setParam(uuid, paramId, value);
+                    break;
                 }
-                paramId = g_config["panels"][moduleName]["adcs"][controlIdx];
-                value = (g_usart.rxData[2] | (g_usart.rxData[3] << 8)) / 1019.0;
-                debug("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
-                g_moduleManager.setParam(uuid, paramId, value);
-                break;
+                case CAN_MSG_SWITCH: {
+                    controlIdx = g_usart.rxData[1];
+                    if (g_config["panels"][panelType]["buttons"][controlIdx] == nullptr) {
+                        error("Bad button index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        return false;
+                    }
+                    uint8_t type = g_config["panels"][panelType]["buttons"][controlIdx][0];
+                    paramId = g_config["panels"][panelType]["buttons"][controlIdx][1];
+                    value = g_usart.rxData[2];
+                    switch(type) {
+                        case 0:
+                            // Monophonic input
+                            //!@todo Handle routing request
+                            break;
+                        case 1:
+                            // Polyphonic input
+                            //!@todo Handle routing request
+                            break;
+                        case 2:
+                            // Monophonic output
+                            //!@todo Handle routing request
+                            break;
+                        case 3:
+                            // Polyphonic output
+                            //!@todo Handle routing request
+                            break;
+                        case 4:
+                            // Param
+                            g_moduleManager.setParam(uuid, paramId, value);
+                            break;
+                    }
+                    break;
+                }
+                case CAN_MSG_QUADENC: {
+                    debug("Panel %u encoder %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
+                    controlIdx = g_usart.rxData[1];
+                    if (g_config["panels"][panelType]["encs"][controlIdx] == nullptr) {
+                        error("Bad encoder index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        return false;
+                    }
+                    paramId = g_config["panels"][panelType]["encs"][controlIdx];
+                    int8_t val = g_usart.rxData[2];
+                    g_moduleManager.setParam(uuid, paramId, val);
+                    break;
+                }
             }
-            case CAN_MSG_SWITCH: {
-                controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][moduleName]["buttons"][controlIdx] == nullptr) {
-                    error("Bad button index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
-                    return false;
-                }
-                uint8_t type = g_config["panels"][moduleName]["buttons"][controlIdx]["type"];
-                paramId = g_config["panels"][moduleName]["buttons"][controlIdx]["index"];
-                value = g_usart.rxData[2];
-                switch(type) {
-                    case 0:
-                        // Monophonic input
-                        //!@todo Handle routing request
-                        break;
-                    case 1:
-                        // Polyphonic input
-                        //!@todo Handle routing request
-                        break;
-                    case 2:
-                        // Monophonic output
-                        //!@todo Handle routing request
-                        break;
-                    case 3:
-                        // Polyphonic output
-                        //!@todo Handle routing request
-                        break;
-                    case 4:
-                        // Param
-                        g_moduleManager.setParam(uuid, paramId, value);
-                        break;
-                }
-                break;
-            }
-            case CAN_MSG_QUADENC: {
-                debug("Panel %u encoder %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
-                controlIdx = std::to_string(g_usart.rxData[1]);
-                if (g_config["panels"][moduleName]["encs"][controlIdx] == nullptr) {
-                    error("Bad encoder index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
-                    return false;
-                }
-                paramId = g_config["panels"][moduleName]["encs"][controlIdx];
-                int8_t val = g_usart.rxData[2];
-                g_moduleManager.setParam(uuid, paramId, val);
-                break;
-            }
+        } catch (const json::exception& e) {
+            error("JSON error processing panel message: %s\n", e.what());
         }
         return true;
     }
@@ -779,9 +822,12 @@ int main(int argc, char** argv) {
     // Add signal handler, e.g. for ctrl+c
     std::signal(SIGINT, handleSignal);
 
-    loadConfig();
     if(parseCmdline(argc, argv))
         return -1;
+
+    loadConfig();
+    if (g_poly == 0xff)
+        g_poly = 1;
 
     info("Starting riban modular core with polyphony %u\n", g_poly);
 
@@ -795,10 +841,12 @@ int main(int argc, char** argv) {
     g_jackClient = jack_client_open("rmcore", JackNoStartServer, 0, serverName);
     if (!g_jackClient) {
         error("Failed to open JACK client\n");
+        cleanup();
         std::exit(-1);
     }
     if (g_verbose >= VERBOSE_DEBUG)
         jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
+    jack_on_info_shutdown(g_jackClient, handleJackShutdown, nullptr);
     jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
     jack_activate(g_jackClient);
 
@@ -813,7 +861,7 @@ int main(int argc, char** argv) {
     g_usart.txCmd(HOST_CMD_RESET);
 
     // Main program loop
-    while (true) {
+    while (g_run) {
         std::time_t now = std::time(nullptr);
         if (now != g_now) {
             // 1s events
@@ -845,5 +893,6 @@ int main(int argc, char** argv) {
         }
     }
 
+    handleSignal(SIGINT);
     return 0; // We never get here but compiler needs to be appeased.
 }

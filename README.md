@@ -165,25 +165,30 @@ Global settings are defined in the "global" object.
 Each panel is defined in "panel" object.
 
 ```
-{ # Object of panel types
-    "1": { # Object of panel configuration indexed by panel type id
-        "module": "vco", # Name of the module type this panel controls
-        "buttons": { # Map of buttons, indexed by physical button number
-            "type": 0, # Button type: input, poly input, output, poly output, param
-            "index": 0 # Index of the parameter or input/output
-        },
-        "leds": { # Map of LEDs, indexed by LED type
-            "inputs": { # Map of input button LEDs, indexed by module input
-                "0": 0 # Physical button index
+{
+    "panels" : { # Object of panel types
+        "1": { # Object of panel configuration indexed by panel type id
+            "module": "vco", # Name of the module type this panel controls
+            "buttons": [ # List of buttons, indexed by physical button number
+                [0, # Button function (input, poly input, output, poly output, param)
+                0], # Index of the parameter or input/output
+                # .. more button configs
+            ],
+            "leds": [ # List of LEDs, indexed by physical LED number
+                [0, # LED function  (input, poly input, output, poly output, param)
+                0], # Index of parameter or input/output
+                # ... more LEDs
+            ],
+            "adcs": [ # List of parameters, indexed by physical ADC number
+                0, # Parameter index
+                # ... more ADCs
+            ]
+            "encs": { # List of parameters, indexed by physical PEC11 encoder number
+                0, # Parameter index
+                # ... more encoders
             }
-        },
-        "adcs": { # Map of ADCs (knobs/pots), indexed by physical ADC number
-            "0": 0 # Parameter index
-        }
-        "encs": { # Map of PEC11 quadrant (endless) encoders, indexed by physical encoder number
-            "0": 0 # Parameter index
-        }
-    }, #... More panel types
+        }, # ... More panel types
+    }
 }
 ```
 
