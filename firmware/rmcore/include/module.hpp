@@ -41,7 +41,8 @@ struct ModuleInfo {
     std::vector<std::string> polyOutputs; // List of polyphonic CV output names
     std::vector<std::string> params; // List of parameter names
     std::vector<std::string> leds; // List of LED names
-    bool midi = false;
+    std::vector<std::string> midiInputs; // List of MIDI input names
+    std::vector<std::string> midiOutputs; // List of MIDI output names
 };
 
 // Forward declaration of static methods used to access jack client from class
@@ -112,11 +113,15 @@ class Module {
             for (uint32_t i = 0; i < m_info.leds.size(); ++i) {
                 m_led.push_back(LED{});
             }
-            if (m_info.midi) {
-                //!@todo This is only used by the MIDI module so maybe should be implemented elsewhere, e.g. within rmcore
-                port = jack_port_register(m_jackClient, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
+            for (auto& name : m_info.midiInputs) {
+                port = jack_port_register(m_jackClient, name.c_str(), JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
                 if (port)
-                    m_midiIn = port;
+                    m_midiInput.push_back(port);
+            }
+            for (auto& name : m_info.midiOutputs) {
+                port = jack_port_register(m_jackClient, name.c_str(), JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+                if (port)
+                    m_midiOutput.push_back(port);
             }
             init(); // Call derived class initalisaton
             jack_set_sample_rate_callback(m_jackClient, samplerateStatic, this);
@@ -305,9 +310,10 @@ class Module {
         std::vector<jack_port_t*> m_polyInput[MAX_POLY]; // Array of vector of polyphonic input ports
         std::vector<jack_port_t*> m_output; // Vector of output ports
         std::vector<jack_port_t*> m_polyOutput[MAX_POLY]; // Array of vector of polyphonic output ports
+        std::vector<jack_port_t*> m_midiInput; // Vector of MIDI input ports
+        std::vector<jack_port_t*> m_midiOutput; // Vector of MIDI output ports
         std::vector<float> m_param; // Vector of parameter values
         std::vector<LED> m_led; // Vector of LED structures
-        jack_port_t* m_midiIn = nullptr; // MIDI input port
         jack_nframes_t m_samplerate = SAMPLERATE; // jack samplerate
 
     private:

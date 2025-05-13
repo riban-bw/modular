@@ -14,7 +14,7 @@ static const char* VCA_DST_NAMES[] = {"CV1", "IN1", "CV2", "IN2"};
 static const char* VCA_PARAM_NAMES[] = {"LEVEL1", "LEVEL2", "LINEAR"};
 static const char* VCO_SRC_NAMES[] = {"SQUARE", "SAWTOOTH", "TRIANGLE", "SINE"};
 static const char* VCO_DST_NAMES[] = {"PITCH", "SYNC", "PW", "FM"};
-static const char* VCO_PARAM_NAMES[] = {"FREQ", "FINE", "SLOW", "PM", "FM", "FM TYPE", "LINEAR"};
+static const char* VCO_PARAM_NAMES[] = {"TUNE", "FINE", "SLOW", "PM", "FM", "FM TYPE", "LINEAR"};
 
 
 enum {

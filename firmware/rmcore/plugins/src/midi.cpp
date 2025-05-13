@@ -30,7 +30,7 @@ Midi::Midi() {
             "cc8"
     };
     m_info.polyOutputs = {
-            "freq",
+            "v/oct",
             "gate",
             "velocity"
     };
@@ -39,7 +39,9 @@ Midi::Midi() {
             "legato",
             "channel"
     };
-    m_info.midi = true;
+    m_info.midiInputs = {
+        "input"
+    };
 }
 
 void Midi::init() {
@@ -67,7 +69,7 @@ bool Midi::setParam(uint32_t param, float val) {
 
 int Midi::process(jack_nframes_t frames) {
     // Process MIDI input
-    void* midiBuffer = jack_port_get_buffer(m_midiIn, frames);
+    void* midiBuffer = jack_port_get_buffer(m_midiInput[0], frames);
     jack_midi_event_t midiEvent;
     uint8_t chan, cmd, note, val, nextPoly;
     bool found;

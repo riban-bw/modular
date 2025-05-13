@@ -18,7 +18,7 @@ DEFINE_PLUGIN(Noise)
 Noise::Noise() {
     m_info.description = "Noise generator";
     m_info.outputs = {
-        "out" // Audio output
+        "output" // Audio output
     };
     m_info.params = {
         "amplitude" // Output level (normalised 1=unitiy gain)

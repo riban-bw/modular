@@ -122,6 +122,7 @@ bool connect(std::string source, std::string destination) {
     bool srcEnd = false, dstEnd = false, success = false;
     const char *srcPort, *dstPort;
     for (uint8_t poly = 0; poly < g_poly; ++poly) {
+        debug("Route poly idx %u/%u\n", poly, g_poly);
         if (srcEnd == false) {
             srcPort = srcPorts[poly];
             srcEnd = srcPorts[poly + 1] == NULL;
@@ -194,7 +195,7 @@ void saveState(const std::string& filename) {
         char buf[25];
         std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", t);
         state["general"]["timestamp"] = buf;
-        state["general"]["polyphony"] = g_poly;
+        state["general"]["polyphony"] = g_poly; //!@todo Not using this but might be useful to save with snapshot
 
         state["modules"] = {};
         for (auto it : g_moduleManager.getModules()) {
@@ -261,11 +262,6 @@ void loadState(const std::string& filename) {
 
     try {
         json state = json::parse(file);
-
-        if (state["general"]["polyphony"] != nullptr) {
-            unsigned int poly = state["general"]["polyphony"];
-            g_poly = std::clamp(poly, 1U, 16U);
-        }
 
         if (state["modules"] != nullptr) {
             for (auto& [uuid, cfg] : state["modules"].items()) {

@@ -25,13 +25,13 @@ VCO::VCO() {
         "waveform" // Normalised waveform selector / morph (0..3)
     };
     m_info.polyInputs ={
-        "frequency" // VCO frequency CV in octaves 0=C4 (261.63Hz). 
+        "v/oct" // VCO frequency CV in octaves 0=C4 (261.63Hz). 
     };
     m_info.polyOutputs = {
-        "out" // Audio output
+        "output" // Audio output
     };
     m_info.params = {
-        "frequency", // Frequency in octaves 0=C4 (261.63Hz)
+        "tune", // Frequency in octaves 0=C4 (261.63Hz)
         "waveform", // Morphing waveform selection (0:sin, 1:tri, 2:saw 3:square, 4:noise)
         "pwm", // Pulse width (0..1) square wave only
         "amplitude", // Output level (normalised 1=unitiy gain)

@@ -21,7 +21,7 @@ DEFINE_PLUGIN(VCF)
 VCF::VCF() {
     m_info.description = "VCF";
     m_info.inputs = {
-        "freq cv",
+        "cutoff cv",
         "res cv"
     };
     m_info.polyInputs = {
@@ -31,10 +31,10 @@ VCF::VCF() {
         "output"
     };
     m_info.params = {
-        "freq",
+        "cutoff",
         "res",
         "type",
-        "freq cv",
+        "cutoff cv",
         "res cv"
     };
 }

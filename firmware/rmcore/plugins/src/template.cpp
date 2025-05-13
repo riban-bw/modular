@@ -39,7 +39,12 @@ Template::Template() {
         // List of parameter names
         "gain"
     };
-    m_info.midi = false; // True to enable MIDI input port
+    m_info.midiInputs = {
+        // List of MIDI input port names
+    };
+    m_info.midiOutputs = {
+        // List of MIDI input port names
+    };
 }
 
 void Template::init() {

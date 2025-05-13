@@ -838,7 +838,7 @@
 				)
 			)
 		)
-		(property "Value" "FREQ"
+		(property "Value" "V/OCT"
 			(at 0 10.34 0)
 			(layer "F.SilkS")
 			(hide yes)
@@ -3700,7 +3700,7 @@
 			)
 		)
 	)
-	(gr_text "FREQ"
+	(gr_text "TUNE"
 		(at 73.0265 62.63 0)
 		(layer "F.SilkS")
 		(uuid "2d36b202-9ca5-4ab4-973f-d4ceb59c0523")

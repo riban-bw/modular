@@ -78,7 +78,7 @@ Module* ModuleManager::addModule(const std::string& type, const std::string& uui
     }
     m_modules[uuid] = module;
     ModuleInfo modInfo = module->getInfo();
-    info("Added module '%s' (%s) with id %s. %u inputs %u poly inputs %u outputs %u poly outputs %u params %u LEDs %s\n",
+    info("Added module '%s' (%s) with id %s. %u inputs, %u poly inputs, %u outputs, %u poly outputs, %u params, %u LEDs, %u MIDI inputs, %u MIDI outputs.\n",
         type.c_str(),
         modInfo.name.c_str(),
         uuid.c_str(),
@@ -88,7 +88,8 @@ Module* ModuleManager::addModule(const std::string& type, const std::string& uui
         modInfo.polyOutputs.size(),
         modInfo.params.size(),
         modInfo.leds.size(),
-        modInfo.midi ? "MIDI input" : ""
+        modInfo.midiInputs.size(),
+        modInfo.midiOutputs.size()
     );
     return module;
 }
