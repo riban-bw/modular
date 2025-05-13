@@ -57,7 +57,8 @@ uint32_t g_xruns = 0;
 std::string g_stateName;
 std::time_t g_nextSaveTime = 0;
 bool g_dirty = false;
-USART g_usart("/dev/ttyS0", B1152000);
+std::string g_portName = "/dev/tty/S0"; // Serial port name
+USART* g_usart = nullptr; // Pointer to serial port
 json g_config; // Global configuration, stored as json structure
 std::map <uint8_t, PANEL_T> g_panels; // Map of panel structures indexed by panel id
 ModuleManager& g_moduleManager = ModuleManager::get();
@@ -92,6 +93,7 @@ void print_help() {
     print_version();
     info("Usage: rmcore <options>\n");
     info("\t-p --poly\tSet the polyphony (1..%u)\n", MAX_POLY);
+    info("\t-P --port\tSet the serial port (default: /dev/ttyS0)\n");
     info("\t-s --snapshot\tLoad a snapshot state from file\n");
     info("\t-v --version\tShow version\n");
     info("\t-V --verbose\tSet verbose level (0:silent, 1:error, 2:info, 3:debug\n");
@@ -361,6 +363,7 @@ void saveConfig() {
 bool parseCmdline(int argc, char** argv) {
     static struct option long_options[] = {
         {"poly", no_argument, 0, 'p'},
+        {"port", no_argument, 0, 'P'},
         {"snapshot", no_argument, 0, 's'},
         {"verbose", no_argument, 0, 'V'},
         {"version", no_argument, 0, 'v'},
@@ -368,7 +371,7 @@ bool parseCmdline(int argc, char** argv) {
         {0, 0, 0, 0}
     };
     int opt, option_index;
-    while ((opt = getopt_long (argc, argv, "hvp:s:V:w:?", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long (argc, argv, "hvp:P:s:V:w:?", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'V': 
                 if (optarg)
@@ -386,6 +389,10 @@ bool parseCmdline(int argc, char** argv) {
                     g_poly = poly;
                 break;
             }
+            case 'P':
+                if (optarg)
+                    g_portName = optarg;
+                break;
             case 's':
                 if (optarg)
                     g_stateName = optarg;
@@ -405,6 +412,7 @@ void cleanup() {
         jack_deactivate(g_jackClient);
         jack_client_close(g_jackClient);
     }
+    delete g_usart;
 }
 
 void handleSignal(int signal) {
@@ -660,12 +668,12 @@ bool processPanels() {
     double value;
     uint8_t controlIdx;
 
-    int rxLen = g_usart.rx();
+    int rxLen = g_usart->rx();
     if (rxLen > 0) {
 
         // Got a CAN message. Look up panel ID
-        uint8_t panelId = g_usart.getRxId();
-        uint8_t opcode = g_usart.getRxOp();
+        uint8_t panelId = g_usart->getRxId();
+        uint8_t opcode = g_usart->getRxOp();
         if (panelId == HOST_CMD) {
             // Message from Brain
             switch(opcode) {
@@ -674,10 +682,10 @@ bool processPanels() {
                         error("Malformed HOST_CMD_INFO message. Too short (%u).\n", rxLen);
                         return false;
                     }
-                    panelId = g_usart.rxData[0];
+                    panelId = g_usart->rxData[0];
                     if (g_panels.find(panelId) == g_panels.end()) {
                         PANEL_T panel;
-                        memcpy(&panel, g_usart.rxData, 23);
+                        memcpy(&panel, g_usart->rxData, 23);
                         addPanel(panel);
                     } else {
                         error("Tried adding existing panel %u\n", panelId);
@@ -689,12 +697,12 @@ bool processPanels() {
                     if (rxLen < 13) {
                         error("Malformed HOST_CMD_PNL_REMOVED message. Too short (%u).\n", rxLen);
                     }
-                    panelId = g_usart.rxData[0];
+                    panelId = g_usart->rxData[0];
                     if (g_panels.find(panelId) == g_panels.end()) {
                         error("Tried removeing non-existing panel %u.\n", panelId);
                         return false;
                     } else {
-                        if (std::memcmp(g_usart.rxData + 1, &(g_panels[panelId].uuid1) + 5, 12) != 0) {
+                        if (std::memcmp(g_usart->rxData + 1, &(g_panels[panelId].uuid1) + 5, 12) != 0) {
                             //!@todo Check for data packing ^^^ might not be correct offset
                             error("Remove panel %u has different uuid.\n", panelId);
                             return false;
@@ -721,28 +729,28 @@ bool processPanels() {
 
         // Check message type
         try {
-            switch (g_usart.getRxOp()) {
+            switch (g_usart->getRxOp()) {
                 case CAN_MSG_ADC: {
-                    controlIdx = g_usart.rxData[1];
+                    controlIdx = g_usart->rxData[1];
                     if (g_config["panels"][panelType]["adcs"][controlIdx] == nullptr) {
-                        error("Bad knob index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        error("Bad knob index %s on panel %u.\n", uuid.c_str(), g_usart->rxData[1]);
                         return false;
                     }
                     paramId = g_config["panels"][panelType]["adcs"][controlIdx];
-                    value = (g_usart.rxData[2] | (g_usart.rxData[3] << 8)) / 1019.0;
-                    debug("Panel %u ADC %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
+                    value = (g_usart->rxData[2] | (g_usart->rxData[3] << 8)) / 1019.0;
+                    debug("Panel %u ADC %u: %0.03f - %u\n", g_usart->rxData[0], g_usart->rxData[1] + 1, value, int(value * 255.0));
                     g_moduleManager.setParam(uuid, paramId, value);
                     break;
                 }
                 case CAN_MSG_SWITCH: {
-                    controlIdx = g_usart.rxData[1];
+                    controlIdx = g_usart->rxData[1];
                     if (g_config["panels"][panelType]["buttons"][controlIdx] == nullptr) {
-                        error("Bad button index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        error("Bad button index %s on panel %u.\n", uuid.c_str(), g_usart->rxData[1]);
                         return false;
                     }
                     uint8_t type = g_config["panels"][panelType]["buttons"][controlIdx][0];
                     paramId = g_config["panels"][panelType]["buttons"][controlIdx][1];
-                    value = g_usart.rxData[2];
+                    value = g_usart->rxData[2];
                     switch(type) {
                         case 0:
                             // Monophonic input
@@ -768,14 +776,14 @@ bool processPanels() {
                     break;
                 }
                 case CAN_MSG_QUADENC: {
-                    debug("Panel %u encoder %u: %0.03f - %u\n", g_usart.rxData[0], g_usart.rxData[1] + 1, value, int(value * 255.0));
-                    controlIdx = g_usart.rxData[1];
+                    debug("Panel %u encoder %u: %0.03f - %u\n", g_usart->rxData[0], g_usart->rxData[1] + 1, value, int(value * 255.0));
+                    controlIdx = g_usart->rxData[1];
                     if (g_config["panels"][panelType]["encs"][controlIdx] == nullptr) {
-                        error("Bad encoder index %s on panel %u.\n", uuid.c_str(), g_usart.rxData[1]);
+                        error("Bad encoder index %s on panel %u.\n", uuid.c_str(), g_usart->rxData[1]);
                         return false;
                     }
                     paramId = g_config["panels"][panelType]["encs"][controlIdx];
-                    int8_t val = g_usart.rxData[2];
+                    int8_t val = g_usart->rxData[2];
                     g_moduleManager.setParam(uuid, paramId, val);
                     break;
                 }
@@ -798,7 +806,7 @@ void processLeds() {
         auto l = panel.module->getLedState(led);
         if (l == nullptr)
             continue;
-        g_usart.setLed(pnlId, led, l->mode, l->colour1, l->colour2);
+        g_usart->setLed(pnlId, led, l->mode, l->colour1, l->colour2);
     }
 }
 
@@ -827,6 +835,8 @@ int main(int argc, char** argv) {
 
     info("Starting riban modular core with polyphony %u\n", g_poly);
 
+    g_usart = new USART(g_portName.c_str(), B1152000);
+
     // Initialise CLI
     read_history(historyFile);
     rl_callback_handler_install("rmcore> ", handleCli);
@@ -854,7 +864,7 @@ int main(int argc, char** argv) {
     else
         loadState(g_stateName);
 
-    g_usart.txCmd(HOST_CMD_RESET);
+    g_usart->txCmd(HOST_CMD_RESET);
 
     // Main program loop
     while (g_run) {
@@ -864,7 +874,7 @@ int main(int argc, char** argv) {
             g_now = now;
             if (g_panelStart && g_panelStart < now)
                 // At least 1s since last panel detected so set all panels to run mode
-                g_usart.txCmd(HOST_CMD_PNL_RUN);
+                g_usart->txCmd(HOST_CMD_PNL_RUN);
             checkPanels(); // Check for removed panels
 
             if (g_dirty && now > g_nextSaveTime) {
@@ -883,7 +893,7 @@ int main(int argc, char** argv) {
             rl_callback_read_char();  // Non-blocking input processing
         }
 
-        if (g_usart.isOpen()) {
+        if (g_usart->isOpen()) {
             processPanels();
             processLeds();
         }
