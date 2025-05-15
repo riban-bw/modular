@@ -23,11 +23,11 @@ There are two core elements to _riban modular_: Hardware panels (including the f
 
 ### Core
 
-The core code runs on a Raspberry Pi (4 or later), running [DietPi](https://dietpi.com/) operating system. CMake is used as the build tool To compile the code:
+The core code runs on a Raspberry Pi (4 or later), running [DietPi](https://dietpi.com/) operating system. CMake is used as the build tool. We use some modules from Bogaudio so have a dependancy on their source code with a small patch to exclude the GUI code. To compile the code:
 
 - Install dependencies, e.g. `sudo apt install build-essentials libjack-jackd2-dev git cmake nlohmann-json3-dev`
-- Clone this repository, e.g. `git clone https://github.com/riban-bw/modular.git`
-- Change to the directory, e.g. `cd modular`
+- Clone this repository, e.g. `git clone --recursive https://github.com/riban-bw/modular.git`
+- Change to the directory, e.g. `cd modular/firmware/rmcore`
 - Create a build directory, e.g. `mkdir build`
 - Change to the build directory, e.g. `cd build`
 - Create build files, e.g. `cmake ..`

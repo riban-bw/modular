@@ -194,7 +194,7 @@ int BOGVCF::process(jack_nframes_t frames) {
             // Process channels each frame
             m_input[BOGVCF_INPUT_IN].setVoltage(inBuffer[frame], poly);
             m_output[BOGVCF_OUTPUT_OUT].setVoltage(m_engine[poly].next(m_input[BOGVCF_INPUT_IN].getVoltage(poly)), poly);
-            outBuffer[frame] = m_output[BOGVCF_OUTPUT_OUT].getVoltage(poly);
+            outBuffer[frame] = m_output[BOGVCF_INPUT_IN].getVoltage(poly);
         }
     }
 

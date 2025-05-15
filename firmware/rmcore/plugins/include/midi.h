@@ -24,10 +24,23 @@ enum MIDI_OUTPUT {
 };
 
 enum MIDI_PARAM {
-    MIDI_PARAM_PORTAMENTO   = 0,
-    MIDI_PARAM_LEGATO       = 1,
-    MIDI_PARAM_CHANNEL      = 2,
-    MIDI_PARAM_CC_RANGE     = 3 // 1V/10V range
+    MIDI_PARAM_RANGE_CC1, //0:0..1 (default), 1:-5..+5, 2:0..10
+    MIDI_PARAM_RANGE_CC2,
+    MIDI_PARAM_RANGE_CC3,
+    MIDI_PARAM_RANGE_CC4,
+    MIDI_PARAM_RANGE_CC5,
+    MIDI_PARAM_RANGE_CC6,
+    MIDI_PARAM_RANGE_CC7,
+    MIDI_PARAM_RANGE_CC8,
+    MIDI_PARAM_PORTAMENTO,
+    MIDI_PARAM_LEGATO,
+    MIDI_PARAM_CHANNEL
+};
+
+enum MIDI_CC_RANGE {
+    MIDI_CC_RANGE_1,
+    MIDI_CC_RANGE_5,
+    MIDI_CC_RANGE_10,
 };
 
 struct MIDI_POLY_OUTPUT {
@@ -61,7 +74,7 @@ class MIDI : public Module {
         std::vector<MIDI_POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
         float m_portamento = 1.0; // Rate of change of CV
         float m_cc[NUM_MIDI_CC]; // CC values;
-        float m_ccRange = 1; // CC scale (1 or 10)
+        uint8_t m_ccRange[NUM_MIDI_CC]; // CC scale;
         uint8_t m_ccBase = 21; // CC number of first CC input
         double m_pitchbend = 0.0; // Normalised pitch bend
         double m_pitchbendRange = 2; // Semitone range for pitch bend

@@ -13,7 +13,7 @@ The Module class is declared and implemented within "module.hpp" within the `fir
 
 There is a macro `DEFINE_PLUGIN(CLASSNAME)` that provides the `extern "C" Module* createPlugin()` function for each child class. This allows a class to inherit Module and be instantiated by the module manager with minimal boilerplate code.
 
-A default constructor is defined which does nothing. Child classes should reimplement a default constructor that populates `m_moduleInfo` with inputs, outputs, parameters, LEDs, etc.
+A default constructor is defined which does nothing. Child classes should reimplement a default constructor that populates `m_moduleInfo` with inputs, outputs, parameters, LEDs, etc. Non-polyphonic inputs and output are defined before polyponic ones so ensure `enum` are in the correct order.
 
 The `bool _init(const std::string& uuid, void* handle, uint8_t poly, uint8_t verbose)` function is called after instantiation because modules must use static functions to access jack library which may not be defined until the object is created, i.e. after constructor returns. Child classes should call `_init` from their `init` function.
 

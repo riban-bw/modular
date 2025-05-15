@@ -35,6 +35,14 @@ MIDI::MIDI() {
             "velocity"
     };
     m_info.params = {
+            "range cc1",
+            "range cc4",
+            "range cc3",
+            "range cc4",
+            "range cc5",
+            "range cc6",
+            "range cc7",
+            "range cc8",
             "portamento",
             "legato",
             "channel",
@@ -55,12 +63,13 @@ void MIDI::init() {
 
 bool MIDI::setParam(uint32_t param, float val) {
     Module::setParam(param, val);
+    if (param <= MIDI_PARAM_RANGE_CC8) {
+        m_ccRange[param] = val;
+        return true;
+    }
     switch (param) {
         case MIDI_PARAM_PORTAMENTO:
             m_portamento = 1.0 - val; //!@todo Fix portamento time
-            break;
-        case MIDI_PARAM_CC_RANGE:
-            m_ccRange = val < 0.5 ? 1.0f : 10.0f;
             break;
     }
     return true;
@@ -192,10 +201,19 @@ int MIDI::process(jack_nframes_t frames) {
     }
     for (uint8_t cc = 0; cc < NUM_MIDI_CC; ++cc) {
         jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[cc].m_port[0], frames);
-        float ccVal = m_ccRange * m_cc[cc];
-        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            cvBuffer[frame] = ccVal;
+        float ccVal;
+        switch (m_ccRange[MIDI_PARAM_RANGE_CC1 + cc]) {
+            case MIDI_CC_RANGE_5:
+                ccVal = m_cc[cc] * 10 - 5;
+                break;
+            case MIDI_CC_RANGE_10:
+                ccVal = m_cc[cc] * 10;
+                break;
+            default:
+                ccVal = m_cc[cc];
         }
+        for (jack_nframes_t frame = 0; frame < frames; ++frame)
+            cvBuffer[frame] = ccVal;
     }
     return 0;
 }
