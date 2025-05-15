@@ -9,7 +9,7 @@
     Slew module class implementation.
 */
 
-#include "slew.h" // Include this module's header
+#include "bogslew.h" // Include this module's header
 #include "global.h" // Include some global constants
 
 DEFINE_PLUGIN(Slew) // Defines the plugin create function
