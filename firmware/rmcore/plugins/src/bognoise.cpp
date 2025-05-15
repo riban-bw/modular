@@ -41,10 +41,8 @@ int BOGNoise::process(jack_nframes_t frames) {
     jack_default_audio_sample_t * gaussBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_GAUSS].m_port[0], frames);
     jack_default_audio_sample_t * blueBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_BLUE].m_port[0], frames);
     for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-        if (m_output[BOGNOISE_OUTPUT_WHITE].isConnected()) {
+        if (m_output[BOGNOISE_OUTPUT_WHITE].isConnected())
             whiteBuffer[frame] = clamp(m_white.next() * 10.0f, -10.0f, 10.f);
-            info("white\n");
-        }
         if (m_output[BOGNOISE_OUTPUT_PINK].isConnected())
             pinkBuffer[frame] = clamp(m_pink.next() * 15.0f, -10.0f, 10.f);
         if (m_output[BOGNOISE_OUTPUT_RED].isConnected())
