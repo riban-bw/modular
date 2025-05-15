@@ -1,3 +1,5 @@
 [submodule "BogaudioModules"]
 	path = firmware/rmcore/plugins/BogaudioModules
 	url = git@github.com:riban-bw/BogaudioModules.git
+[submodule "plugins/BogaudioModules"]
+	branch = riban_modular
