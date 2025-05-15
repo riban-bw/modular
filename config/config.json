@@ -3,7 +3,6 @@
         "polyphony": 1
     },
     "panels": {
-        "0": {},
         "1": {
             "module": "midi",
             "buttons": [
@@ -62,6 +61,9 @@
         },
         "9": {
             "module": "random"
+        },
+        "10": {
+            "module": "bogvcf"
         }
     }
 }

@@ -36,10 +36,10 @@ void VCA::init() {
 
 int VCA::process(jack_nframes_t frames) {
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCA_PORT_INPUT], frames);
-        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCA_PORT_CV], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][VCA_PORT_OUTPUT], frames);
-        double targetGain = m_param[VCA_PARAM_GAIN] * cvBuffer[0]; //!@todo This moved out of the period loop and seems to work fine - validate it does not respond too slowly
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCA_INPUT_IN].m_port[poly], frames);
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCA_INPUT_CV].m_port[poly], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[VCA_OUTPUT_OUT].m_port[poly], frames);
+        double targetGain = m_param[VCA_PARAM_GAIN].value * cvBuffer[0]; //!@todo This moved out of the period loop and seems to work fine - validate it does not respond too slowly
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             m_gain[poly] += CV_ALPHA * (targetGain - m_gain[poly]);
             outBuffer[frame] = m_gain[poly] * inBuffer[frame];

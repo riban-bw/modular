@@ -39,8 +39,8 @@ void Random::init() {
 int Random::process(jack_nframes_t frames) {
     // Vectors of jack ports are created, based on the config passed to RegisterModule
     // Process common parameters, inputs and outputs
-    jack_default_audio_sample_t * triggerBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[RANDOM_PORT_TRIGGER], frames);
-    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[RANDOM_PORT_OUTPUT], frames);
+    jack_default_audio_sample_t * triggerBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[RANDOM_INPUT_TRIGGER].m_port[0], frames);
+    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[RANDOM_OUTPUT_OUT].m_port[0], frames);
     if (m_triggered) {
         if (triggerBuffer[0] < 0.4)
             m_triggered = false;
@@ -51,7 +51,7 @@ int Random::process(jack_nframes_t frames) {
         }
     }
     for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-        m_cv += m_param[RANDOM_PARAM_SLEW] * (m_targetCv - m_cv);
+        m_cv += m_param[RANDOM_PARAM_SLEW].value * (m_targetCv - m_cv);
         outBuffer[frame] = m_cv;
     }
 

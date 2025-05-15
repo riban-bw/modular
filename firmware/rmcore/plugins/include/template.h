@@ -14,19 +14,22 @@
 
 #include "module.hpp" // Include the parent module class
 
-// Some defines and enums used in the souce code to indicate inputs, outputs, etc.
-// Input ports
-#define TEMPLATE_PORT_PARAM1 0
-// Polyphonic input ports
-#define TEMPLATE_PORT_INPUT 0
-#define TEMPLATE_PORT_CV 1
-// Output ports
+// Some enums used in the souce code to indicate inputs, outputs, etc.
 
-// Polyphonic output ports
-#define TEMPLATE_PORT_OUTPUT 0
+// Input ports - define mono ports before polyphonic ports
+enum TEMPLATE_INPUT {
+    TEMPLATE_INPUT_CV,
+    TEMPLATE_INPUT_IN
+};
 
+// Output ports - define mono ports before polyphonic ports
+enum TEMPLATE_OUTPUT {
+    TEMPLATE_OUTPUT_OUT
+};
+
+// Parameters
 enum TEMPLATE_PARAM {
-    TEMPLATE_PARAM_GAIN   = 0
+    TEMPLATE_PARAM_GAIN
 };
 
 /*  Define the class - inherit from Module class */

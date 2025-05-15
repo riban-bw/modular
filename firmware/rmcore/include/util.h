@@ -11,12 +11,18 @@
 
 #pragma once
 
+#include <cstdint> // Provides fixed width integer types
+
 enum VERBOSE {
     VERBOSE_SILENT  = 0,
     VERBOSE_ERROR   = 1,
     VERBOSE_INFO    = 2,
     VERBOSE_DEBUG   = 3
 };
+
+void setVerbose(uint8_t verbose);
+
+uint8_t getVerbose();
 
 void debug(const char *format, ...);
   

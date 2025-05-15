@@ -43,7 +43,6 @@ add_dependencies(rmcore generate_wavetable)
 target_include_directories(rmcore PUBLIC
     ./include
     ../include
-    ./plugins/include
 )
 
 # Link with JACK
@@ -53,21 +52,38 @@ target_link_libraries(rmcore jack readline)
 
 file(GLOB PLUGIN_SOURCES "plugins/src/*.cpp")
 
+add_library(bogaudiodsp SHARED IMPORTED)
+set_target_properties(bogaudiodsp PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/plugins/libbogaudiodsp.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/plugins/BogaudioModules/src/dsp"
+)
+
 foreach(plugin_src ${PLUGIN_SOURCES})
     get_filename_component(plugin_name ${plugin_src} NAME_WE)
 
     add_library(${plugin_name} SHARED ${plugin_src} src/util.cpp)
 
     target_include_directories(${plugin_name} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugins/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include # rmcore includes, e.g. module.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include # global includes, e.g. global.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/plugins/include # plugin includes
     )
-
-    # If your plugins need to link to anything, do it here:
-    # target_link_libraries(${plugin_name} ...)
 
     set_target_properties(${plugin_name} PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/plugins
     )
 endforeach()
+
+target_sources(slew PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/slew_common.cpp)
+target_link_libraries(slew PRIVATE bogaudiodsp)
+target_include_directories(slew 
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src
+)
+
+target_sources(bogvcf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/dsp/filters/multimode.cpp)
+target_link_libraries(bogvcf PRIVATE bogaudiodsp)
+target_include_directories(bogvcf 
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src
+)

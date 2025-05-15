@@ -13,10 +13,18 @@
 
 #include "module.hpp"
 
-#define VCF_PORT_INPUT  0
-#define VCF_PORT_FREQ   0
-#define VCF_PORT_RES    1
-#define VCF_PORT_OUTPUT 0
+enum VCF_INPUT {
+    VCF_INPUT_IN,
+    VCF_INPUT_FREQ,
+    VCF_INPUT_RES
+};
+
+enum VCF_OUTPUT {
+    VCF_OUTPUT_IN,
+    VCF_OUTPUT_FREQ,
+    VCF_OUTPUT_RES,
+    VCF_OUTPUT_OUT
+};
 
 enum VCF_TYPE {
     VCF_TYPE_LOW_PASS,

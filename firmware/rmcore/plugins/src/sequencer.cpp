@@ -33,30 +33,15 @@ Sequencer::Sequencer() {
 }
 
 void Sequencer::init() {
-    m_param[0] = 0.0;
-    m_param[1] = 1.0;
-    m_param[2] = 0.8;
-    m_param[3] = 0.2;
-    m_param[4] = 0.7;
-    m_param[5] = -0.2;
-    m_param[6] = 0.0;
-    m_param[7] = 0.2;
-    m_param[8] = 1.0;
-    m_param[9] = 1.0;
-    m_param[10] = 1.0;
-    m_param[11] = 0.0;
-    m_param[12] = 1.0;
-    m_param[14] = 1.0;
-    m_param[15] = 1.0;
 }
 
 int Sequencer::process(jack_nframes_t frames) {
     // Vectors of jack ports are created, based on the config passed to RegisterModule
     // Process common parameters, inputs and outputs
-    jack_default_audio_sample_t * clockBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[SEQUENCER_PORT_CLOCK], frames);
-    jack_default_audio_sample_t * resetBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[SEQUENCER_PORT_RESET], frames);
-    jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[SEQUENCER_PORT_CV], frames);
-    jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[SEQUENCER_PORT_GATE], frames);
+    jack_default_audio_sample_t * clockBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[SEQUENCER_INPUT_CLOCK].m_port[0], frames);
+    jack_default_audio_sample_t * resetBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[SEQUENCER_INPUT_RESET].m_port[0], frames);
+    jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[SEQUENCER_PORT_CV].m_port[0], frames);
+    jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[SEQUENCER_PORT_GATE].m_port[0], frames);
     if (m_triggered) {
         if (clockBuffer[0] < 0.4)
             m_triggered = false;
@@ -73,10 +58,10 @@ int Sequencer::process(jack_nframes_t frames) {
         gate = 0.0;
     }
     else
-        gate = m_param[m_step + 8];
+        gate = m_param[m_step + 8].value;
 
 
-    float targetCv = m_param[m_step];
+    float targetCv = m_param[m_step].value;
 
     for (jack_nframes_t frame = 0; frame < frames; ++frame) {
         m_outputCv += CV_ALPHA * (targetCv - m_outputCv);

@@ -13,10 +13,15 @@
 
 #include "module.hpp"
 
-#define VCO_PORT_OUT        0
-#define VCO_PORT_CV         0
-#define VCO_PORT_PWM        0
-#define VCO_PORT_WAVEFORM   1
+enum VCO_INPUT {
+    VCO_INPUT_PWM,
+    VCO_INPUT_WAVEFORM,
+    VCO_INPUT_CV
+};
+
+enum VCO_OUTPUT {
+    VCO_OUTPUT_OUT
+};
 
 enum VCO_PARAM {
     VCO_PARAM_FREQ,

@@ -13,7 +13,9 @@
 
 #include "module.hpp"
 
-#define NOISE_PORT_OUT  0
+enum NOISE_OUTPUT {
+    NOISE_OUTPUT_OUT
+};
 
 enum NOISE_PARAM {
     NOISE_PARAM_AMP = 0

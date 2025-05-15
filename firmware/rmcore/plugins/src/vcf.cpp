@@ -143,8 +143,8 @@ void VCF::updateCoefficients() {
 }
 
 int VCF::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_PORT_FREQ], frames);
-    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_PORT_RES], frames);
+    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_INPUT_FREQ].m_port[0], frames);
+    jack_default_audio_sample_t * resBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_INPUT_RES].m_port[0], frames);
     if (m_cutoff != freqBuffer[0] * 8000.0f || resBuffer[0] * 10.0f != m_resonance) {
         //!@todo Smooth adjustment of cutoff & resonance
         //!@todo Add log scale
@@ -153,8 +153,8 @@ int VCF::process(jack_nframes_t frames) {
         updateCoefficients();
     }
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCF_PORT_INPUT], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][VCF_PORT_OUTPUT], frames);
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCF_INPUT_IN].m_port[poly], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[VCF_OUTPUT_OUT].m_port[poly], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             outBuffer[frame] = b0 * inBuffer[frame] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
             // Shift the delay buffer

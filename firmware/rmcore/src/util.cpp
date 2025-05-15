@@ -10,11 +10,18 @@
 */
 
 #include "util.h"
-#include <cstdint> // Provides fixed width integer types
 #include <stdarg.h> // Provides varg
 #include <cstdio> // Provides fprintf
 
 uint8_t g_verbose = VERBOSE_INFO;
+
+void setVerbose(uint8_t verbose) {
+    g_verbose = verbose;
+}
+
+uint8_t getVerbose() {
+    return g_verbose;
+}
 
 void debug(const char *format, ...) {
     if (g_verbose >= VERBOSE_DEBUG) {
