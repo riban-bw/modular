@@ -1,5 +1,6 @@
 /*  riban modular
     Copyright 2023-2025 riban ltd <info@riban.co.uk>
+    Derived from Bogaudio Noise Copyright 2021 Matt Demanett
 
     This file is part of riban modular.
     riban modular is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
