@@ -13,12 +13,13 @@
 
 #include "module.hpp"
 
-// Input ports
-#define RANDOM_PORT_TRIGGER 0
-// Polyphonic input ports
-// Output ports
-#define RANDOM_PORT_OUTPUT 0
-// Polyphonic output ports
+enum RANDOM_INPUT {
+    RANDOM_INPUT_TRIGGER
+};
+
+enum RANDOM_OUTPUT {
+    RANDOM_OUTPUT_OUT
+};
 
 enum RANDOM_PARAM {
     RANDOM_PARAM_SLEW

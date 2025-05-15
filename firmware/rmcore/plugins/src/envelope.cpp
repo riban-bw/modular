@@ -67,10 +67,10 @@ bool Envelope::setParam(uint32_t param, float val) {
 
 int Envelope::process(jack_nframes_t frames) {
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][ENV_PORT_GATE], frames);
-        jack_default_audio_sample_t * gainBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][ENV_PORT_GAIN], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][ENV_PORT_OUT], frames);
-        double gain = jack_port_connected(m_polyInput[poly][ENV_PORT_GAIN]) ? 0.0 : 1.0;
+        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[ENV_INPUT_GATE].m_port[poly], frames);
+        jack_default_audio_sample_t * gainBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[ENV_INPUT_GAIN].m_port[poly], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[ENV_OUTPUT_OUT].m_port[poly], frames);
+        double gain = jack_port_connected(m_input[ENV_PORT_GAIN].m_port[poly]) ? 0.0 : 1.0;
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             if (gateBuffer[frame] > 0.5 && m_phase[poly] == ENV_PHASE_IDLE) {
                 m_phase[poly] = ENV_PHASE_ATTACK;

@@ -13,6 +13,7 @@
 
 #include "global.h"
 #include "util.h"
+#include "rack.hpp" // Provides rack compatibility structures
 #include <vector> // Provides std::vector
 #include <jack/jack.h> // Provides jack_client_t, jack_port_t, jack_nframes_t
 #include <string> // Provides std::string
@@ -22,6 +23,7 @@
 #include <typeinfo> // Provides typeid
 #include <cxxabi.h> // Provides c++ name demangle
 
+extern uint8_t g_verbose;
 
 struct LED {
     bool dirty = false; // True if value changed since last cleared
@@ -49,8 +51,6 @@ struct ModuleInfo {
 static int samplerateStatic(jack_nframes_t frames, void* arg);
 static int processStatic(jack_nframes_t frames, void* arg);
 
-extern uint8_t g_verbose;
-
 class Module {
     public:
         Module() = default;
@@ -59,14 +59,13 @@ class Module {
         /** @brief  Initialise a module object
         */
         bool _init(const std::string& uuid, void* handle, uint8_t poly, uint8_t verbose) {
-
             // Demangle for GCC/Clang; safe fallback for others
             int status = 0;
             char* name = abi::__cxa_demangle(typeid(*this).name(), nullptr, nullptr, &status);
             m_info.name = name;
             free(name);
             m_handle = handle;
-            g_verbose = verbose;
+            setVerbose(verbose);
             if (poly > 0 && poly <= MAX_POLY)
                 m_poly = poly;
 
@@ -81,38 +80,16 @@ class Module {
                 error("Failed to open JACK client\n");
                 return false;
             }
-            for (uint32_t i = 0; i < m_info.inputs.size(); ++i) {
-                port = jack_port_register(m_jackClient, m_info.inputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-                if (port)
-                    m_input.push_back(port);
-            }
-            for (uint8_t poly = 0; poly < m_poly; ++poly) {
-                for (uint32_t i = 0; i < m_info.polyInputs.size(); ++i) {
-                    sprintf(nameBuffer, "%s[%u]", m_info.polyInputs[i].c_str(), poly);
-                    port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-                    if (port)
-                        m_polyInput[poly].push_back(port);
-                }
-            }
-            for (uint32_t i = 0; i < m_info.outputs.size(); ++i) {
-                port = jack_port_register(m_jackClient, m_info.outputs[i].c_str(), JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-                if (port)
-                    m_output.push_back(port);
-            }
-            for (uint8_t poly = 0; poly < m_poly; ++poly) {
-                for (uint32_t i = 0; i < m_info.polyOutputs.size(); ++i) {
-                    sprintf(nameBuffer, "%s[%u]", m_info.polyOutputs[i].c_str(), poly);
-                    port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-                    if (port)
-                        m_polyOutput[poly].push_back(port);
-                }
-            }
-            for (uint32_t i = 0; i < m_info.params.size(); ++i) {
-                m_param.push_back(0.0f);
-            }
-            for (uint32_t i = 0; i < m_info.leds.size(); ++i) {
+            for (auto& portName : m_info.inputs)
+                m_input.emplace_back(m_jackClient, portName, 0);
+            for (auto& portName : m_info.polyInputs)
+                m_input.emplace_back(m_jackClient, portName, poly);
+            for (auto& portName : m_info.outputs)
+                m_output.emplace_back(m_jackClient, portName, 0);
+            for (auto& portName : m_info.polyOutputs)
+                m_output.emplace_back(m_jackClient, portName, poly);
+            for (uint32_t i = 0; i < m_info.leds.size(); ++i)
                 m_led.push_back(LED{});
-            }
             for (auto& name : m_info.midiInputs) {
                 port = jack_port_register(m_jackClient, name.c_str(), JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
                 if (port)
@@ -123,6 +100,8 @@ class Module {
                 if (port)
                     m_midiOutput.push_back(port);
             }
+            for (auto& paramName : m_info.params)
+                m_param.emplace_back();
             init(); // Call derived class initalisaton
             jack_set_sample_rate_callback(m_jackClient, samplerateStatic, this);
             jack_set_process_callback(m_jackClient, processStatic, this);
@@ -167,7 +146,7 @@ class Module {
         float getParam(uint32_t param) {
             if (param > m_param.size())
                 return 0.0;
-            return m_param[param];
+            return m_param[param].getValue();
         }
 
         /** @brief  Sets the value of a parameter
@@ -180,7 +159,8 @@ class Module {
                 error("Attempt to set wrong parameter %u on module %s\n", param, m_info.name.c_str());
                 return false;
             }
-            m_param[param] = val;
+            m_param[param].setValue(val);
+            debug("Parameter %u (%s) set to value %f in module '%s'\n", param, getParamName(param).c_str(), val, m_info.name.c_str());
             return true;
         }
 
@@ -245,33 +225,40 @@ class Module {
         }
 
         void setPolyphony(uint8_t poly) {
+            //!@todo Validate setPolyphony works
             uint8_t oldPoly = m_poly;
+            char nameBuffer[128];
+
             if (poly < m_poly) {
                 m_poly = poly;
                 // Remove excessive jack ports
-                for (uint8_t i = poly; i < oldPoly; ++i) {
-                    for (jack_port_t* port : m_polyInput[i])
+                for (auto& input : m_input) {
+                    if (!input.poly)
+                        continue;
+                    // Remove excessive old ports
+                    for (uint8_t i = poly; i < oldPoly; ++i) {
+                        jack_port_t* port = input.m_port[i];
                         jack_port_unregister(m_jackClient, port);
-                    m_polyInput[i].clear();
-                    for (jack_port_t* port : m_polyOutput[i])
-                        jack_port_unregister(m_jackClient, port);
-                    m_polyOutput[i].clear();
+                        input.m_port[i] = nullptr;
                     }
-            }
-            // Add new ports
-            char nameBuffer[128];
-            for (uint8_t j = oldPoly; j < poly; ++j) {
-                for (uint32_t i = 0; i < m_info.polyInputs.size(); ++i) {
-                    sprintf(nameBuffer, "%s[%u]", m_info.polyInputs[i].c_str(), j);
-                    jack_port_t* port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-                    if (port)
-                        m_polyInput[j].push_back(port);
+                    // Add new ports
+                    for (uint8_t i = oldPoly; i < poly; ++i) {
+                        sprintf(nameBuffer, "%s[%u]", m_info.polyInputs[i].c_str(), i);
+                        input.m_port[i] = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+                    }
                 }
-                for (uint32_t i = 0; i < m_info.polyOutputs.size(); ++i) {
-                    sprintf(nameBuffer, "%s[%u]", m_info.polyOutputs[i].c_str(), j);
-                    jack_port_t* port = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-                    if (port)
-                        m_polyOutput[j].push_back(port);
+                for (auto& output : m_output) {
+                    if (!output.poly)
+                        continue;
+                    for (uint8_t i = poly; i < oldPoly; ++i) {
+                        jack_port_t* port = output.m_port[i];
+                        jack_port_unregister(m_jackClient, port);
+                        output.m_port[i] = nullptr;
+                    }
+                    for (uint8_t i = oldPoly; i < poly; ++i) {
+                        sprintf(nameBuffer, "%s[%u]", m_info.polyOutputs[i].c_str(), i);
+                        output.m_port[i] = jack_port_register(m_jackClient, nameBuffer, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+                    }
                 }
             }
             m_poly = poly;
@@ -306,13 +293,11 @@ class Module {
         uint8_t m_poly = 1; // Polyphony
         void* m_handle; // Handle of shared lib (from dlopen)
         jack_client_t* m_jackClient;
-        std::vector<jack_port_t*> m_input; // Vector of input ports
-        std::vector<jack_port_t*> m_polyInput[MAX_POLY]; // Array of vector of polyphonic input ports
-        std::vector<jack_port_t*> m_output; // Vector of output ports
-        std::vector<jack_port_t*> m_polyOutput[MAX_POLY]; // Array of vector of polyphonic output ports
+        std::vector<Input> m_input; // Vector of inputs
+        std::vector<Output> m_output; // Vector of outputs
         std::vector<jack_port_t*> m_midiInput; // Vector of MIDI input ports
         std::vector<jack_port_t*> m_midiOutput; // Vector of MIDI output ports
-        std::vector<float> m_param; // Vector of parameter values
+        std::vector<Param> m_param; // Vector of parameter values
         std::vector<LED> m_led; // Vector of LED structures
         jack_nframes_t m_samplerate = SAMPLERATE; // jack samplerate
 

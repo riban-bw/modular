@@ -16,20 +16,21 @@
 
 #define NUM_MIDI_CC 8
 
-enum MIDI_PORT {
-    MIDI_PORT_CV        = 0,
-    MIDI_PORT_GATE      = 1,
-    MIDI_PORT_VEL       = 2,
+enum MIDI_OUTPUT {
+    // We access CC outputs directly via index
+    MIDI_OUTPUT_CV = NUM_MIDI_CC,
+    MIDI_OUTPUT_GATE,
+    MIDI_OUTPUT_VEL
 };
 
 enum MIDI_PARAM {
     MIDI_PARAM_PORTAMENTO   = 0,
     MIDI_PARAM_LEGATO       = 1,
     MIDI_PARAM_CHANNEL      = 2,
-    MIDI_PARAM_POLYPHONY    = 3
+    MIDI_PARAM_CC_RANGE     = 3 // 1V/10V range
 };
 
-struct POLY_OUTPUT {
+struct MIDI_POLY_OUTPUT {
     uint8_t output = 0; // Poly output
     uint8_t note = 0xff; // MIDI note
     float cv = 0.0;
@@ -38,17 +39,17 @@ struct POLY_OUTPUT {
     float gate = 0.0;
 };
 
-class Midi : public Module {
+class MIDI : public Module {
 
     public:
-        Midi();
-        ~Midi() override { _deinit(); }
+        MIDI();
+        ~MIDI() override { _deinit(); }
 
         /*  @brief  Initalise the module
         */
         void init();
 
-        /*  @brief  Process period of audio, cv, midi, etc.
+        /*  @brief  Process period of audio, cv, MIDI, etc.
             @param  frames Quantity of frames in this period
         */
         int process(jack_nframes_t frames);
@@ -56,10 +57,11 @@ class Midi : public Module {
         bool setParam(uint32_t param, float val);
 
     private:
-        POLY_OUTPUT m_outputValue[MAX_POLY]; // Array of output values
-        std::vector<POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
+        MIDI_POLY_OUTPUT m_outputValue[MAX_POLY]; // Array of output values
+        std::vector<MIDI_POLY_OUTPUT> m_heldNotes; // Vector of notes in order of being played
         float m_portamento = 1.0; // Rate of change of CV
         float m_cc[NUM_MIDI_CC]; // CC values;
+        float m_ccRange = 1; // CC scale (1 or 10)
         uint8_t m_ccBase = 21; // CC number of first CC input
         double m_pitchbend = 0.0; // Normalised pitch bend
         double m_pitchbendRange = 2; // Semitone range for pitch bend

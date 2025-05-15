@@ -26,14 +26,14 @@ Noise::Noise() {
 }
 
 void Noise::init() {
-    m_param[NOISE_PARAM_AMP] = 1.0;
+    m_param[NOISE_PARAM_AMP].setValue(1.0);
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 }
 
 int Noise::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[NOISE_PORT_OUT], frames);
+    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[NOISE_OUTPUT_OUT].m_port[0], frames);
     for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-        outBuffer[frame] = (2.0f * static_cast<float>(std::rand()) / RAND_MAX - 1.0f) * m_param[NOISE_PARAM_AMP];
+        outBuffer[frame] = (2.0f * static_cast<float>(std::rand()) / RAND_MAX - 1.0f) * m_param[NOISE_PARAM_AMP].value;
     }
     return 0;
 }

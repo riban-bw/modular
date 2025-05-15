@@ -72,25 +72,25 @@ bool VCO::setParam(uint32_t param, float val) {
 
 int VCO::process(jack_nframes_t frames) {
     double freq;
-    jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_PORT_PWM], frames);
-    float targetPwm = std::clamp(pwmBuffer[0] + m_param[VCO_PARAM_PWM], 0.1f, 0.9f);
-    jack_default_audio_sample_t * waveformBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_PORT_WAVEFORM], frames);
-    float targetWaveform = std::clamp((waveformBuffer[0] + m_param[VCO_PARAM_WAVEFORM]) * 3.0f, 0.0f, 3.0f);
+    jack_default_audio_sample_t * pwmBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_INPUT_PWM].m_port[0], frames);
+    float targetPwm = std::clamp(pwmBuffer[0] + m_param[VCO_PARAM_PWM].value, 0.1f, 0.9f);
+    jack_default_audio_sample_t * waveformBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_INPUT_WAVEFORM].m_port[0], frames);
+    float targetWaveform = std::clamp((waveformBuffer[0] + m_param[VCO_PARAM_WAVEFORM].value) * 3.0f, 0.0f, 3.0f);
     for(uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][VCO_PORT_OUT], frames);
-        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyInput[poly][VCO_PORT_CV], frames);
+        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[VCO_OUTPUT_OUT].m_port[poly], frames);
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[VCO_INPUT_CV].m_port[poly], frames);
         
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             while (m_waveformPos[poly] >= m_wavetableSize)
                 m_waveformPos[poly] -= m_wavetableSize;
             //!@todo Do we need to adjust frequency every frame or can it be slewed from a change every period?
-            if (m_param[VCO_PARAM_LIN])
-                if (m_param[VCO_PARAM_LFO])
-                    freq = m_param[VCO_PARAM_FREQ];
+            if (m_param[VCO_PARAM_LIN].value)
+                if (m_param[VCO_PARAM_LFO].value)
+                    freq = m_param[VCO_PARAM_FREQ].value;
                 else
-                    freq = m_param[VCO_PARAM_FREQ] * 1000;
+                    freq = m_param[VCO_PARAM_FREQ].value * 1000;
             else
-                freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[VCO_PARAM_FREQ] + m_lfo));
+                freq = 261.63 * (std::pow(2.0f, cvBuffer[frame] + m_param[VCO_PARAM_FREQ].value + m_lfo));
             double targetStep = freq / WAVETABLE_FREQ; //!@todo Currently using 1Hz table so could remove this calc
             if (targetStep < 0.001)
                 targetStep = 0.001;
@@ -103,19 +103,19 @@ int VCO::process(jack_nframes_t frames) {
             double waveform2 = m_waveform - double(baseWaveform);
             if (baseWaveform == WAVEFORM_SQU) {
                 if (m_waveformPos[poly] > m_pwm * m_wavetableSize)
-                    outBuffer[frame] = -m_param[VCO_PARAM_AMP] * waveform1;
+                    outBuffer[frame] = -m_param[VCO_PARAM_AMP].value * waveform1;
                 else
-                    outBuffer[frame] = m_param[VCO_PARAM_AMP] * waveform1;
+                    outBuffer[frame] = m_param[VCO_PARAM_AMP].value * waveform1;
             } else {
-                outBuffer[frame] = waveform1 * WAVETABLE[baseWaveform][(uint32_t)m_waveformPos[poly]] * m_param[VCO_PARAM_AMP];
+                outBuffer[frame] = waveform1 * WAVETABLE[baseWaveform][(uint32_t)m_waveformPos[poly]] * m_param[VCO_PARAM_AMP].value;
             }
             if (baseWaveform + 1 == WAVEFORM_SQU) {
                 if (m_waveformPos[poly] > m_pwm * m_wavetableSize)
-                    outBuffer[frame] += -m_param[VCO_PARAM_AMP] * waveform2;
+                    outBuffer[frame] += -m_param[VCO_PARAM_AMP].value * waveform2;
                 else
-                    outBuffer[frame] += m_param[VCO_PARAM_AMP] * waveform2;
+                    outBuffer[frame] += m_param[VCO_PARAM_AMP].value * waveform2;
             } else {
-                outBuffer[frame] += waveform2 * WAVETABLE[baseWaveform + 1][(uint32_t)m_waveformPos[poly]] * m_param[VCO_PARAM_AMP];
+                outBuffer[frame] += waveform2 * WAVETABLE[baseWaveform + 1][(uint32_t)m_waveformPos[poly]] * m_param[VCO_PARAM_AMP].value;
             }
             m_waveformPos[poly] += m_waveformStep[poly];
         }

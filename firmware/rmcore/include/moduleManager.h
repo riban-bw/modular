@@ -63,8 +63,9 @@ class ModuleManager {
             @param  module  Module UUID
             @param  param   Index of parameter
             @param  value   Normalised value
+            @retval bool    True on success
         */
-        void setParam(const std::string& uuid, uint32_t param, float value);
+        bool setParam(const std::string& uuid, uint32_t param, float value);
 
         /** @brief  Get value of a module parameter
             @param  module  Module UUID

@@ -50,12 +50,12 @@ void Mixer::init() {
 
 int Mixer::process(jack_nframes_t frames) {
     // Process common parameters, inputs and outputs
-    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[MIXER_PORT_OUTPUT], frames);
+    jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[MIXER_OUTPUT_OUT].m_port[0], frames);
     std::memset(outBuffer, 0, sizeof(float) * frames);
     for (uint8_t input = 0; input < 4; ++input) {
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[input], frames);
-        jack_default_audio_sample_t * gainBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[input + 4], frames);
-        float targetGain = m_param[input] * gainBuffer[0];
+        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[input].m_port[0], frames);
+        jack_default_audio_sample_t * gainBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[input + 4].m_port[0], frames);
+        float targetGain = m_param[input].value * gainBuffer[0];
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             m_gain[input] += CV_ALPHA * (targetGain - m_gain[input]);
             outBuffer[frame] += inBuffer[frame] * m_gain[input];

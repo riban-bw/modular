@@ -6,53 +6,44 @@
     riban modular is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
     You should have received a copy of the GNU Lesser General Public License along with riban modular. If not, see <https://www.gnu.org/licenses/>.
 
-    Step sequencer module class header.
+    Slew module class header.
 */
 
-#pragma once
+#pragma once // Only include this header once
 
-#include "module.hpp"
+#include "module.hpp" // Include the parent module class
+#include "slew_common.hpp"
 
-// Input ports
-enum SEQUENCER_INPUT {
-    SEQUENCER_INPUT_CLOCK,
-    SEQUENCER_INPUT_RESET
+enum SLEW_INPUT {
+    SLEW_INPUT_RISE,
+    SLEW_INPUT_FALL,
+    SLEW_INPUT_IN,
 };
 
-// Output ports
-#define SEQUENCER_PORT_CV 0
-#define SEQUENCER_PORT_GATE 1
-// Polyphonic output ports
+enum SLEW_OUPUT {
+    SLEW_OUTPUT_OUT
+};
 
-enum SEQUENCER_PARAM {
-    SEQUENCER_PARAM_CV_1,
-    SEQUENCER_PARAM_CV_2,
-    SEQUENCER_PARAM_CV_3,
-    SEQUENCER_PARAM_CV_4,
-    SEQUENCER_PARAM_CV_5,
-    SEQUENCER_PARAM_CV_6,
-    SEQUENCER_PARAM_CV_7,
-    SEQUENCER_PARAM_CV_8,
-    SEQUENCER_PARAM_GATE_1,
-    SEQUENCER_PARAM_GATE_2,
-    SEQUENCER_PARAM_GATE_3,
-    SEQUENCER_PARAM_GATE_4,
-    SEQUENCER_PARAM_GATE_5,
-    SEQUENCER_PARAM_GATE_6,
-    SEQUENCER_PARAM_GATE_7,
-    SEQUENCER_PARAM_GATE_8,
+enum SLEW_PARAM {
+    SLEW_PARAM_RISE,
+    SLEW_PARAM_RISE_SHAPE,
+    SLEW_PARAM_FALL,
+    SLEW_PARAM_FALL_SHAPE,
+    SLEW_PARAM_SLOW
 };
 
 /*  Define the class - inherit from Module class */
-class Sequencer : public Module {
+class Slew : public Module {
 
     public:
-        Sequencer();
-        ~Sequencer() override { _deinit(); } // Call clean-up code on destruction
+        Slew(); // Declares the class - change this to the new class name
+        ~Slew() override { _deinit(); } // Call clean-up code on destruction - Change this to the new class name
 
         /*  @brief  Initalise the module
         */
         void init();
+
+        bool setParam(uint32_t param, float val);
 
         /*  @brief  Process period of audio, cv, midi, etc.
             @param  frames Quantity of frames in this period
@@ -60,8 +51,6 @@ class Sequencer : public Module {
         int process(jack_nframes_t frames);
 
     private:
-        uint8_t m_step; // Amplification
-        bool m_triggered; // True whilst clock asserted
-        float m_outputCv = 0.0f; // Current CV output value
+        RiseFallShapedSlewLimiter m_slew[MAX_POLY]; // slew limiter per poly input
+        float m_timeScale = 1.0f; // Slow mode factor
 };
-

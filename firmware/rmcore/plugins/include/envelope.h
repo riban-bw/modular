@@ -17,6 +17,15 @@
 #define ENV_PORT_GAIN   1
 #define ENV_PORT_OUT    0
 
+enum ENV_INPUT {
+    ENV_INPUT_GATE,
+    ENV_INPUT_GAIN
+};
+
+enum ENV_OUTPUT {
+    ENV_OUTPUT_OUT
+};
+
 enum ENV_PARAM {
     ENV_PARAM_ATTACK     = 0,
     ENV_PARAM_DECAY      = 1,

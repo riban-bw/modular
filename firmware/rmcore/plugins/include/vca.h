@@ -13,9 +13,14 @@
 
 #include "module.hpp"
 
-#define VCA_PORT_INPUT 0
-#define VCA_PORT_CV 1
-#define VCA_PORT_OUTPUT 0
+enum VCA_INPUT {
+    VCA_INPUT_IN,
+    VCA_INPUT_CV
+};
+
+enum VCA_OUTPUT {
+    VCA_OUTPUT_OUT
+};
 
 enum VCA_PARAM {
     VCA_PARAM_GAIN   = 0

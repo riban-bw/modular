@@ -70,7 +70,7 @@ Module* ModuleManager::addModule(const std::string& type, const std::string& uui
     }
 
     auto module = create();
-    if (!module || !module->_init(uuid, handle, m_poly, g_verbose)) {
+    if (!module || !module->_init(uuid, handle, m_poly, getVerbose())) {
         error("Failed to add module %s\n", type);
         delete module;
         dlclose(handle);
@@ -115,12 +115,20 @@ bool ModuleManager::removeAll() {
     return result;
 }
 
-void ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {
+bool ModuleManager::setParam(const std::string& uuid, uint32_t param, float value) {
     if (m_modules.find(uuid) == m_modules.end()) {
         error("Attempt to set param %u on unknown module '%s'\n", param, uuid.c_str());
-        return;
+        return false;
     }
-    m_modules[uuid]->setParam(param, value);
+    auto module = m_modules[uuid];
+    std::string modName = module->getInfo().name;
+    if (module->setParam(param, value)) {
+        debug("Set module %s parameter %u (%s) to value %f\n", modName.c_str(), param, module->getParamName(param).c_str(), value);
+        return true;
+    } else {
+        debug("Failed to set module %s parameter %u (%s) to value %f\n", modName.c_str(), param, module->getParamName(param).c_str(), value);
+    }
+    return false;
 }
 
 float ModuleManager::getParam(const std::string& uuid, uint32_t param) {

@@ -15,9 +15,9 @@
 #include <jack/midiport.h> // provides JACK MIDI interface
 #include <cmath>
 
-DEFINE_PLUGIN(Midi)
+DEFINE_PLUGIN(MIDI)
 
-Midi::Midi() {
+MIDI::MIDI() {
     m_info.description = "MIDI to CV";
     m_info.outputs = {
             "cc1",
@@ -37,14 +37,15 @@ Midi::Midi() {
     m_info.params = {
             "portamento",
             "legato",
-            "channel"
+            "channel",
+            "range"
     };
     m_info.midiInputs = {
         "input"
     };
 }
 
-void Midi::init() {
+void MIDI::init() {
     for (uint8_t i = 0; i < MAX_POLY; ++i)
         m_outputValue[i].output = i;
     setParam(MIDI_PARAM_PORTAMENTO, 0.0);
@@ -52,22 +53,20 @@ void Midi::init() {
     setParam(MIDI_PARAM_CHANNEL, 0.0);
 }
 
-bool Midi::setParam(uint32_t param, float val) {
+bool MIDI::setParam(uint32_t param, float val) {
     Module::setParam(param, val);
     switch (param) {
         case MIDI_PARAM_PORTAMENTO:
             m_portamento = 1.0 - val; //!@todo Fix portamento time
             break;
-        case MIDI_PARAM_POLYPHONY:
-            if ((uint8_t)val < MAX_POLY)
-                m_poly = (uint8_t)val;
-            //!@todo Reconfigure all polyphonic modules
+        case MIDI_PARAM_CC_RANGE:
+            m_ccRange = val < 0.5 ? 1.0f : 10.0f;
             break;
     }
     return true;
 }
 
-int Midi::process(jack_nframes_t frames) {
+int MIDI::process(jack_nframes_t frames) {
     // Process MIDI input
     void* midiBuffer = jack_port_get_buffer(m_midiInput[0], frames);
     jack_midi_event_t midiEvent;
@@ -77,7 +76,7 @@ int Midi::process(jack_nframes_t frames) {
     for (jack_nframes_t event = 0; event < count; event++) {
         jack_midi_event_get(&midiEvent, midiBuffer, event);
         chan = midiEvent.buffer[0] & 0x0F;
-        if (chan != m_param[MIDI_PARAM_CHANNEL])
+        if (chan != m_param[MIDI_PARAM_CHANNEL].value)
             continue;
         cmd = midiEvent.buffer[0] & 0xF0;
         switch (cmd) {
@@ -181,9 +180,9 @@ int Midi::process(jack_nframes_t frames) {
         }
     }
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_CV], frames);
-        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_GATE], frames);
-        jack_default_audio_sample_t * velBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_polyOutput[poly][MIDI_PORT_VEL], frames);
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[MIDI_OUTPUT_CV].m_port[poly], frames);
+        jack_default_audio_sample_t * gateBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[MIDI_OUTPUT_GATE].m_port[poly], frames);
+        jack_default_audio_sample_t * velBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[MIDI_OUTPUT_VEL].m_port[poly], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             m_outputValue[poly].cv += m_portamento * (m_outputValue[poly].targetCv - m_outputValue[poly].cv);
             cvBuffer[frame] = m_outputValue[poly].cv + m_pitchbend;
@@ -192,9 +191,10 @@ int Midi::process(jack_nframes_t frames) {
         }
     }
     for (uint8_t cc = 0; cc < NUM_MIDI_CC; ++cc) {
-        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[cc], frames);
+        jack_default_audio_sample_t * cvBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[cc].m_port[0], frames);
+        float ccVal = m_ccRange * m_cc[cc];
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            cvBuffer[frame] = m_cc[cc];
+            cvBuffer[frame] = ccVal;
         }
     }
     return 0;

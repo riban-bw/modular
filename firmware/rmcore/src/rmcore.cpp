@@ -124,7 +124,7 @@ bool connect(std::string source, std::string destination) {
     bool srcEnd = false, dstEnd = false, success = false;
     const char *srcPort, *dstPort;
     for (uint8_t poly = 0; poly < g_poly; ++poly) {
-        debug("Route poly idx %u/%u\n", poly, g_poly);
+        //debug("Route poly idx %u/%u\n", poly, g_poly);
         if (srcEnd == false) {
             srcPort = srcPorts[poly];
             srcEnd = srcPorts[poly + 1] == NULL;
@@ -329,10 +329,10 @@ void loadConfig() {
             //!@todo It may be more efficient to convert the json config to simpler data structures.
             if (cfg["module"] == nullptr) {
                 // Invalid config without a module
-                error("invalid panel configuration for %s - no module defined\n", id.c_str());
+                error("No module defined for panel %s\n", id.c_str());
             } else {
                 std::string module = cfg["module"];
-                debug("Panel %s configured for %s\n", id.c_str(), module.c_str());
+                debug("  Panel %s configured for %s\n", id.c_str(), module.c_str());
             }
         }
     } catch (const json::exception& e) {
@@ -375,7 +375,7 @@ bool parseCmdline(int argc, char** argv) {
         switch (opt) {
             case 'V': 
                 if (optarg)
-                    g_verbose = atoi(optarg);
+                    setVerbose(atoi(optarg));
                 break;
             case 'p': {
                 uint8_t poly = atoi(optarg);
@@ -538,9 +538,12 @@ void handleCli(char* line) {
                     else {
                         // Set parameter
                         //debug("CLI params: '%s' '%s' '%s'\n", pars[0], pars[1], pars[2]);
-                        debug("Set module %s parameter %u to value %f\n", pars[0].c_str(), std::stoi(pars[1]), std::stof(pars[2]));
-                        g_moduleManager.setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]));
-                        g_dirty = true;
+                        debug("Set module %s parameter %u (%s) to value %f\n", pars[0].c_str(), std::stoi(pars[1]), g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str(), std::stof(pars[2]));
+                        if (g_moduleManager.setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]))) {
+                            g_dirty = true;
+                        } else {
+                            debug("  Failed to set parameter\n");
+                        }
                     }
                     break;
                 case 'g': // Get parameter value
@@ -560,7 +563,7 @@ void handleCli(char* line) {
                     break;
                 case 'A': // List available modules
                 {
-                    auto avail = g_moduleManager.getAvailableModules();
+                    auto avail = g_moduleManager.getAvailableModules(); // List of valid shared libs
                     info("Panel\tModule\n=====\t======\n");
                     try {
                         for (auto& [id, cfg] : g_config["panels"].items()) {
@@ -850,7 +853,7 @@ int main(int argc, char** argv) {
         cleanup();
         std::exit(-1);
     }
-    if (g_verbose >= VERBOSE_DEBUG)
+    if (getVerbose() >= VERBOSE_DEBUG)
         jack_set_port_connect_callback(g_jackClient, handleJackConnect, nullptr);
     jack_on_info_shutdown(g_jackClient, handleJackShutdown, nullptr);
     jack_set_xrun_callback(g_jackClient, handleJackXrun, nullptr);
