@@ -198,10 +198,13 @@ panel_types.h defines mapping of panel types to module types and defines the STM
 
 _riban modular_ is free and open source software, avaialble for distibution, use and modification by all. It has three open source licences, each applied to different parts of the code. Each source code file (including headers) contain a copyright notice describing which license applies to that part of the code. If a file is missing this banner, LGPL v3 is applied.
 
+### LGPL V3
 LGPL v3 is used for the core software and some plugins. This protects the core application whilst allowing non-open source plugins to be hosted by exercising dynamic linking with runtime loading (plugin exception). The text of the LGPL v3 license is distributed with the source code within the file called, lgpl-3.0.txt and may also be obtained from https://www.gnu.org/licenses/lgpl-3.0.en.html.
 
+### GPL V3
 To support plugins derived from GPL licensed code, some plugins have been licenced using GPL v3. These plugins continue to be fully copy-left protected whilst also able to be loaded into the core application using dynamic linking with runtime loading (plugin exception). The text of the GPL v3 license is distributed with the source code within the file called, gpl-3.0.txt and may also be obtained from https://www.gnu.org/licenses/gpl-3.0.en.html.
 
+### MIT
 To encourage third party plugin developement, there is a plugin template released under MIT license. This permits the use of the template as the basis of new plugins with the option for the author to release the derived work under any other license. We encourage use of LGPL for plugins where an open source license is required or preferred.
 
 ### Guidance and advice for plugin creators
