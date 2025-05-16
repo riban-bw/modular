@@ -141,8 +141,10 @@ int BOGVCF::process(jack_nframes_t frames) {
     // Slow (per period) modulation values
     jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_FREQ].m_port[0], frames);
     m_input[BOGVCF_INPUT_FREQ].setVoltage(freqBuffer[0]);
-    jack_default_audio_sample_t * pitchBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_Q].m_port[0], frames);
-    m_input[BOGVCF_INPUT_Q].setVoltage(pitchBuffer[0]);
+    jack_default_audio_sample_t * qBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_Q].m_port[0], frames);
+    m_input[BOGVCF_INPUT_Q].setVoltage(qBuffer[0]);
+    jack_default_audio_sample_t * pitchBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_PITCH].m_port[0], frames);
+    m_input[BOGVCF_INPUT_PITCH].setVoltage(pitchBuffer[0]);
     jack_default_audio_sample_t * slopeBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_SLOPE].m_port[0], frames);
     m_input[BOGVCF_INPUT_SLOPE].setVoltage(slopeBuffer[0]);
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
@@ -195,7 +197,7 @@ int BOGVCF::process(jack_nframes_t frames) {
             // Process channels each frame
             m_input[BOGVCF_INPUT_IN].setVoltage(inBuffer[frame], poly);
             m_output[BOGVCF_OUTPUT_OUT].setVoltage(m_engine[poly].next(m_input[BOGVCF_INPUT_IN].getVoltage(poly)), poly);
-            outBuffer[frame] = m_output[BOGVCF_INPUT_IN].getVoltage(poly);
+            outBuffer[frame] = m_output[BOGVCF_OUTPUT_OUT].getVoltage(poly);
         }
     }
 

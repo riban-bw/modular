@@ -40,19 +40,23 @@ int BOGAMRM::process(jack_nframes_t frames) {
     for (uint8_t poly = 0; poly < m_poly; ++poly) {
         jack_default_audio_sample_t * modBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_MODULATOR].m_port[poly], frames);
         jack_default_audio_sample_t * carBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_CARRIER].m_port[poly], frames);
-        jack_default_audio_sample_t * rectBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_RECTIFY].m_port[poly], frames);
-        jack_default_audio_sample_t * wetBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_DRYWET].m_port[poly], frames);
+        jack_default_audio_sample_t * rectBuffer = nullptr;
+        if (m_input[BOGAMRM_INPUT_RECTIFY].isConnected())
+            rectBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_RECTIFY].m_port[poly], frames);
+        jack_default_audio_sample_t * wetBuffer = nullptr;
+        if (m_input[BOGAMRM_INPUT_DRYWET].isConnected())
+            wetBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGAMRM_INPUT_DRYWET].m_port[poly], frames);
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGAMRM_OUTPUT_OUT].m_port[poly], frames);
         jack_default_audio_sample_t * rectOutBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGAMRM_OUTPUT_RECTIFY].m_port[poly], frames);
         for (jack_nframes_t frame = 0; frame < frames; ++frame) {
             float rectify = m_param[BOGAMRM_PARAM_RECTIFY].getValue();
-            if (m_input[BOGAMRM_INPUT_RECTIFY].isConnected()) {
+            if (rectBuffer) {
                 rectify = clamp(rectify + rectBuffer[frame] / 10.0f, 0.0f, 1.0f);
             }
             rectify = 1.0f - rectify;
         
             float depth = m_param[BOGAMRM_PARAM_DRYWET].getValue();
-            if (m_input[BOGAMRM_INPUT_DRYWET].isConnected()) {
+            if (wetBuffer) {
                 depth = clamp(depth + wetBuffer[frame] / 10.0f, 0.0f, 1.0f);
             }
         

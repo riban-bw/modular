@@ -36,21 +36,31 @@ void BOGNoise::init() {
 }
 
 int BOGNoise::process(jack_nframes_t frames) {
-    jack_default_audio_sample_t * whiteBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_WHITE].m_port[0], frames);
-    jack_default_audio_sample_t * pinkBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_PINK].m_port[0], frames);
-    jack_default_audio_sample_t * redBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_RED].m_port[0], frames);
-    jack_default_audio_sample_t * gaussBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_GAUSS].m_port[0], frames);
-    jack_default_audio_sample_t * blueBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_BLUE].m_port[0], frames);
+    jack_default_audio_sample_t * whiteBuffer = nullptr;
+    if (m_output[BOGNOISE_OUTPUT_WHITE].isConnected())
+        whiteBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_WHITE].m_port[0], frames);
+    jack_default_audio_sample_t * pinkBuffer = nullptr;
+    if (m_output[BOGNOISE_OUTPUT_PINK].isConnected())
+        pinkBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_PINK].m_port[0], frames);
+    jack_default_audio_sample_t * redBuffer = nullptr;
+    if (m_output[BOGNOISE_OUTPUT_RED].isConnected())
+        redBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_RED].m_port[0], frames);
+    jack_default_audio_sample_t * gaussBuffer = nullptr;
+    if (m_output[BOGNOISE_OUTPUT_GAUSS].isConnected())
+        gaussBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_GAUSS].m_port[0], frames);
+    jack_default_audio_sample_t * blueBuffer = nullptr;
+    if (m_output[BOGNOISE_OUTPUT_BLUE].isConnected())
+        blueBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGNOISE_OUTPUT_BLUE].m_port[0], frames);
     for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-        if (m_output[BOGNOISE_OUTPUT_WHITE].isConnected())
+        if (whiteBuffer)
             whiteBuffer[frame] = clamp(m_white.next() * 10.0f, -10.0f, 10.f);
-        if (m_output[BOGNOISE_OUTPUT_PINK].isConnected())
+        if (pinkBuffer)
             pinkBuffer[frame] = clamp(m_pink.next() * 15.0f, -10.0f, 10.f);
-        if (m_output[BOGNOISE_OUTPUT_RED].isConnected())
+        if (redBuffer)
             redBuffer[frame] = clamp(m_red.next() * 20.0f, -10.0f, 10.f);
-        if (m_output[BOGNOISE_OUTPUT_GAUSS].isConnected())
+        if (gaussBuffer)
             gaussBuffer[frame] = clamp(m_gauss.next(), -10.0f, 10.f);
-        if (m_output[BOGNOISE_OUTPUT_BLUE].isConnected())
+        if (blueBuffer)
             blueBuffer[frame] = clamp(m_blue.next() * 20.0f, -10.0f, 10.f);
     }
     for (uint8_t poly = 0; poly < m_poly; ++poly) {

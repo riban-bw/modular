@@ -1,31 +1,24 @@
 {
     "general": {
         "polyphony": 1,
-        "timestamp": "2025-05-15T23:46:00"
+        "timestamp": "2025-05-16T09:28:39"
     },
     "modules": {
-        "ring": {
+        "vcf": {
             "params": [
+                0.30000001192092896,
+                0.0,
+                0.0,
+                0.5,
                 0.0,
                 1.0
             ],
-            "type": "BOGAMRM"
+            "type": "BOGVCF"
         },
-        "vco1": {
-            "params": [
-                3.0,
-                0.0,
-                0.5,
-                1.0,
-                0.0,
-                0.0
-            ],
-            "type": "VCO"
-        },
-        "vco2": {
+        "vco": {
             "params": [
                 0.0,
-                0.0,
+                4.0,
                 0.5,
                 1.0,
                 0.0,
@@ -35,8 +28,7 @@
         }
     },
     "routes": {
-        "BOGAMRM ring:output": "system:playback_1",
-        "VCO vco1:output": "BOGAMRM ring:modulator",
-        "VCO vco2:output": "BOGAMRM ring:carrier"
+        "BOGVCF vcf:output": "system:playback_1",
+        "VCO vco:output": "BOGVCF vcf:input"
     }
 }
