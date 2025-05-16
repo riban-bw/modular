@@ -36,7 +36,7 @@ MIDI::MIDI() {
     };
     m_info.params = {
             "range cc1",
-            "range cc4",
+            "range cc2",
             "range cc3",
             "range cc4",
             "range cc5",
