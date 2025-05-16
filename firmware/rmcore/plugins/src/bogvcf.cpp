@@ -138,62 +138,70 @@ bool BOGVCF::setParam(uint32_t param, float value) {
 }
 
 int BOGVCF::process(jack_nframes_t frames) {
-    // Slow (per period) modulation values
-    jack_default_audio_sample_t * freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_FREQ].m_port[0], frames);
-    m_input[BOGVCF_INPUT_FREQ].setVoltage(freqBuffer[0]);
-    jack_default_audio_sample_t * qBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_Q].m_port[0], frames);
-    m_input[BOGVCF_INPUT_Q].setVoltage(qBuffer[0]);
-    jack_default_audio_sample_t * pitchBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_PITCH].m_port[0], frames);
-    m_input[BOGVCF_INPUT_PITCH].setVoltage(pitchBuffer[0]);
-    jack_default_audio_sample_t * slopeBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_SLOPE].m_port[0], frames);
-    m_input[BOGVCF_INPUT_SLOPE].setVoltage(slopeBuffer[0]);
-    for (uint8_t poly = 0; poly < m_poly; ++poly) {
-        // Modulate channels each period
+    // Detect connections once per period
+    jack_default_audio_sample_t * slopeBuffer = nullptr;
+    if (m_input[BOGVCF_INPUT_SLOPE].isConnected())
+        slopeBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_SLOPE].m_port[0], frames);
+
+    jack_default_audio_sample_t * qBuffer = nullptr;
+    if (m_input[BOGVCF_INPUT_Q].isConnected())
+        qBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_Q].m_port[0], frames);
+
+    jack_default_audio_sample_t * freqBuffer = nullptr;
+    if (m_input[BOGVCF_INPUT_FREQ].isConnected())
+        freqBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_FREQ].m_port[0], frames);
+
+    jack_default_audio_sample_t * pitchBuffer = nullptr;
+    if (m_input[BOGVCF_INPUT_PITCH].isConnected())
+        pitchBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_PITCH].m_port[0], frames);
+
+    for (jack_nframes_t frame = 0; frame < frames; ++frame) {
         float slope = clamp(m_param[BOGVCF_PARAM_SLOPE].getValue(), 0.0f, 1.0f);
-        if (m_input[BOGVCF_INPUT_SLOPE].isConnected()) {
-            slope *= clamp(m_input[BOGVCF_INPUT_SLOPE].getPolyVoltage() / 10.0f, 0.0f, 1.0f);
+        if (slopeBuffer) {
+            slope *= clamp(slopeBuffer[frame] / 10.0f, 0.0f, 1.0f);
         }
         slope *= slope;
 
         float q = clamp(m_param[BOGVCF_PARAM_Q].getValue(), 0.0f, 1.0f);
-        if (m_input[BOGVCF_INPUT_Q].isConnected()) {
-            q *= clamp(m_input[BOGVCF_INPUT_Q].getPolyVoltage() / 10.0f, 0.0f, 1.0f);
+        if (qBuffer) {
+            q *= clamp(qBuffer[frame] / 10.0f, 0.0f, 1.0f);
         }
 
         float f = clamp(m_param[BOGVCF_PARAM_FREQ].getValue(), 0.0f, 1.0f);
-        if (m_input[BOGVCF_INPUT_FREQ].isConnected()) {
-            float fcv = clamp(m_input[BOGVCF_INPUT_FREQ].getPolyVoltage() / 5.0f, -1.0f, 1.0f);
+        if (freqBuffer) {
+            float fcv = clamp(freqBuffer[frame] / 5.0f, -1.0f, 1.0f);
             fcv *= clamp(m_param[BOGVCF_PARAM_FREQ_CV].getValue(), -1.0f, 1.0f);
             f = std::max(0.0f, f + fcv);
         }
         f *= f;
         f *= maxFrequency;
 
-        if (m_input[BOGVCF_INPUT_PITCH].isConnected()) {
-            float pitch = clamp(m_input[BOGVCF_INPUT_PITCH].getPolyVoltage(0), -5.0f, 5.0f);
+        if (pitchBuffer) {
+            float pitch = clamp(pitchBuffer[frame], -5.0f, 5.0f);
             f += cvToFrequency(pitch);
         }
 
-        if (m_input[BOGVCF_INPUT_FM].isConnected()) {
-            float fm = m_input[BOGVCF_INPUT_FM].getPolyVoltage(poly);
-            fm *= clamp(m_param[BOGVCF_PARAM_FM].getValue(), 0.0f, 1.0f);
-            float pitchCV = frequencyToCV(std::max(minFrequency, f));
-            f = cvToFrequency(pitchCV + fm);
-        }
+        for (uint8_t poly = 0; poly < m_poly; ++poly) {
+            //!@todo Should FM be polyphonic???
+            if (m_input[BOGVCF_INPUT_FM].isConnected()) {
+                float fm = m_input[BOGVCF_INPUT_FM].getPolyVoltage(poly);
+                fm *= clamp(m_param[BOGVCF_PARAM_FM].getValue(), 0.0f, 1.0f);
+                float pitchCV = frequencyToCV(std::max(minFrequency, f));
+                f = cvToFrequency(pitchCV + fm);
+            }
 
-        f = clamp(f, minFrequency, maxFrequency);
-    
-        m_engine[poly].setParams(
-            slope,
-            m_mode,
-            f,
-            q,
-            m_bandwidthMode
-        );
+            f = clamp(f, minFrequency, maxFrequency);
+        
+            m_engine[poly].setParams(
+                slope,
+                m_mode,
+                f,
+                q,
+                m_bandwidthMode
+            );
 
-        jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_IN].m_port[poly], frames);
-        jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGVCF_OUTPUT_OUT].m_port[poly], frames);
-        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
+            jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_IN].m_port[poly], frames);
+            jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGVCF_OUTPUT_OUT].m_port[poly], frames);
             // Process channels each frame
             m_input[BOGVCF_INPUT_IN].setVoltage(inBuffer[frame], poly);
             m_output[BOGVCF_OUTPUT_OUT].setVoltage(m_engine[poly].next(m_input[BOGVCF_INPUT_IN].getVoltage(poly)), poly);
