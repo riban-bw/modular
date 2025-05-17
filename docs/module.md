@@ -33,7 +33,7 @@ The `int process(jack_nframes_t frames)` function is overriden in child classes 
 
 ## Parameters
 
-Parameters are all `floats` stored in a vector. The `bool setParam(uint32_t param, float val)` and `const std::string& getParamName(uint32_t param)` by default store and recall these values but may be overriden to process values in child classes.
+Parameters are all `floats` stored in a vector. The `bool setParam(uint32_t param, float val)` and `const std::string& getParamName(uint32_t param)` by default store and recall these values but may be overriden to process values in child classes. Pot/knob parameters are normalised to the range 0.0 to 1.0.
 
 ## Polyphony
 

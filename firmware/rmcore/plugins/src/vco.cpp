@@ -36,7 +36,10 @@ VCO::VCO() {
         "pwm", // Pulse width (0..1) square wave only
         "amplitude", // Output level (normalised 1=unitiy gain)
         "lfo", // Factor to adjust frequency for LFO mode (0.0 none, -9.0 minus 9 octaves)
-        "linear" // >0.5 to enable linear frequency control. <0.5 to enable log frequency control
+        "linear", // >0.5 to enable linear frequency control. <0.5 to enable log frequency control
+        "coarse", // Coarse adjustment of frequency 20Hz..20kHz
+        "fine", // Find adjustment of frequency (+/-10%)
+        "discrete" // >0.5 for discrete octave steps on coarse control
     };
     m_info.leds = {
         "lfo" // LFO mode selected
@@ -57,16 +60,31 @@ void VCO::init() {
 }
 
 bool VCO::setParam(uint32_t param, float val) {
-    debug("VCO::setParam(%u, %f)\n", param, val);
     if (!Module::setParam(param, val))
         return false;
-    debug("  setParam succeded.\n");
+    bool setFreq = false;
     switch (param) {
         case VCO_PARAM_LFO:
             setLed(VCO_LED_LFO, val > 0.5 ? LED_MODE_ON : LED_MODE_OFF, COLOUR_PARAM_ON, COLOUR_PARAM_ON);
             break;
+        case VCO_PARAM_FREQ_COARSE:
+            m_param[VCO_PARAM_FREQ_COARSE].value = (val - 0.5) * 10;
+            setFreq = true;
+            break;
+        case VCO_PARAM_FREQ_FINE:
+            m_param[VCO_PARAM_FREQ_FINE].value = (val * 2) - 1.0;
+            setFreq = true;
+            break;
+        case VCO_PARAM_FREQ_DISCRETE:
+            setFreq = true;
+            break;
     }
-    debug("  done!\n");
+    if (setFreq) {
+        if (m_param[VCO_PARAM_FREQ_DISCRETE].value > 0.5)
+            m_param[VCO_PARAM_FREQ].value = int(m_param[VCO_PARAM_FREQ_COARSE].value) + m_param[VCO_PARAM_FREQ_FINE].value / 10;
+        else
+            m_param[VCO_PARAM_FREQ].value = m_param[VCO_PARAM_FREQ_COARSE].value + m_param[VCO_PARAM_FREQ_FINE].value / 10;
+    }
     return true;
 }
 

@@ -740,7 +740,7 @@ bool processPanels() {
                         return false;
                     }
                     paramId = g_config["panels"][panelType]["adcs"][controlIdx];
-                    value = (g_usart->rxData[2] | (g_usart->rxData[3] << 8)) / 1019.0;
+                    value = clamp((g_usart->rxData[2] | (g_usart->rxData[3] << 8)) / 1019.0f, 0.0f, 1.0f);
                     debug("Panel %u ADC %u: %0.03f - %u\n", g_usart->rxData[0], g_usart->rxData[1] + 1, value, int(value * 255.0));
                     g_moduleManager.setParam(uuid, paramId, value);
                     break;
