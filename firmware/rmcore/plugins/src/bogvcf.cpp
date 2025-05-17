@@ -123,6 +123,8 @@ void BOGVCF::init() {
     for (uint8_t poly = 0; poly < MAX_POLY; ++ poly) {
         m_engine[poly].setSamplerate(m_samplerate);
     }
+    setParam(BOGVCF_PARAM_FREQ, 0.22361f);
+    setParam(BOGVCF_PARAM_SLOPE, 0.522233f);
 }
 
 bool BOGVCF::setParam(uint32_t param, float value) {
@@ -203,9 +205,7 @@ int BOGVCF::process(jack_nframes_t frames) {
             jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[BOGVCF_INPUT_IN].m_port[poly], frames);
             jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[BOGVCF_OUTPUT_OUT].m_port[poly], frames);
             // Process channels each frame
-            m_input[BOGVCF_INPUT_IN].setVoltage(inBuffer[frame], poly);
-            m_output[BOGVCF_OUTPUT_OUT].setVoltage(m_engine[poly].next(m_input[BOGVCF_INPUT_IN].getVoltage(poly)), poly);
-            outBuffer[frame] = m_output[BOGVCF_OUTPUT_OUT].getVoltage(poly);
+            outBuffer[frame] = m_engine[poly].next(inBuffer[frame]), poly;
         }
     }
 
