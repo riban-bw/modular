@@ -24,6 +24,7 @@ struct Port {
     jack_port_t* m_port[MAX_POLY]; // Jack input ports (use m_port[0] for non-polyphonic input)
     float m_value[MAX_POLY]; // Current output values
     bool poly = false; // True if polyphonic port
+    bool connected = false; // True if connected
 
     Port(jack_client_t* jackClient, std::string name, uint8_t polyphony, bool input) {
         poly = polyphony != 0;
@@ -43,8 +44,12 @@ struct Port {
         }
     }
 
+    void updateConnected() {
+        connected = jack_port_connected(m_port[0]);
+    }
+
     bool isConnected() {
-        return jack_port_connected(m_port[0]);
+        return connected;
     }
 
     float getPolyVoltage(uint8_t channel = 0) {

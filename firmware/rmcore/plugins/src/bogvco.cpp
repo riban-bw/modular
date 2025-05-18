@@ -94,9 +94,18 @@ int BOGVCO::samplerateChange(jack_nframes_t samplerate) {
 
 bool BOGVCO::setParam(uint32_t param, float value) {
     switch(param) {
+        case BOGVCO_PARAM_FREQUENCY:
+            value = clamp(value, -3.0f, 6.0f);
+            break;
+        case BOGVCO_PARAM_FINE:
+            value = clamp(value, -1.0f, 1.0f);
+            break;
         case BOGVCO_PARAM_SLOW:
            m_slowMode = value > 0.5f;
            break;
+        case BOGVCO_PARAM_PW:
+            value = clamp(value, -1.0f, 1.0f);
+            break;
         case BOGVCO_PARAM_LINEAR:
             m_linearMode = value > 0.5f;
             break;
@@ -111,7 +120,6 @@ bool BOGVCO::setParam(uint32_t param, float value) {
 
 int BOGVCO::process(jack_nframes_t frames) {
     // Detect connections once per period
-    //!@todo Move detection to jack connect callback
     bool squareActive = m_output[BOGVCO_OUTPUT_SQUARE].isConnected();
 	bool sawActive = m_output[BOGVCO_OUTPUT_SAW].isConnected();
 	bool triangleActive = m_output[BOGVCO_OUTPUT_TRIANGLE].isConnected();
@@ -119,7 +127,6 @@ int BOGVCO::process(jack_nframes_t frames) {
 
     if (!squareActive && !sawActive && !triangleActive && !sineActive)
         return 0;
-    //info("Processing %s%s%s%s\n", squareActive?"SQU":"", sawActive?"SAW":"", triangleActive?"TRI":"", sineActive?"SIN":"");
 
     jack_default_audio_sample_t * fmBuffer = nullptr;
     if (m_input[BOGVCO_INPUT_FM].isConnected())

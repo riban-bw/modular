@@ -48,6 +48,7 @@ struct ModuleInfo {
 };
 
 // Forward declaration of static methods used to access jack client from class
+static void connectStatic(jack_port_id_t a, jack_port_id_t b, int connect, void* arg);
 static int samplerateStatic(jack_nframes_t frames, void* arg);
 static int processStatic(jack_nframes_t frames, void* arg);
 
@@ -103,6 +104,7 @@ class Module {
             for (auto& paramName : m_info.params)
                 m_param.emplace_back();
             init(); // Call derived class initalisaton
+            jack_set_port_connect_callback(m_jackClient, connectStatic, this);
             jack_set_sample_rate_callback(m_jackClient, samplerateStatic, this);
             jack_set_process_callback(m_jackClient, processStatic, this);
             jack_activate(m_jackClient);
@@ -265,6 +267,26 @@ class Module {
             //!@todo Reassert routes
         }
 
+        void onConnect(jack_port_id_t a, jack_port_id_t b, int connect) {
+            bool connected = connect;
+            jack_port_t* portA = jack_port_by_id(m_jackClient, a);
+            jack_port_t* portB = jack_port_by_id(m_jackClient, b);
+            for (auto& input : m_input) {
+                if (input.m_port[0] == portA || input.m_port[0] == portB) {
+                    input.updateConnected();
+                    debug("%s::onConnect %u, %u, %u\n", m_info.name.c_str(), a, b, connect);
+                    return;
+                }
+            }
+            for (auto& output : m_output) {
+                if (output.m_port[0] == portA || output.m_port[0] == portB) {
+                    output.updateConnected();
+                    debug("%s::onConnect %u, %u, %u\n", m_info.name.c_str(), a, b, connect);
+                    return;
+                }
+            }
+        }
+
         int samplerateChange(jack_nframes_t samplerate) {
             if (samplerate ==0)
                 return -1;
@@ -312,6 +334,11 @@ extern "C" Module* createPlugin() { \
 }
 
 // Static methods used to access jack client from class
+static void connectStatic(jack_port_id_t a, jack_port_id_t b, int connect, void* arg) {
+    Module* self = static_cast<Module*>(arg);
+    self->onConnect(a, b, connect);
+};
+
 static int samplerateStatic(jack_nframes_t frames, void* arg) {
     Module* self = static_cast<Module*>(arg);
     return self->samplerateChange(frames);
