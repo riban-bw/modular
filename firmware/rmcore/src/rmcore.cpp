@@ -502,164 +502,168 @@ void handleCli(char* line) {
     }
     std::string msg = line;
     free(line);
-    if (!msg.empty()) {
-        add_history(msg.c_str());
-        if (msg == "quit" || msg == "exit") {
-            handleSignal(SIGINT);
-            return;
-        } else if (msg == "help" || msg == ".?") {
-            info("\nHelp\n====\n");
-            info("exit\t\t\t Close application\n");
-            info("\nDot commands\n============\n");
-            info(".a<type>,<uuid>\t\t\t\t\tAdd a module\n");
-            info(".l\t\t\t\t\t\tList installed modules\n");
-            info(".A\t\t\t\t\t\tList available modules\n");
-            info(".r<uuid>\t\t\t\t\tRemove a module\n");
-            info(".r*\t\t\t\t\t\tRemove all modules\n");
-            info(".s<module uuid>,<param index>,<value>\t\tSet a module parameter value\n");
-            info(".g<module uuid>,<param index>\t\t\tGet a module parameter value\n");
-            info(".n<module uuid>,<param index>\t\t\tGet a module parameter name\n");
-            info(".P<module uuid>\t\t\t\t\tGet quantity of parameters for a module\n");
-            info(".c<module uuid>,<output>,<module uuid>,<input>\tConnect ports\n");
-            info(".d<module uuid>,<output>,<module uuid>,<input>\tDisconnect ports\n");
-            info(".S<optional filename>\t\t\t\tSave state to file\n");
-            info(".L<optional filename>\t\t\t\tLoad state from file\n");
-            info(".?\t\t\t\t\t\tShow this help\n");
-        } else if (msg.size() > 1 && msg[0] == '.' ) {
-            std::vector<std::string> pars;
-            std::stringstream ss(msg.substr(2));
-            std::string token;
-            while (std::getline(ss, token, ','))
-                pars.push_back(token);
-            switch (msg[1]) {
-                case 's': // Set paramter value
-                    if (pars.size() < 3)
-                        error(".s requires 3 parameters\n");
-                    else {
-                        // Set parameter
-                        //debug("CLI params: '%s' '%s' '%s'\n", pars[0], pars[1], pars[2]);
-                        debug("Set module %s parameter %u (%s) to value %f\n", pars[0].c_str(), std::stoi(pars[1]), g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str(), std::stof(pars[2]));
-                        if (g_moduleManager.setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]))) {
-                            g_dirty = true;
-                        } else {
-                            debug("  Failed to set parameter\n");
-                        }
-                    }
-                    break;
-                case 'g': // Get parameter value
-                    if (pars.size() < 2)
-                        error(".g requires 2 parameters\n");
-                    else if (std::stoi(pars[1]) >= g_moduleManager.getParamCount(pars[0]))
-                        error("Module '%s' only has %u parameters\n", pars[0].c_str(), g_moduleManager.getParamCount(pars[0]));
-                    else {
-                        debug("Request module %s parameter %u\n", pars[0].c_str(), std::stoi(pars[1]));
-                        info("%f\n", g_moduleManager.getParam(pars[0], std::stoi(pars[1])));
-                    }
-                    break;
-                case 'l': // List installed modules
-                    for (auto it : g_moduleManager.getModules()) {
-                        info("%s (%s)\n", it.first.c_str(), it.second->getInfo().name.c_str());
-                    }
-                    break;
-                case 'A': // List available modules
-                {
-                    auto avail = g_moduleManager.getAvailableModules(); // List of valid shared libs
-                    info("Panel\tModule\n=====\t======\n");
-                    try {
-                        for (auto& [id, cfg] : g_config["panels"].items()) {
-                            const std::string& module = cfg["module"];
-                            if (std::find(avail.begin(), avail.end(), module) != avail.end())
-                                info("%s\t%s\n", id.c_str(), module.c_str());
-                        }
-                    } catch (const json::exception& e) {
-                        error("JSON error getting list of available modules: %s\n", e.what());
-                    }
-                }
-                    break;
-                case 'n': // Get parameter name
-                    if (pars.size() < 2)
-                        error(".n requires 2 parameters\n");
-                    else {
-                        debug("Request module %s parameter name %u\n", pars[0].c_str(), std::stoi(pars[1]));
-                        info("%s\n", g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str());
-                    }
-                    break;
-                case 'P': // Get quantity of parameters
-                    if (pars.size() < 1)
-                        error(".P requires 1 parameters\n");
-                    else {
-                        debug("Request module %s parameter count\n", pars[0].c_str());
-                        info("%u\n", g_moduleManager.getParamCount(pars[0]));
-                    }
-                    break;
-                case 'a': // Add module
-                    if (pars.size() < 2)
-                        error(".a requires 2 parameters\n");
-                    else {
-                        debug("Add module type %s uuid %s\n", pars[0], pars[1]);
-                        info("%s\n", g_moduleManager.addModule(pars[0], pars[1]) ? "Success" : "Fail");
-                        g_dirty = true;
-                    }
-                    break;
-                case 'r': // Remove module
-                    if (pars.size() < 1)
-                        error(".s requires 1 parameters\n");
-                    else {
-                        debug("Remove module uuid %s\n", pars[0]);
-                        bool success;
-                        if (pars[0] == "*") {
-                            success = g_moduleManager.removeAll();
-                            if (success)
-                                g_panels.clear();
-                        }
+    try {
+        if (!msg.empty()) {
+            add_history(msg.c_str());
+            if (msg == "quit" || msg == "exit") {
+                handleSignal(SIGINT);
+                return;
+            } else if (msg == "help" || msg == ".?") {
+                info("\nHelp\n====\n");
+                info("exit\t\t\t Close application\n");
+                info("\nDot commands\n============\n");
+                info(".a<type>,<uuid>\t\t\t\t\tAdd a module\n");
+                info(".l\t\t\t\t\t\tList installed modules\n");
+                info(".A\t\t\t\t\t\tList available modules\n");
+                info(".r<uuid>\t\t\t\t\tRemove a module\n");
+                info(".r*\t\t\t\t\t\tRemove all modules\n");
+                info(".s<module uuid>,<param index>,<value>\t\tSet a module parameter value\n");
+                info(".g<module uuid>,<param index>\t\t\tGet a module parameter value\n");
+                info(".n<module uuid>,<param index>\t\t\tGet a module parameter name\n");
+                info(".P<module uuid>\t\t\t\t\tGet quantity of parameters for a module\n");
+                info(".c<module uuid>,<output>,<module uuid>,<input>\tConnect ports\n");
+                info(".d<module uuid>,<output>,<module uuid>,<input>\tDisconnect ports\n");
+                info(".S<optional filename>\t\t\t\tSave state to file\n");
+                info(".L<optional filename>\t\t\t\tLoad state from file\n");
+                info(".?\t\t\t\t\t\tShow this help\n");
+            } else if (msg.size() > 1 && msg[0] == '.' ) {
+                std::vector<std::string> pars;
+                std::stringstream ss(msg.substr(2));
+                std::string token;
+                while (std::getline(ss, token, ','))
+                    pars.push_back(token);
+                switch (msg[1]) {
+                    case 's': // Set paramter value
+                        if (pars.size() < 3)
+                            error(".s requires 3 parameters\n");
                         else {
-                            Module* module = g_moduleManager.getModule(pars[0]);
-                            if (!module)
-                                break;
-                            uint8_t id = 0xff;
-                            for (auto& [pnlid, panel] : g_panels) {
-                                if (panel.module == module) {
-                                    id = pnlid;
-                                    break;
-                                }
+                            // Set parameter
+                            //debug("CLI params: '%s' '%s' '%s'\n", pars[0], pars[1], pars[2]);
+                            debug("Set module %s parameter %u (%s) to value %f\n", pars[0].c_str(), std::stoi(pars[1]), g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str(), std::stof(pars[2]));
+                            if (g_moduleManager.setParam(pars[0], std::stoi(pars[1]), std::stof(pars[2]))) {
+                                g_dirty = true;
+                            } else {
+                                debug("  Failed to set parameter\n");
                             }
-                            success = g_moduleManager.removeModule(pars[0]);
-                            if (success && id != 0xff)
-                                g_panels.erase(id);
                         }
-                        info("%s\n", success ? "Success" : "Fail");
-                        g_dirty |= success;
+                        break;
+                    case 'g': // Get parameter value
+                        if (pars.size() < 2)
+                            error(".g requires 2 parameters\n");
+                        else if (std::stoi(pars[1]) >= g_moduleManager.getParamCount(pars[0]))
+                            error("Module '%s' only has %u parameters\n", pars[0].c_str(), g_moduleManager.getParamCount(pars[0]));
+                        else {
+                            debug("Request module %s parameter %u\n", pars[0].c_str(), std::stoi(pars[1]));
+                            info("%f\n", g_moduleManager.getParam(pars[0], std::stoi(pars[1])));
+                        }
+                        break;
+                    case 'l': // List installed modules
+                        for (auto it : g_moduleManager.getModules()) {
+                            info("%s (%s)\n", it.first.c_str(), it.second->getInfo().name.c_str());
+                        }
+                        break;
+                    case 'A': // List available modules
+                    {
+                        auto avail = g_moduleManager.getAvailableModules(); // List of valid shared libs
+                        info("Panel\tModule\n=====\t======\n");
+                        try {
+                            for (auto& [id, cfg] : g_config["panels"].items()) {
+                                const std::string& module = cfg["module"];
+                                if (std::find(avail.begin(), avail.end(), module) != avail.end())
+                                    info("%s\t%s\n", id.c_str(), module.c_str());
+                            }
+                        } catch (const json::exception& e) {
+                            error("JSON error getting list of available modules: %s\n", e.what());
+                        }
                     }
-                    break;
-                case 'S': // Save snapshot
-                    if (pars.size() < 1)
-                        pars.push_back("last_state");
-                    saveState(pars[0]);
-                    info("Saved file to %s\n", pars[0].c_str());
-                    break;
-                case 'L': // Load snapshot
-                    if (pars.size() < 1)
-                        pars.push_back("last_state");
-                    loadState(pars[0]);
-                    info("Loaded file to %s\n", pars[0].c_str());
-                    break;
-                case 'c': // Connect ports
-                    if (pars.size() < 4)
-                        error(".c requires 4 parameters\n");
-                    else
-                        connect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
-                    break;
-                case 'd': // Disconnect ports
-                    if (pars.size() < 4)
-                        error(".d requires 4 parameters\n");
-                    else
-                        disconnect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
-                    break;
-                default:
-                    info("Invalid command. Type 'help' for usage.\n");
-                    break;
+                        break;
+                    case 'n': // Get parameter name
+                        if (pars.size() < 2)
+                            error(".n requires 2 parameters\n");
+                        else {
+                            debug("Request module %s parameter name %u\n", pars[0].c_str(), std::stoi(pars[1]));
+                            info("%s\n", g_moduleManager.getParamName(pars[0], std::stoi(pars[1])).c_str());
+                        }
+                        break;
+                    case 'P': // Get quantity of parameters
+                        if (pars.size() < 1)
+                            error(".P requires 1 parameters\n");
+                        else {
+                            debug("Request module %s parameter count\n", pars[0].c_str());
+                            info("%u\n", g_moduleManager.getParamCount(pars[0]));
+                        }
+                        break;
+                    case 'a': // Add module
+                        if (pars.size() < 2)
+                            error(".a requires 2 parameters\n");
+                        else {
+                            debug("Add module type %s uuid %s\n", pars[0], pars[1]);
+                            info("%s\n", g_moduleManager.addModule(pars[0], pars[1]) ? "Success" : "Fail");
+                            g_dirty = true;
+                        }
+                        break;
+                    case 'r': // Remove module
+                        if (pars.size() < 1)
+                            error(".s requires 1 parameters\n");
+                        else {
+                            debug("Remove module uuid %s\n", pars[0]);
+                            bool success;
+                            if (pars[0] == "*") {
+                                success = g_moduleManager.removeAll();
+                                if (success)
+                                    g_panels.clear();
+                            }
+                            else {
+                                Module* module = g_moduleManager.getModule(pars[0]);
+                                if (!module)
+                                    break;
+                                uint8_t id = 0xff;
+                                for (auto& [pnlid, panel] : g_panels) {
+                                    if (panel.module == module) {
+                                        id = pnlid;
+                                        break;
+                                    }
+                                }
+                                success = g_moduleManager.removeModule(pars[0]);
+                                if (success && id != 0xff)
+                                    g_panels.erase(id);
+                            }
+                            info("%s\n", success ? "Success" : "Fail");
+                            g_dirty |= success;
+                        }
+                        break;
+                    case 'S': // Save snapshot
+                        if (pars.size() < 1)
+                            pars.push_back("last_state");
+                        saveState(pars[0]);
+                        info("Saved file to %s\n", pars[0].c_str());
+                        break;
+                    case 'L': // Load snapshot
+                        if (pars.size() < 1)
+                            pars.push_back("last_state");
+                        loadState(pars[0]);
+                        info("Loaded file to %s\n", pars[0].c_str());
+                        break;
+                    case 'c': // Connect ports
+                        if (pars.size() < 4)
+                            error(".c requires 4 parameters\n");
+                        else
+                            connect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
+                        break;
+                    case 'd': // Disconnect ports
+                        if (pars.size() < 4)
+                            error(".d requires 4 parameters\n");
+                        else
+                            disconnect(pars[0] + ":" + pars[1], pars[2] + ":" + pars[3]);
+                        break;
+                    default:
+                        info("Invalid command. Type 'help' for usage.\n");
+                        break;
+                }
             }
         }
+    } catch (...) {
+        error("Bad command.\n");
     }
     rl_callback_handler_install("rmcore> ", handleCli);
 }

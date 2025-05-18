@@ -31,6 +31,13 @@ struct LED {
     uint8_t mode = 0; // See LED_MODE
     uint8_t colour1[3] = {0, 0, 0}; // Colour 1
     uint8_t colour2[3] = {0, 0, 0}; // Colour 2
+
+    void setMode(uint8_t m) {
+        if (m == mode)
+            return;
+        mode = m;
+        dirty = true;
+    }
 };
 
 //!@todo Implement value range. Maybe each in/out/param should be a struct of str,float,float,float.

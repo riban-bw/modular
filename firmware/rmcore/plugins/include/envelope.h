@@ -27,18 +27,31 @@ enum ENV_OUTPUT {
 };
 
 enum ENV_PARAM {
-    ENV_PARAM_ATTACK     = 0,
-    ENV_PARAM_DECAY      = 1,
-    ENV_PARAM_SUSTAIN    = 2,
-    ENV_PARAM_RELEASE    = 3
+    ENV_PARAM_DELAY,
+    ENV_PARAM_ATTACK,
+    ENV_PARAM_HOLD,
+    ENV_PARAM_DECAY,
+    ENV_PARAM_SUSTAIN,
+    ENV_PARAM_RELEASE,
+    ENV_PARAM_ATTACK_CURVE,
+    ENV_PARAM_DECAY_CURVE,
+    ENV_PARAM_RELEASE_CURVE,
 };
 
 enum ENV_PHASE {
-    ENV_PHASE_IDLE      = 0,
-    ENV_PHASE_ATTACK    = 1,
-    ENV_PHASE_DECAY     = 2,
-    ENV_PHASE_SUSTAIN   = 3,
-    ENV_PHASE_RELEASE   = 4
+    ENV_PHASE_IDLE,
+    ENV_PHASE_DELAY,
+    ENV_PHASE_ATTACK,
+    ENV_PHASE_HOLD,
+    ENV_PHASE_DECAY,
+    ENV_PHASE_SUSTAIN,
+    ENV_PHASE_RELEASE
+};
+
+enum ENV_CURVE {
+    ENV_CURVE_LIN, // Linear curve
+    ENV_CURVE_LOG, // Quaratic ease-in
+    ENV_CURVE_EXP // First-order lag or leaky integrator
 };
 
 class Envelope : public Module {
@@ -59,12 +72,17 @@ class Envelope : public Module {
         int process(jack_nframes_t frames);
 
     private:
-        uint8_t m_phase[MAX_POLY]; // Current envelope phase (0:attack, 1:decay: 2:release)
-        double m_value[MAX_POLY]; // Current value of envelope
-        double m_attackStep; // Step change for each frame during attack phase
-        double m_decayStep; // Step change for each frame during attack phase
-        double m_sustain; // Sustain level
-        double m_releaseStep; // Step change for each frame during attack phase
-
+        uint8_t m_phase[MAX_POLY]; // Current envelope phase
+        float m_delay[MAX_POLY]; // Delay countdown (also used for hold)
+        float m_value[MAX_POLY]; // Current value of envelope
+        float m_delayStep; // Step change for each frame during delay phase
+        float m_attackStep; // Step change for each frame during attack phase
+        float m_holdStep; // Step change for each frame during hold phase
+        float m_decayStep; // Step change for each frame during attack phase
+        float m_sustain; // Sustain level
+        float m_releaseStep; // Step change for each frame during attack phase
+        uint8_t m_attackCurve = 1; // Attack curve shape (see ENV_CURVE)
+        uint8_t m_decayCurve = 1; // Decay curve shape (see ENV_CURVE)
+        uint8_t m_releaseCurve = 1; // Release curve shape (see ENV_CURVE)
 };
 
