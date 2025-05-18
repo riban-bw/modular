@@ -90,4 +90,10 @@ endforeach()
 
 # Source for each Bogaudio plugin files
 target_sources(bogslew PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/slew_common.cpp)
+
 target_sources(bogvcf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/dsp/filters/multimode.cpp)
+
+target_sources(bogvco PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/dsp/filters/experiments.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/BogaudioModules/src/dsp/filters/resample.cpp
+)
