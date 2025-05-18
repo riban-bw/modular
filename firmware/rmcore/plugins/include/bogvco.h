@@ -45,6 +45,7 @@ enum BOGVCO_PARAM {
     BOGVCO_PARAM_FM,
     BOGVCO_PARAM_FM_TYPE,
     BOGVCO_PARAM_LINEAR,
+    BOGVCO_PARAM_FREQ_DISCRETE
 };
 
 struct BOGVCOEngine {
@@ -115,4 +116,5 @@ class BOGVCO : public Module {
         float m_fmDepth = 0.0f;
         bool m_fmLinearMode = false;
         bool m_dcCorrection = true;
+        bool m_discrete = true; // True for discrete octave steps in coarse frequency parameter
 };

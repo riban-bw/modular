@@ -70,7 +70,8 @@ BOGVCO::BOGVCO() {
         "pw",
         "fm",
         "fm type",
-        "linear"
+        "linear",
+        "discrete"
     };
 }
 
@@ -114,7 +115,11 @@ bool BOGVCO::setParam(uint32_t param, float value) {
             break;
         case BOGVCO_PARAM_FM:
             m_fmDepth = value;
-        }
+            break;
+        case BOGVCO_PARAM_FREQ_DISCRETE:
+            m_discrete = value > 0.5f;
+            break;
+    }
     return Module::setParam(param, value);
 }
 
@@ -150,7 +155,10 @@ int BOGVCO::process(jack_nframes_t frames) {
             // Modulate
             BOGVCOEngine& e = m_engine[poly];
 
-            e.baseVOct = m_param[BOGVCO_PARAM_FREQUENCY].getValue();
+            if (m_discrete)
+                e.baseVOct = int(m_param[BOGVCO_PARAM_FREQUENCY].getValue());
+            else
+                e.baseVOct = m_param[BOGVCO_PARAM_FREQUENCY].getValue();
             e.baseVOct += m_param[BOGVCO_PARAM_FINE].getValue() / 12.0f;
             if (pitchBuffer)
                 e.baseVOct += clamp(pitchBuffer[frame], -5.0f, 5.0f);
