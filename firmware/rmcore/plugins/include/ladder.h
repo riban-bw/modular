@@ -23,6 +23,8 @@
 #include "MoogLadders/src/RKSimulationModel.h"
 
 enum LADDER_INPUT {
+    LADDER_INPUT_CUTOFF,
+    LADDER_INPUT_RESONANCE,
     LADDER_INPUT_IN
 };
 

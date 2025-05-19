@@ -11,7 +11,7 @@
 
 #include "ladder.h"
 #include <cmath> // Provides std::pow
-#include <algorithm> // Provides std::clamp
+#include <algorithm> // Provides std::clamp, std::copy
 
 DEFINE_PLUGIN(LADDER)
 
@@ -20,6 +20,8 @@ DEFINE_PLUGIN(LADDER)
 LADDER::LADDER() {
     m_info.description = "Ladder filter";
     m_info.inputs =  {
+        "cutoff",
+        "resonance"
     };
     m_info.polyInputs ={
         "input" // Audio input
@@ -46,10 +48,8 @@ bool LADDER::setParam(uint32_t param, float value) {
     switch (param) {
         case LADDER_PARAM_CUTOFF:
             for (auto filter :m_filter) {
-                if (filter) {
+                if (filter)
                     filter->SetCutoff(value);
-                    info("Set cutoff %f\n", value);
-                }
             }
             break;
         case LADDER_PARAM_RESONANCE:
@@ -107,15 +107,39 @@ int LADDER::samplerateChange(jack_nframes_t samplerate) {
 }
 
 int LADDER::process(jack_nframes_t frames) {
+    static float lastCutoff, lastResonance;
+    bool doCutoff = false;
+    bool doResonance = false;
+    float cutoff = m_param[LADDER_PARAM_CUTOFF].value;
+    float resonance = m_param[LADDER_PARAM_RESONANCE].value;
+    if (m_input[LADDER_INPUT_CUTOFF].isConnected()) {
+        jack_default_audio_sample_t * buffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[LADDER_INPUT_CUTOFF].m_port[0], frames);
+        cutoff = std::clamp(cutoff + buffer[0] * 100.0f, 200.0f, 20000.0f);
+    }
+    if (lastCutoff != cutoff) {
+        lastCutoff = cutoff;
+        doCutoff = true;
+    }
+    if (m_input[LADDER_INPUT_RESONANCE].isConnected()) {
+        jack_default_audio_sample_t * buffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[LADDER_INPUT_RESONANCE].m_port[0], frames);
+        resonance = std::clamp(resonance + buffer[0] / 5.0f, 0.1f, 1.0f);
+    }
+    if (lastResonance != resonance) {
+        lastResonance = resonance;
+        doResonance = true;
+    }
     for(uint8_t poly = 0; poly < m_poly; ++poly) {
         jack_default_audio_sample_t * outBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_output[LADDER_OUTPUT_OUT].m_port[poly], frames);
         jack_default_audio_sample_t * inBuffer = (jack_default_audio_sample_t*)jack_port_get_buffer(m_input[LADDER_INPUT_IN].m_port[poly], frames);
-        
-        for (jack_nframes_t frame = 0; frame < frames; ++frame) {
-            outBuffer[frame] = inBuffer[frame];
-        }
-        if (m_filter[poly])
+        std::copy(inBuffer, inBuffer + frames, outBuffer);
+        if (m_filter[poly]) {
+            if (doCutoff)
+                m_filter[poly]->SetCutoff(cutoff);
+            if (doResonance)
+                m_filter[poly]->SetResonance(cutoff);
+            //!@todo Allow variation of cutoff & resonanace over period
             m_filter[poly]->Process(outBuffer, frames);
+        }
     }
     return 0;
 }
