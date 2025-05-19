@@ -294,8 +294,8 @@ class Module {
             }
         }
 
-        int samplerateChange(jack_nframes_t samplerate) {
-            if (samplerate ==0)
+        virtual int samplerateChange(jack_nframes_t samplerate) {
+            if (samplerate == 0)
                 return -1;
             m_samplerate = samplerate;
             return 0;

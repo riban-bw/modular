@@ -52,7 +52,8 @@ void VCO::init() {
         m_waveformPos[poly] = 0.0;
         m_waveformStep[poly] = 0.0;
     }
-    setParam(VCO_PARAM_FREQ, 0.0);
+    setParam(VCO_PARAM_FREQ_COARSE, 0.0);
+    setParam(VCO_PARAM_FREQ_FINE, 0.0);
     setParam(VCO_PARAM_WAVEFORM, WAVEFORM_SIN);
     setParam(VCO_PARAM_PWM, 0.5);
     setParam(VCO_PARAM_AMP, 1.0);
@@ -62,28 +63,18 @@ void VCO::init() {
 bool VCO::setParam(uint32_t param, float val) {
     if (!Module::setParam(param, val))
         return false;
-    bool setFreq = false;
     switch (param) {
         case VCO_PARAM_LFO:
             setLed(VCO_LED_LFO, val > 0.5 ? LED_MODE_ON : LED_MODE_OFF, COLOUR_PARAM_ON, COLOUR_PARAM_ON);
             break;
         case VCO_PARAM_FREQ_COARSE:
-            m_param[VCO_PARAM_FREQ_COARSE].value = (val - 0.5) * 10;
-            setFreq = true;
-            break;
         case VCO_PARAM_FREQ_FINE:
-            m_param[VCO_PARAM_FREQ_FINE].value = (val * 2) - 1.0;
-            setFreq = true;
-            break;
         case VCO_PARAM_FREQ_DISCRETE:
-            setFreq = true;
+            if (m_param[VCO_PARAM_FREQ_DISCRETE].value > 0.5)
+                m_param[VCO_PARAM_FREQ].value = int(m_param[VCO_PARAM_FREQ_COARSE].value) + m_param[VCO_PARAM_FREQ_FINE].value / 10;
+            else
+                m_param[VCO_PARAM_FREQ].value = m_param[VCO_PARAM_FREQ_COARSE].value + m_param[VCO_PARAM_FREQ_FINE].value / 10;
             break;
-    }
-    if (setFreq) {
-        if (m_param[VCO_PARAM_FREQ_DISCRETE].value > 0.5)
-            m_param[VCO_PARAM_FREQ].value = int(m_param[VCO_PARAM_FREQ_COARSE].value) + m_param[VCO_PARAM_FREQ_FINE].value / 10;
-        else
-            m_param[VCO_PARAM_FREQ].value = m_param[VCO_PARAM_FREQ_COARSE].value + m_param[VCO_PARAM_FREQ_FINE].value / 10;
     }
     return true;
 }

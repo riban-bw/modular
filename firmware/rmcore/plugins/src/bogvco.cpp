@@ -111,9 +111,11 @@ bool BOGVCO::setParam(uint32_t param, float value) {
             m_linearMode = value > 0.5f;
             break;
         case BOGVCO_PARAM_FM_TYPE:
+            value = clamp(value, 0.0f, 1.0f);
             m_fmLinearMode = value < 0.5f;
             break;
         case BOGVCO_PARAM_FM:
+            value = clamp(value, 0.0f, 1.0f);
             m_fmDepth = value;
             break;
         case BOGVCO_PARAM_FREQ_DISCRETE:

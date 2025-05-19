@@ -3,3 +3,6 @@
 	url = git@github.com:riban-bw/BogaudioModules.git
 [submodule "plugins/BogaudioModules"]
 	branch = riban_modular
+[submodule "firmware/rmcore/plugins/include/MoogLadders"]
+	path = firmware/rmcore/plugins/include/MoogLadders
+	url = https://github.com/ddiakopoulos/MoogLadders.git
